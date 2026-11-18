@@ -1,4 +1,4 @@
-# Kost Simulator — Demo Web
+# Cozy Kost - Landlord Simulator — Demo Web
 
 Game simulasi juragan kost bergaya cozy, dibuat dengan Godot 4.7.
 
