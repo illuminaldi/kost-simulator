@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="260" height="220" viewBox="0 0 260 220"><ellipse cx="130" cy="200" rx="100" ry="12" fill="#c9b49a" opacity=".45"/>
+<rect x="150" y="30" width="70" height="70" rx="12" fill="#5f8fbf" stroke="#5a3d2b" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="185" y="86" text-anchor="middle" font-family="Arial Rounded MT Bold,Arial" font-weight="bold" font-size="56" fill="#fff">P</text>
+<line x1="185" y1="100" x2="185" y2="186" stroke="#5a3d2b" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="62" cy="168" r="20" fill="#3f3a36" stroke="#5a3d2b" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/><circle cx="62" cy="168" r="7" fill="#c9b49a"/>
+<circle cx="140" cy="168" r="20" fill="#3f3a36" stroke="#5a3d2b" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/><circle cx="140" cy="168" r="7" fill="#c9b49a"/>
+<path d="M62 168 l26 -46 h30 l22 46" fill="none" stroke="#5a3d2b" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M78 128 h52 q12 0 12 14 v8 h-74 z" fill="#e07a5f" stroke="#5a3d2b" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+<rect x="84" y="112" width="34" height="14" rx="6" fill="#5a3d2b"/>
+<path d="M120 112 l14 -18 h12" fill="none" stroke="#5a3d2b" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></svg>
