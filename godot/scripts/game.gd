@@ -240,6 +240,8 @@ func _refresh_world() -> void:
 	for id in D.ROOMS:
 		room_fx[id].dekor = dekor
 		room_fx[id].building = job_for(id, "build") != {}
+		var ev_id := event_at(id)
+		S.rooms[id]["_ev"] = "" if ev_id.is_empty() else str(ev_id.type)
 		room_fx[id].refresh(S.rooms[id], int(S.lvl), build_cost(), font)
 	dirty = false
 
@@ -292,7 +294,7 @@ func _new_game() -> void:
 	S = {"money": 1500000.0, "lvl": 1, "xp": 0.0, "day": 1, "min": 420, "rep": 3.5, "price": 1, "speed": 1,
 		"rooms": rooms, "staff": {}, "fac": {}, "queue": [], "next_cand": 150.0,
 		"today": {"rent": 0.0, "salary": 0.0, "util": 0.0, "other": 0.0}, "last": null,
-		"total": {"rent": 0.0, "served": 0}, "seen": false, "jobs": [], "orders": [], "cargo": []}
+		"total": {"rent": 0.0, "served": 0}, "seen": false, "jobs": [], "orders": [], "cargo": [], "events": [], "prevent": {}}
 	var t1 := gen_person("p")
 	t1.job = "Mahasiswa"; t1.pref = 1; t1.happy = 78
 	rooms["1R"].tenant = t1
@@ -383,6 +385,8 @@ func _load_game() -> Dictionary:
 	if not d.has("jobs"):
 		d.jobs = []
 	if not d.has("orders"): d.orders = []
+	if not d.has("events"): d.events = []
+	if not d.has("prevent"): d.prevent = {}
 	if not d.has("cargo"): d.cargo = []
 	for o in d.orders: o.t = float(o.t)
 	for j in d.jobs:
@@ -583,6 +587,7 @@ func _spawn_cand() -> void:
 
 
 func _hourly() -> void:
+	_tick_events_hour()
 	var h := int(S.min) / 60
 	for id in D.ROOMS:
 		var r: Dictionary = S.rooms[id]
@@ -614,6 +619,10 @@ func _collect_rent() -> void:
 		var id: String = e[0]
 		var r: Dictionary = e[1]
 		var t: Dictionary = r.tenant
+		var ev_r := event_at(id)
+		if not ev_r.is_empty() and ev_r.type == "telat_bayar":
+			float_at(id, "Belum bayar", Color("b5543c"))
+			continue
 		if float(t.happy) < 30 and randf() < 0.4:
 			float_at(id, "Telat bayar", Color("b5543c"))
 			continue
@@ -639,7 +648,121 @@ func _pay_salary() -> void:
 		ui.toast("Gaji karyawan dibayar %s" % D.rp(s))
 
 
+# ================= Masalah kost (event) =================
+func event_at(room: String) -> Dictionary:
+	for e in S.events:
+		if e.room == room: return e
+	return {}
+
+
+func kost_events() -> Array:
+	return S.events.filter(func(e): return e.room == "")
+
+
+func _roll_events() -> void:
+	var lv := int(S.lvl)
+	for k in Ev.DEF:
+		var ev: Dictionary = Ev.DEF[k]
+		if lv < int(ev.lv) or S.prevent.has(k): continue
+		if ev.has("need_fac") and not S.fac.has(ev.need_fac): continue
+		var busy := false
+		for e in S.events:
+			if e.type == k: busy = true
+		if busy: continue
+		if randf() > float(ev.p): continue
+		var room := ""
+		if ev.scope == "room":
+			var pool := []
+			for id in D.ROOMS:
+				var r: Dictionary = S.rooms[id]
+				if not r.built or not event_at(id).is_empty(): continue
+				if ev.get("need", "") == "tenant" and r.tenant == null: continue
+				pool.append(id)
+			if pool.is_empty(): continue
+			room = pool.pick_random()
+		var e := {"id": "e%d" % randi(), "type": k, "room": room, "age": 0, "auto": -1}
+		S.events.append(e)
+		ui.toast("Masalah: %s%s" % [ev.n, (" di Kamar " + D.room_name(room)) if room != "" else ""], "bad")
+		dirty = true
+		return    # paling banyak satu masalah baru per hari
+
+
+func _tick_events_hour() -> void:
+	for e in S.events.duplicate():
+		var ev: Dictionary = Ev.DEF[e.type]
+		if ev.scope == "room" and (not S.rooms[e.room].built or (ev.get("need", "") == "tenant" and S.rooms[e.room].tenant == null)):
+			S.events.erase(e); continue
+		if ev.has("auto") and S.staff.get(ev.auto[0], false):
+			if int(e.auto) < 0:
+				e.auto = int(ev.auto[1])
+			else:
+				e.auto = int(e.auto) - 1
+				if int(e.auto) <= 0:
+					_resolve_event(e, ev.opts[0][2], 0, true)
+
+
+func _events_daily_penalty() -> void:
+	for e in S.events:
+		var ev: Dictionary = Ev.DEF[e.type]
+		e.age = int(e.age) + 1
+		var pen: Dictionary = ev.pen
+		var k := 1.0 + 0.3 * int(e.age)
+		if pen.has("rep"): S.rep = clampf(float(S.rep) - float(pen.rep) * k, 1, 5)
+		if pen.has("money"): spend(float(pen.money), "other")
+		for x in each_tenant():
+			var id: String = x[0]
+			var t: Dictionary = x[1].tenant
+			if pen.has("happy") and (e.room == "" or e.room == id):
+				t.happy = clampf(float(t.happy) - float(pen.happy) * k, 0, 100)
+			if pen.has("happy_others") and e.room != "" and e.room != id:
+				t.happy = clampf(float(t.happy) - float(pen.happy_others) * k, 0, 100)
+		if pen.has("clean") and e.room != "":
+			S.rooms[e.room].clean = clampf(float(S.rooms[e.room].clean) - float(pen.clean), 0, 100)
+
+
+func _resolve_event(e: Dictionary, action: String, cost: float, by_staff: bool = false) -> void:
+	if cost > 0 and float(S.money) < cost:
+		ui.toast("Uang belum cukup (%s)" % D.rp(cost), "bad"); return
+	if cost > 0: spend(cost, "other")
+	elif cost < 0:
+		S.money = float(S.money) - cost
+		S.today.other = float(S.today.other) + cost
+	var ev: Dictionary = Ev.DEF[e.type]
+	var r = S.rooms.get(e.room) if e.room != "" else null
+	var t = r.tenant if r != null else null
+	match action:
+		"tagih":
+			if t != null:
+				var a := rent_of(r)
+				S.money = float(S.money) + a; S.today.rent = float(S.today.rent) + a
+				t.happy = clampf(float(t.happy) - 4, 0, 100)
+		"bujuk":
+			if t != null: t.happy = clampf(float(t.happy) + 12, 0, 100)
+		"usir":
+			if t != null:
+				_sad_leave[t.id] = true
+				r.tenant = null
+		"tegur":
+			if t != null: t.happy = clampf(float(t.happy) - 3, 0, 100)
+			S.rep = clampf(float(S.rep) + 0.03, 1, 5)
+		"izin":
+			S.rep = clampf(float(S.rep) - 0.05, 1, 5)
+			if t != null: t.happy = clampf(float(t.happy) + 5, 0, 100)
+		"prevent":
+			S.prevent[e.type] = true
+		"fix", "temp":
+			pass
+	S.events.erase(e)
+	add_xp(10)
+	var who := "Karyawan menangani: " if by_staff else "Selesai: "
+	ui.toast(who + ev.n + (" (tidak akan terulang)" if action == "prevent" else ""), "gold")
+	if e.room != "": float_at(e.room, "Beres!", Color("2f7a2a"))
+	dirty = true
+
+
 func _new_day() -> void:
+	_events_daily_penalty()
+	_roll_events()
 	var occ := each_tenant().size()
 	if occ > 0:
 		spend(occ * 15000.0, "util")
@@ -1229,6 +1352,13 @@ func act(a: String, arg: String = "") -> void:
 		"dekor":
 			set_dekor(not dekor)
 			return
+		"event":
+			var parts := arg.split("|")
+			for e in S.events:
+				if e.id == parts[0]:
+					var o: Array = Ev.DEF[e.type].opts[int(parts[1])]
+					_resolve_event(e, o[2], float(o[1]))
+					break
 		"buy":
 			var f: Dictionary = D.FURN[arg]
 			if int(S.lvl) < int(f.min): return
@@ -1613,6 +1743,18 @@ func _selftest() -> void:
 	act("fix", "3L")
 	S.rooms["3R"].clean = 10.0
 	act("clean", "3R")
+	for k in Ev.DEF:
+		var ex := {"id": "t" + k, "type": k, "room": "" if Ev.DEF[k].scope == "kost" else "1L", "age": 0, "auto": -1}
+		S.events.append(ex)
+		_events_daily_penalty()
+		_tick_events_hour()
+		if S.events.has(ex):
+			act("event", "%s|%d" % [ex.id, Ev.DEF[k].opts.size() - 1])
+	for k in ["telat_bayar"]:
+		S.events.append({"id": "tz", "type": k, "room": "2L", "age": 0, "auto": -1})
+	_collect_rent()
+	for i in range(30): _roll_events()
+	ui.open_sheet("manage")
 	act("price", "2")
 	act("price", "0")
 	for k in ["room", "tenants", "staff", "upgrade", "manage"]:
@@ -1691,6 +1833,11 @@ func _handle_cli(args: PackedStringArray) -> void:
 					n.idle_pose = "stand"
 					n.set_tint(ti)
 					n.tick(0.01)
+		elif a == "--events":
+			S.lvl = 5
+			for k in ["air_mati", "telat_bayar", "atap_bocor"]:
+				S.events.append({"id": "x" + k, "type": k, "room": "" if Ev.DEF[k].scope == "kost" else ("1R" if k == "telat_bayar" else "2L"), "age": 1, "auto": -1})
+			dirty = true
 		elif a == "--keeper":
 			_keeper_walk = 0.5
 		elif a == "--play":

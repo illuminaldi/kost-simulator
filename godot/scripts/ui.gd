@@ -15,6 +15,8 @@ var spd_lbl: Label
 var spd_sb: StyleBoxFlat
 var clock_icon: ClockIcon
 var nav_badge: PanelContainer
+var ev_badge: PanelContainer
+var ev_badge_lbl: Label
 var nav_badge_lbl: Label
 var toasts: VBoxContainer
 
@@ -156,6 +158,14 @@ func setup(p_game: Node, art: Texture2D, p_font: Font, p_font_m: Font) -> void:
 	nav_badge.position = Vector2(668, 2384)
 	nav_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(nav_badge)
+	ev_badge = PanelContainer.new()
+	ev_badge.add_theme_stylebox_override("panel", _sb(Color("e0533d"), 5, 40, 14, 2, Color.WHITE))
+	ev_badge_lbl = _label("0", 32, Color.WHITE)
+	ev_badge_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ev_badge.add_child(ev_badge_lbl)
+	ev_badge.position = Vector2(1350, 2384)
+	ev_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(ev_badge)
 
 	toasts = VBoxContainer.new()
 	toasts.position = Vector2(80, 225)
@@ -453,6 +463,31 @@ func _room_live(parent: Control, id: String, sc: float) -> void:
 	parent.add_child(holder)
 
 
+func _event_card(e: Dictionary) -> void:
+	var ev: Dictionary = Ev.DEF[e.type]
+	var p := PanelContainer.new()
+	p.add_theme_stylebox_override("panel", _sb(Color("fff1e6"), 5, 36, 30, 22, Color("e98b7a")))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 10)
+	p.add_child(v)
+	box.add_child(p)
+	var where := ("Kamar " + D.room_name(e.room)) if e.room != "" else "Seluruh kost"
+	_row(v, _label("! " + ev.n, 40, Color("b5543c")), _label(where, 32, D.C_MUTED, true))
+	v.add_child(_text(ev.d + (" (sudah %d hari)" % int(e.age) if int(e.age) > 0 else ""), 32, D.C_MUTED))
+	if ev.has("auto"):
+		var st: Dictionary = D.STAFF[ev.auto[0]]
+		if game.S.staff.get(ev.auto[0], false):
+			v.add_child(_text("%s sedang menangani (±%d jam)." % [st.n, maxi(1, int(e.auto))], 32, Color("3f6f96")))
+		else:
+			v.add_child(_text("Bisa ditangani otomatis oleh %s." % st.n, 30, D.C_MUTED))
+	var f := _flow(v)
+	for i in range(ev.opts.size()):
+		var o: Array = ev.opts[i]
+		var c := float(o[1])
+		var lbl: String = o[0] + ("" if c == 0 else (" (+%s)" % D.short(-c) if c < 0 else " (%s)" % D.short(c)))
+		f.add_child(_btn(lbl, D.C_YELLOW if i == 0 else D.C_CREAM, func(): _do("event", "%s|%d" % [e.id, i]), c > 0 and float(game.S.money) < c))
+
+
 func _furn_card(id: String) -> void:
 	var S: Dictionary = game.S
 	var r: Dictionary = S.rooms[id]
@@ -616,6 +651,8 @@ func update_hud() -> void:
 	clock_icon.queue_redraw()
 	var q: int = S.queue.size()
 	nav_badge.visible = q > 0 and not tray.visible
+	ev_badge.visible = S.events.size() > 0 and not tray.visible
+	ev_badge_lbl.text = str(S.events.size())
 	nav_badge_lbl.text = str(q)
 
 
@@ -802,6 +839,9 @@ func _sheet_room() -> void:
 			_row(v, _label(D.rp(c), 42), _btn("Bangun", D.C_GREEN, func(): _do("build", id), float(S.money) < c))
 		return
 	_header("Kamar %s · %s" % [D.room_name(id), D.RLV[int(r.lv)].n])
+	var evr: Dictionary = game.event_at(id)
+	if not evr.is_empty():
+		_event_card(evr)
 	_room_live(box, id, 1.55)
 	var v := _card()
 	_row(v, _label("Sewa", 38, D.C_INK, true), _label(D.rp(game.rent_of(r)) + "/hari", 40))
@@ -938,6 +978,10 @@ func _sheet_upgrade() -> void:
 func _sheet_manage() -> void:
 	var S: Dictionary = game.S
 	_header("Kelola Kost Harmoni")
+	if S.events.is_empty():
+		_card().add_child(_text("Tidak ada masalah. Kost aman & tenteram.", 34, Color("2f7a2a")))
+	for e in S.events:
+		_event_card(e)
 	var occ := 0
 	var tot := 0
 	for id in D.ROOMS:

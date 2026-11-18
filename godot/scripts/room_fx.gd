@@ -159,6 +159,8 @@ func refresh(r: Dictionary, player_lv: int, cost: float, font: Font) -> void:
 	if _built:
 		if str(r.broken) != "":
 			_badges.add_child(_badge(font, "Rusak", Color("ffd9c7")))
+		if r.get("_ev", "") != "":
+			_badges.add_child(_badge(font, "Masalah!", Color("ffc9a8")))
 		if _clean < 35.0:
 			_badges.add_child(_badge(font, "Kotor", Color("f2e2c4")))
 		if has_tenant and float(r.tenant.happy) < 35.0:

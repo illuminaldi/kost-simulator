@@ -143,10 +143,10 @@ const JOBS := {
 	"Manajer": {"away": [8, 18], "pref": 3, "min": 3},
 }
 const STAFF := {
-	"cleaner": {"n": "Petugas Kebersihan", "sal": 50000, "min": 1, "d": "Berkeliling membersihkan kamar yang kotor."},
-	"resep": {"n": "Penjaga Kost", "sal": 60000, "min": 1, "d": "Berjaga di meja depan & menyambut tamu. Tamu datang lebih sering & lebih sabar."},
-	"teknisi": {"n": "Teknisi", "sal": 80000, "min": 3, "d": "Datang ke kamar yang rusak dan memperbaikinya gratis."},
-	"satpam": {"n": "Satpam", "sal": 70000, "min": 3, "d": "Patroli di depan kost. Mencegah pencurian, penghuni merasa aman."},
+	"cleaner": {"n": "Petugas Kebersihan", "sal": 50000, "min": 1, "d": "Membersihkan kamar kotor; menangani sampah, area bersama kotor & hama."},
+	"resep": {"n": "Penjaga Kost", "sal": 60000, "min": 1, "d": "Berjaga di meja depan. Tamu lebih sering & sabar; menagih sewa, urus kunci hilang & tegur penghuni berisik."},
+	"teknisi": {"n": "Teknisi", "sal": 80000, "min": 3, "d": "Memperbaiki kerusakan gratis; menangani air mati, WiFi lemot, listrik jeglek & atap bocor."},
+	"satpam": {"n": "Satpam", "sal": 70000, "min": 3, "d": "Patroli di depan kost. Mencegah pencurian; urus tamu menginap & paket hilang."},
 }
 const FAC := {
 	"wifi": {"n": "WiFi Kencang", "cost": 800000, "min": 1, "d": ""},
