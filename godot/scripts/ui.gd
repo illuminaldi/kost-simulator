@@ -964,6 +964,9 @@ func _sheet_manage() -> void:
 		var pr: Dictionary = D.PRICE[i]
 		ph.add_child(_btn("%s %d%%" % [pr.n, roundi(pr.m * 100)], D.C_YELLOW if int(S.price) == i else Color.WHITE, func(): _do("price", str(i)), false, true))
 	pv.add_child(ph)
+	var mv := _card()
+	var mon: bool = S.get("music", true)
+	_row(mv, _label("Musik lofi", 42), _btn("Nyala" if mon else "Mati", D.C_GREEN if mon else Color.WHITE, func(): game.set_music(not mon); refresh_sheet()))
 	var sv := _card()
 	sv.add_child(_label("Kecepatan waktu", 42))
 	var sh := HBoxContainer.new()

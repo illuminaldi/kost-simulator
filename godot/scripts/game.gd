@@ -71,6 +71,7 @@ func _ready() -> void:
 	sh.code = PLAN_SHADER
 	plan_mat.shader = sh
 	_build_world()
+	_setup_music()
 	ui = Ui.new()
 	add_child(ui)
 	ui.setup(self, art, font, font_m)
@@ -98,6 +99,26 @@ func _sprite(parent: Node, region: Rect2, at: Vector2) -> Sprite2D:
 	sp.position = at
 	parent.add_child(sp)
 	return sp
+
+
+var music: AudioStreamPlayer
+
+
+func _setup_music() -> void:
+	music = AudioStreamPlayer.new()
+	var st: AudioStreamOggVorbis = load("res://assets/music/lofi_kost.ogg")
+	st.loop = true
+	music.stream = st
+	music.volume_db = -9.0
+	add_child(music)
+
+
+func set_music(on: bool) -> void:
+	S.music = on
+	if on and not music.playing:
+		music.play()
+	elif not on:
+		music.stop()
 
 
 func _build_world() -> void:
@@ -1444,6 +1465,8 @@ func _is_dup(e: InputEventMouseButton) -> bool:
 
 
 func _input(e: InputEvent) -> void:
+	if e is InputEventMouseButton and e.pressed and music and not music.playing and S.get("music", true):
+		music.play()
 	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and _is_dup(e):
 		get_viewport().set_input_as_handled()
 		return
