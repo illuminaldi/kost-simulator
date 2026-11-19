@@ -412,8 +412,9 @@ func _start_viral() -> void:
 	game.npc_lobby.add_child(n)
 	n.setup("kreator", "visitor", D.STAFF_LOOK.teknisi, Vector2(D.IW + 200, D.LOBBY_Y), game.font)
 	n.art = true
-	n.char_id = "flanel"
-	n.art_map = {"walk": "walk", "stand": "happy"}
+	n.char_id = "influencer"
+	n.art_map = {"walk": "walk", "stand": ["happy", "cam", "happy", "idle"]}
+	n.set_meta("nama", "Kak Nisa (Influencer)")
 	game.npcs["kreator"] = n
 	game.sfx("arrive", -10.0)
 	game.ui.toast("Seorang konten kreator datang merekam kost-mu...")
@@ -685,20 +686,21 @@ var zombies: Array = []
 
 func _start_zombie() -> void:
 	zombies.clear()
-	for i in range(6):
+	var troupe := ["zombie", "hw_zombie", "hw_witch", "zombie2", "hw_ghost", "hw_vampire", "hw_devil", "hw_cat"]
+	for i in range(troupe.size()):
 		var n := Npc.new()
 		game.npc_lobby.add_child(n)
 		var nid := "zombie%d" % i
 		n.setup(nid, "visitor", D.STAFF_LOOK.teknisi, Vector2(D.IW + 160 + i * 130, D.LOBBY_Y), game.font)
 		n.art = true
-		n.char_id = "zombie" if i % 2 == 0 else "zombie2"
-		n.art_map = {"walk": "walk", "stand": "reach"}
+		n.char_id = troupe[i]
+		n.art_map = {"walk": "walk", "stand": "reach" if troupe[i].begins_with("zombie") else "idle"}
 		n.set_meta("spd", 0.45)
 		n.dir = -1
 		n.set_meta("nama", "???")
 		game.npcs[nid] = n
 		zombies.append(n)
-		n.plan("lobby", Vector2(560 + i * 120, D.LOBBY_Y), "stand")
+		n.plan("lobby", Vector2(420 + i * 110, D.LOBBY_Y), "stand")
 	game.sfx("whoosh", -2.0)
 	game.ui.toast("Gerombolan ZOMBIE menyerbu kost! Tamu berlarian ketakutan!", "bad")
 	game.keeper_say("Aaaa! Zombie?! Semuanya masuk kamar!", 3.5)
@@ -731,7 +733,7 @@ func _zombie_reveal() -> void:
 	for z in zombies:
 		if not is_instance_valid(z): continue
 		z.say(lines[i % lines.size()], 2.6)
-		z.art_map["stand"] = "happy"
+		z.art_map["stand"] = "happy" if str(z.char_id).begins_with("zombie") else "idle"
 		z.set_meta("nama", "Peserta Karnaval")
 		i += 1
 	S.rep = clampf(float(S.rep) + 0.05, 1.0, 5.0)

@@ -451,9 +451,17 @@ class _Walk extends Node2D:
 	var dur := 4.2
 	var _fired := false
 	var _frames: Array = []
+	var _city: Texture2D
+	var _city_f: Texture2D
+	var _sky := Color("cfe3ee")
 	const INK := Color("4a3626")
 
 	func _ready() -> void:
+		_city = load("res://assets/side/kota.jpg")
+		var ci := _city.get_image()
+		_sky = ci.get_pixel(10, 4)
+		ci.flip_x()
+		_city_f = ImageTexture.create_from_image(ci)
 		for f in ["walk", "walk2"]:
 			var tx: Texture2D = load("res://assets/chars/penjaga/%s_L.png" % f)
 			if dir < 0:
@@ -474,6 +482,9 @@ class _Walk extends Node2D:
 		var H := float(D.IH)
 		var off := t * 420.0 * float(-dir)   # pemandangan bergeser berlawanan arah langkah
 		var kota := theme == "kota"
+		if kota and _city:
+			_draw_city(off)
+			return
 		# Langit
 		var top := Color("bfe0ee") if kota else Color("cfe9e3")
 		var bot := Color("fbeedd")
@@ -521,6 +532,40 @@ class _Walk extends Node2D:
 		# Progres
 		draw_rect(Rect2(200, 2420, W - 400, 18), Color(1, 1, 1, 0.6))
 		draw_rect(Rect2(200, 2420, (W - 400) * clampf(t / dur, 0, 1), 18), Color("e98b7a"))
+
+	## Jalan kota bergambar (dari ilustrasi), disambung bergantian dengan cerminannya agar mulus.
+	func _draw_city(off: float) -> void:
+		var W := float(D.IW)
+		var sc := 1.25
+		var tw := _city.get_width() * sc
+		var th := _city.get_height() * sc
+		var top := 2320.0 - th
+		draw_rect(Rect2(0, 0, W, top + 4), _sky)
+		var start := floori(-off / tw) - 1
+		for i in range(start, start + int(W / tw) + 3):
+			var x := i * tw + off
+			draw_texture_rect(_city if posmod(i, 2) == 0 else _city_f, Rect2(x, top, tw, th), false)
+		draw_rect(Rect2(0, 2320, W, D.IH - 2320), Color("d9d6cf"))
+		var tex: Texture2D = _frames[int(t * 6.0) % 2]
+		var s := 1.4
+		var sz := tex.get_size() * s
+		var bob := -absf(sin(t * 12.0)) * 8.0
+		var feet := top + (1940.0 - 470.0) * sc
+		draw_texture_rect(tex, Rect2(W / 2.0 - sz.x / 2.0, feet - sz.y + bob, sz.x, sz.y), false)
+		_label_draw()
+
+	func _label_draw() -> void:
+		var W := float(D.IW)
+		if font:
+			var txt := "%s  →  %s" % [from, dest] if dir > 0 else "%s  ←  %s" % [dest, from]
+			var tw := font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 52).x
+			var pr := Rect2(W / 2.0 - tw / 2.0 - 40, 300, tw + 80, 100)
+			draw_rect(pr, Color("fbf3e6"))
+			draw_rect(pr, INK, false, 6)
+			draw_string(font, pr.position + Vector2(40, 68), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 52, INK)
+			draw_string(font, Vector2(W / 2.0 - 160, 2400), "Geser untuk lewati", HORIZONTAL_ALIGNMENT_LEFT, -1, 36, Color(INK, 0.7))
+		draw_rect(Rect2(200, 2460, W - 400, 18), Color(1, 1, 1, 0.6))
+		draw_rect(Rect2(200, 2460, (W - 400) * clampf(t / dur, 0, 1), 18), Color("e98b7a"))
 
 	func _row(off: float, sc: float, base: float, cols: Array, wmin: float, hmax: float, shops: bool) -> void:
 		var unit := 460.0 * sc
