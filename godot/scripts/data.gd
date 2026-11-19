@@ -284,7 +284,7 @@ const ITEM_LAYOUT := {
 	"lampu": [0.66, 0.72, 0.14],
 	"tanaman": [0.92, 0.97, 0.11],
 	"rak": [0.87, 0.65, 0.22],
-	"dekor": [0.29, 0.36, 0.24],
+	"dekor": [0.345, 0.34, 0.165],
 }
 const ITEM_DRAW_ORDER := ["karpet", "dekor", "rak", "kasur", "lampu", "tanaman"]
 
