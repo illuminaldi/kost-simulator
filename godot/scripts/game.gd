@@ -383,6 +383,9 @@ func _build_world() -> void:
 	app_banner.position = Vector2(205, 1915)
 	app_banner.visible = false
 	lobby_root.add_child(app_banner)
+	# Tablet & spanduk di belakang karakter (Maryam berdiri di depan meja).
+	lobby_root.move_child(app_tablet, npc_lobby.get_index())
+	lobby_root.move_child(app_banner, npc_lobby.get_index())
 	funny = Funny.new()
 	add_child(funny)
 	funny.setup.call_deferred(self)
