@@ -454,6 +454,27 @@ class _Walk extends Node2D:
 	var _city: Texture2D
 	var _city_f: Texture2D
 	var _sky := Color("cfe3ee")
+	var _veh: Array = []      # [tex_kanan, tex_kiri, x_awal, kecepatan, skala, jalur]
+
+	func _flip_tex(t: Texture2D) -> Texture2D:
+		var im := t.get_image()
+		im.flip_x()
+		return ImageTexture.create_from_image(im)
+
+	## Lalu lintas: kendaraan di jalan kota, sepeda di jalan taman.
+	func _make_traffic() -> void:
+		var kinds := ["car_yellow", "motor_red", "bus", "car_green", "motor_grey", "angkot", "car_sedan", "truck", "car_suv", "pickup"] if theme == "kota" else ["bike_hijab", "bike_kid", "bike_man"]
+		var rng := RandomNumberGenerator.new()
+		rng.randomize()
+		for i in range(kinds.size()):
+			var t: Texture2D = load("res://assets/traffic/%s.png" % kinds[i])
+			var right := i % 2 == 0
+			var sp := rng.randf_range(260, 420) if theme == "kota" else rng.randf_range(120, 200)
+			if kinds[i].begins_with("bus") or kinds[i].begins_with("truck"): sp *= 0.8
+			var sc := 0.85 if theme == "kota" else 0.62
+			if kinds[i].begins_with("motor"): sc = 0.75
+			var x0 := rng.randf_range(-2600, 2600) + i * 520.0 * (1 if right else -1)
+			_veh.append([t, _flip_tex(t), x0, sp * (1 if right else -1), sc, 0 if right else 1])
 	const INK := Color("4a3626")
 
 	func _ready() -> void:
@@ -462,6 +483,7 @@ class _Walk extends Node2D:
 		_sky = ci.get_pixel(10, 4)
 		ci.flip_x()
 		_city_f = ImageTexture.create_from_image(ci)
+		_make_traffic()
 		for f in ["walk", "walk2"]:
 			var tx: Texture2D = load("res://assets/chars/penjaga/%s_L.png" % f)
 			if dir < 0:
@@ -512,9 +534,10 @@ class _Walk extends Node2D:
 			x += 220
 		draw_line(Vector2(0, ground), Vector2(W, ground), INK, 6)
 		draw_rect(Rect2(0, ground + 260, W, H - ground - 260), Color("8e8a85") if kota else Color("a9c98f"))
+		_draw_traffic(off, ground + 110.0, 60.0)
 		# Maryam
 		var tex: Texture2D = _frames[int(t * 6.0) % 2]
-		var s := 2.1
+		var s := 1.4
 		var sz := tex.get_size() * s
 		var bob := -absf(sin(t * 12.0)) * 8.0
 		var r := Rect2(W / 2.0 - sz.x / 2.0, ground + 170 - sz.y + bob, sz.x, sz.y)
@@ -546,6 +569,7 @@ class _Walk extends Node2D:
 			var x := i * tw + off
 			draw_texture_rect(_city if posmod(i, 2) == 0 else _city_f, Rect2(x, top, tw, th), false)
 		draw_rect(Rect2(0, 2320, W, D.IH - 2320), Color("d9d6cf"))
+		_draw_traffic(off, top + 1300.0 * sc, 70.0)
 		var tex: Texture2D = _frames[int(t * 6.0) % 2]
 		var s := 1.4
 		var sz := tex.get_size() * s
@@ -553,6 +577,19 @@ class _Walk extends Node2D:
 		var feet := top + (1940.0 - 470.0) * sc
 		draw_texture_rect(tex, Rect2(W / 2.0 - sz.x / 2.0, feet - sz.y + bob, sz.x, sz.y), false)
 		_label_draw()
+
+	func _draw_traffic(off: float, base_y: float, lane_gap: float) -> void:
+		var W := float(D.IW)
+		var span := W + 4200.0
+		# jalur jauh (ke kiri) dulu, lalu jalur dekat (ke kanan)
+		for lane in [1, 0]:
+			for v in _veh:
+				if int(v[5]) != lane: continue
+				var tex: Texture2D = v[0] if float(v[3]) > 0 else v[1]
+				var sz: Vector2 = tex.get_size() * float(v[4])
+				var x := fposmod(float(v[2]) + float(v[3]) * t + off, span) - 2100.0
+				var y: float = base_y - float(lane) * lane_gap - sz.y
+				draw_texture_rect(tex, Rect2(x, y, sz.x, sz.y), false)
 
 	func _label_draw() -> void:
 		var W := float(D.IW)
@@ -699,3 +736,4 @@ class _Ball extends Node2D:
 		draw_arc(p, r, 0, TAU, 20, Color("6b6a20"), 3)
 		if state == "in" and k >= 0.72:
 			draw_arc(b, 70, 0, TAU, 32, Color(1, 1, 1, 0.7), 6)
+
