@@ -205,10 +205,36 @@ func _art_tex(p: String) -> Texture2D:
 	return _art_cache[path]
 
 
+var _base_bub := ["", false]
+var chat_t := 0.0
+var chat_with: Npc = null
+
+
+## Bubble nama/label tetap; tidak menimpa dialog yang sedang tampil.
 func set_bubble(text: String, hi: bool = false) -> void:
+	_base_bub = [text, hi]
+	if chat_t <= 0.0:
+		_show_bub(text, hi)
+
+
+## Tampilkan kalimat dialog selama `dur` detik (waktu nyata), lalu kembali ke bubble semula.
+func say(text: String, dur: float) -> void:
+	chat_t = dur
+	_show_bub(text, false, true)
+
+
+func chat_tick(dt: float) -> void:
+	if chat_t > 0.0:
+		chat_t -= dt
+		if chat_t <= 0.0:
+			_show_bub(_base_bub[0], _base_bub[1])
+
+
+func _show_bub(text: String, hi: bool = false, talk: bool = false) -> void:
 	_bub.visible = text != ""
+	_bub_lbl.add_theme_font_size_override("font_size", 30 if talk else 28)
 	var sb: StyleBoxFlat = _bub.get_theme_stylebox("panel")
-	sb.bg_color = Color("fff1b8") if hi else Color.WHITE
+	sb.bg_color = Color("fff1b8") if hi else (Color("eaf5ff") if talk else Color.WHITE)
 	if _bub_lbl.text != text:
 		_bub_lbl.text = text
 		_bub.reset_size()

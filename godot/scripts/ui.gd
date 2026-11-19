@@ -1050,6 +1050,50 @@ func _sheet_upgrade() -> void:
 		_row(v, _label(fc.n, 40), right)
 		if fc.d != "":
 			v.add_child(_text(fc.d, 32, D.C_MUTED))
+	# Ruang fasilitas di samping tangga + karyawannya
+	var sec := _label("Ruang Fasilitas", 44)
+	box.add_child(sec)
+	box.add_child(_text("Dibangun tukang di sisi kosong tangga. Bisa juga diseret dari menu Beli ke lantai pilihanmu.", 32, D.C_MUTED))
+	for k in D.FACIL_ORDER:
+		var fc: Dictionary = D.FACIL[k]
+		var v := _card()
+		var hb := HBoxContainer.new()
+		hb.add_theme_constant_override("separation", 20)
+		_fac_pic(hb, k, 190)
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.alignment = BoxContainer.ALIGNMENT_CENTER
+		hb.add_child(col)
+		v.add_child(hb)
+		var right: Control
+		var fl: int = game.facil_floor(k)
+		var building := false
+		for j in S.jobs:
+			if j.type == "fbuild" and j.item == k: building = true
+		if fl > 0:
+			right = _label("Lantai %d" % fl, 34, Color("2f7a2a"), true)
+		elif building:
+			right = _label("Dibangun", 34, D.C_MUTED, true)
+		elif int(S.lvl) < int(fc.lv):
+			right = _label("Level %d" % int(fc.lv), 34, D.C_MUTED, true)
+		else:
+			var ff: int = game.free_facil_floor()
+			right = _btn(D.short(fc.cost), D.C_GREEN, func(): _do("facil_build", "%d|%s" % [ff, k]), ff == 0 or float(S.money) < float(fc.cost))
+		_row(col, _label(fc.n, 40), right)
+		col.add_child(_text(fc.d, 30, D.C_MUTED))
+		if fc.has("staff"):
+			var st: Dictionary = D.STAFF[fc.staff]
+			var on: bool = S.staff.get(fc.staff, false)
+			var sr: Control
+			if on:
+				sr = _btn("Berhentikan", D.C_RED, func(): _do("fire", fc.staff))
+			elif fl == 0:
+				sr = _label("Bangun dulu", 30, D.C_MUTED, true)
+			elif int(S.lvl) < int(st.min):
+				sr = _label("Level %d" % int(st.min), 30, D.C_MUTED, true)
+			else:
+				sr = _btn("Rekrut", D.C_YELLOW, func(): _do("hire", fc.staff))
+			_row(col, _label("%s · %s/hari" % [st.n, D.short(st.sal)], 30, D.C_INK), sr)
 
 
 func _sheet_manage() -> void:
@@ -1113,3 +1157,59 @@ func _sheet_manage() -> void:
 		f.add_child(_btn("Batal", D.C_CREAM, func(): confirm = ""; refresh_sheet()))
 	else:
 		f.add_child(_btn("Mulai Ulang Game", D.C_CREAM, func(): confirm = "reset"; refresh_sheet()))
+
+
+# ---------- Geser untuk menggulir panel (HP) ----------
+# Sentuhan di atas kartu/tombol tidak sampai ke ScrollContainer, jadi gulir ditangani di sini.
+var _sdrag := {}
+var _svel := 0.0
+var _cancelling := false
+
+
+func _input(e: InputEvent) -> void:
+	if not overlay.visible or _cancelling:
+		return
+	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT:
+		if e.pressed:
+			_svel = 0.0
+			if sheet.get_global_rect().has_point(e.position):
+				_sdrag = {"y": e.position.y, "last": e.position.y, "t": Time.get_ticks_msec(), "sv": float(scroll.scroll_vertical), "on": false}
+			else:
+				_sdrag = {}
+		else:
+			if _sdrag.get("on", false):
+				get_viewport().set_input_as_handled()
+			_sdrag = {}
+	elif e is InputEventMouseMotion and not _sdrag.is_empty():
+		var dy: float = e.position.y - float(_sdrag.y)
+		if not _sdrag.on and absf(dy) > 16.0:
+			_sdrag.on = true
+			_cancel_press()
+		if _sdrag.on:
+			var now := Time.get_ticks_msec()
+			var dt := maxf(1.0, float(now - int(_sdrag.t)))
+			_svel = lerpf(_svel, (e.position.y - float(_sdrag.last)) / dt * 1000.0, 0.5)
+			_sdrag.last = e.position.y
+			_sdrag.t = now
+			scroll.scroll_vertical = int(float(_sdrag.sv) - dy)
+			get_viewport().set_input_as_handled()
+
+
+## Lepas tekanan tombol yang sedang ditekan (di luar layar) supaya tidak terpencet saat menggeser.
+func _cancel_press() -> void:
+	_cancelling = true
+	var rel := InputEventMouseButton.new()
+	rel.button_index = MOUSE_BUTTON_LEFT
+	rel.pressed = false
+	rel.position = Vector2(-5000, -5000)
+	rel.global_position = rel.position
+	get_viewport().push_input(rel)
+	_cancelling = false
+
+
+func _process(delta: float) -> void:
+	if _sdrag.is_empty() and absf(_svel) > 30.0 and overlay.visible:
+		scroll.scroll_vertical = int(scroll.scroll_vertical - _svel * delta)
+		_svel *= pow(0.04, delta)
+	elif _sdrag.is_empty():
+		_svel = 0.0

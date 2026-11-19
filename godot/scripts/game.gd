@@ -531,6 +531,7 @@ func _process(dt: float) -> void:
 			for i in range(sp):
 				_step()
 	_separate_npcs()
+	_chat_tick(dt)
 	if sp > 0:
 		for n in npcs.values().duplicate():
 			if is_instance_valid(n):
@@ -669,6 +670,144 @@ func _pay_salary() -> void:
 		ui.toast("Gaji karyawan dibayar %s" % D.rp(s))
 
 
+# ================= Dialog antar NPC =================
+var _convos: Array = []
+var _chat_acc := 0.0
+var _chat_cd := {}   # id -> waktu (detik nyata) boleh ngobrol lagi
+var _clock := 0.0
+
+const CHAT_LONG := {
+	"res": [
+		["Eh, udah makan belum?", "Belum nih. Ke kantin bareng, yuk?", "Boleh! Aku traktir es teh.", "Asik, makasih ya!"],
+		["Tugas kuliahmu udah kelar?", "Belum, deadline-nya besok...", "Semangat! Nanti kubantu cek.", "Kamu penyelamatku!"],
+		["WiFi lancar ya hari ini.", "Iya, nonton nggak buffering lagi.", "Betah deh di kost ini."],
+		["Kemarin hujan deras banget.", "Iya, jemuranku basah semua.", "Haha, nasib anak kost."],
+		["Kamu asli mana?", "Aku dari Solo. Kamu?", "Medan. Sama-sama merantau ya.", "Iya, kost ini jadi rumah kedua."],
+		["Kamar sebelah berisik nggak semalam?", "Aman kok, aku tidur nyenyak.", "Syukurlah. Kemarin aku begadang."],
+		["Weekend ada rencana?", "Mau pulang kampung sebentar.", "Titip oleh-oleh ya, hehe.", "Siap, nanti kubawain keripik!"],
+		["Kost ini makin bagus ya.", "Iya, perabotnya baru-baru.", "Semoga sewanya nggak naik.", "Amin, hahaha."],
+	],
+	"cand": [
+		["Lagi cari kost juga?", "Iya, biar dekat kampus.", "Semoga kebagian kamar ya!", "Kamu juga, semangat!"],
+		["Antrenya lumayan ya.", "Kost bagus memang rame.", "Katanya kamarnya bersih-bersih."],
+		["Udah lihat kamarnya?", "Belum, nunggu dipanggil.", "Semoga dapat yang ada jendelanya."],
+	],
+	"barista": [["Kopi susu satu ya, Kak!", "Siap, ditunggu sebentar.", "Wangi banget kopinya.", "Gula arennya asli lho."]],
+	"kantin": [["Bu, nasi goreng satu.", "Pedas atau nggak, Nak?", "Pedas dong, Bu!", "Siap, sebentar ya."]],
+	"laundry": [["Mas, titip cucian ya.", "Oke, besok sore beres.", "Sekalian disetrika ya, Mas.", "Beres!"]],
+	"keeper": [
+		["Mbak, paketku udah datang?", "Sudah, ada di meja depan.", "Makasih, Mbak!"],
+		["Mbak, airnya lancar kan?", "Aman, baru dicek tadi pagi.", "Sip, makasih!"],
+	],
+}
+const CHAT_HI := ["Hai!", "Halo!", "Permisi~", "Mau ke mana?", "Duluan ya!", "Eh, hai!"]
+const CHAT_REPLY := ["Hai juga!", "Mari~", "Hati-hati!", "Iya, silakan.", "Dadah!", "Halo!"]
+
+
+func _greet() -> String:
+	var hr := int(S.min) / 60
+	if randf() < 0.5:
+		return CHAT_HI[randi() % CHAT_HI.size()]
+	if hr < 11: return "Pagi!"
+	if hr < 15: return "Siang!"
+	if hr < 18: return "Sore!"
+	return "Malam!"
+
+
+func _chatty(n: Npc) -> bool:
+	if n == null or not is_instance_valid(n) or not n.visible: return false
+	if n.kind not in ["res", "cand", "staff", "keeper"]: return false
+	if n.leaving or n.fade_state != "" or n.chat_with != null: return false
+	if n.pose == "lie" or n.pose == "climb": return false
+	return float(_chat_cd.get(n.id, 0.0)) <= _clock
+
+
+func _idle(n: Npc) -> bool:
+	return n.route.size() == 0 and (n.work.is_empty() or str(n.work.get("pose", "")) in ["stand", "counter", "sit"])
+
+
+func _chat_tick(dt: float) -> void:
+	_clock += dt
+	for n in npcs.values():
+		n.chat_tick(dt)
+	for c in _convos.duplicate():
+		var a: Npc = c.n[0]
+		var b: Npc = c.n[1]
+		if not is_instance_valid(a) or not is_instance_valid(b) or a.leaving or b.leaving or a.scene != b.scene \
+				or (c.long and (a.route.size() > 0 or b.route.size() > 0)):
+			_end_chat(c)
+			continue
+		c.t -= dt
+		if c.t > 0.0: continue
+		if c.i >= c.lines.size():
+			_end_chat(c)
+			continue
+		var sp: Npc = c.n[c.i % 2]
+		var line: String = c.lines[c.i]
+		var dur := clampf(1.3 + line.length() * 0.06, 1.8, 3.6)
+		if c.long:
+			a.dir = 1 if b.position.x > a.position.x else -1
+			b.dir = -a.dir
+			for m in [a, b]:
+				if m.work.is_empty() and m.route.size() == 0:
+					m.work = {"t": 2.0, "pose": "stand" if m.pose not in ["sit", "counter"] else m.pose}
+				elif not m.work.is_empty():
+					m.work.t = maxf(float(m.work.t), 2.0)
+		sp.say(line, dur)
+		c.t = dur * 0.92
+		c.i += 1
+	_chat_acc += dt
+	if _chat_acc < 1.2: return
+	_chat_acc = 0.0
+	var pool: Array = []
+	for n in npcs.values():
+		if _chatty(n): pool.append(n)
+	pool.shuffle()
+	for a in pool:
+		if a.chat_with != null: continue
+		for b in pool:
+			if b == a or b.chat_with != null or b.scene != a.scene: continue
+			var near: float = 300.0 if a.scene == "lobby" else 150.0
+			var dist: float = a.position.distance_to(b.position)
+			if dist > near: continue
+			var both_idle: bool = _idle(a) and _idle(b)
+			if both_idle and randf() < 0.35 and _convos.filter(func(c): return c.long).size() < 3:
+				_start_long(a, b)
+			elif not both_idle and dist < near * 0.6 and randf() < 0.5:
+				_start_chat(a, b, [_greet(), CHAT_REPLY[randi() % CHAT_REPLY.size()]], false)
+			break
+
+
+func _start_long(a: Npc, b: Npc) -> void:
+	var key := "res"
+	for m in [a, b]:
+		if m.kind == "staff" and CHAT_LONG.has(m.role): key = m.role
+		elif m.kind == "keeper": key = "keeper"
+	if key == "res" and a.kind == "cand" and b.kind == "cand": key = "cand"
+	# Pembeli/penghuni yang memulai, petugas yang menjawab.
+	if a.kind in ["staff", "keeper"]:
+		var t := a
+		a = b
+		b = t
+	var sets: Array = CHAT_LONG[key]
+	var lines: Array = sets[randi() % sets.size()]
+	_start_chat(a, b, lines, true)
+
+
+func _start_chat(a: Npc, b: Npc, lines: Array, long: bool) -> void:
+	a.chat_with = b
+	b.chat_with = a
+	_convos.append({"n": [a, b], "lines": lines, "i": 0, "t": 0.0, "long": long})
+
+
+func _end_chat(c: Dictionary) -> void:
+	_convos.erase(c)
+	for m in c.n:
+		if is_instance_valid(m):
+			m.chat_with = null
+			_chat_cd[m.id] = _clock + (45.0 if c.long else 14.0) + randf() * 20.0
+
+
 # ================= Ruang fasilitas =================
 func has_facil(k: String) -> bool:
 	for f in S.facil:
@@ -710,6 +849,15 @@ func facil_ok(f: int, k: String) -> String:
 		if j.type == "fbuild" and j.item == k: return "%s sedang dibangun" % fc.n
 	if float(S.money) < float(fc.cost): return "Uang belum cukup (%s)" % D.rp(fc.cost)
 	return ""
+
+
+## Lantai terendah yang sisi tangganya masih kosong & sudah terbuka.
+func free_facil_floor() -> int:
+	for f in range(1, D.TOP_FLOOR + 1):
+		if int(S.lvl) < int(D.FLOOR_LV[f]): continue
+		if S.facil.has(str(f)) or job_for("S%d" % f, "fbuild") != {}: continue
+		return f
+	return 0
 
 
 func stair_at(p: Vector2) -> int:
@@ -1485,7 +1633,7 @@ func act(a: String, arg: String = "") -> void:
 			spend(float(D.FACIL[parts2[1]].cost), "other")
 			add_job("fbuild", "S%d" % ff, parts2[1])
 			ui.toast("Tukang mulai membangun %s di lantai %d" % [D.FACIL[parts2[1]].n, ff])
-			ui.close_sheet()
+			if ui.kind == "facil": ui.close_sheet()
 		"event":
 			var parts := arg.split("|")
 			for e in S.events:
@@ -1911,6 +2059,8 @@ func _selftest() -> void:
 	_facil_daily()
 	ui.open_sheet("facil", "1")
 	ui.open_sheet("facil", "8")
+	ui.open_sheet("upgrade")
+	ui.refresh_sheet()
 	_staff_brain()
 	for k in Ev.DEF:
 		var ex := {"id": "t" + k, "type": k, "room": "" if Ev.DEF[k].scope == "kost" else "1L", "age": 0, "auto": -1}
