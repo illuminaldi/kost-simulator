@@ -725,12 +725,32 @@ func show_ghost(tex: Texture2D, sc: float) -> void:
 	ghost.visible = tex != null
 
 
+var ghost_tag: PanelContainer
+
+
+## Label nama barang yang sedang diseret (mis. kotak dari pickup).
+func ghost_label(t: String) -> void:
+	if ghost_tag == null:
+		ghost_tag = PanelContainer.new()
+		ghost_tag.add_theme_stylebox_override("panel", _sb(Color.WHITE, 5, 24, 18, 4))
+		ghost_tag.add_child(_label("", 38, D.C_INK, true))
+		ghost_tag.z_index = 101
+		ghost_tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(ghost_tag)
+	(ghost_tag.get_child(0) as Label).text = t
+	ghost_tag.visible = t != ""
+	ghost_tag.reset_size()
+
+
 func move_ghost(p: Vector2) -> void:
 	ghost.position = p + Vector2(0, -60)
+	if ghost_tag and ghost_tag.visible:
+		ghost_tag.position = p + Vector2(-ghost_tag.size.x / 2.0, -230)
 
 
 func hide_ghost() -> void:
 	ghost.visible = false
+	if ghost_tag: ghost_tag.visible = false
 
 
 func show_hints(valid: Dictionary) -> void:
@@ -848,6 +868,7 @@ func refresh_sheet(keep: bool = true) -> void:
 		"preman": _sheet_preman()
 		"toko": _sheet_toko()
 		"floors": _sheet_floors()
+		"beli": _sheet_beli()
 		"room": _sheet_room()
 		"tenants": _sheet_tenants()
 		"staff": _sheet_staff()
@@ -870,6 +891,7 @@ func _fit(sv: int) -> void:
 		await get_tree().process_frame
 	var content_h := box.get_combined_minimum_size().y
 	var h := minf(content_h, D.IH * 0.72)
+	if kind == "beli": h = D.IH * 0.8
 	if absf(scroll.custom_minimum_size.y - h) > 1.0 or opening:
 		scroll.custom_minimum_size = Vector2(w - 88, h)
 		sheet.size = Vector2(w, 0)
@@ -976,6 +998,116 @@ class _Bars extends Control:
 				draw_string(font, Vector2(i * w, size.y - 8), str(labels[i]), HORIZONTAL_ALIGNMENT_CENTER, w, 26, Color("8a7a68"))
 				var t := "%drb" % roundi(vv / 1000.0)
 				draw_string(font, Vector2(i * w, (base - hgt - 6) if vv >= 0 else (base + hgt + 26)), t, HORIZONTAL_ALIGNMENT_CENTER, w, 24, Color("5a3d2b"))
+
+
+var buy_confirm := ""
+
+
+## Halaman Beli: daftar ke bawah, setiap pembelian dikonfirmasi dulu.
+func _sheet_beli() -> void:
+	var S: Dictionary = game.S
+	_header("Beli")
+	var top := HBoxContainer.new()
+	top.add_child(_label("Kas: " + D.rp(S.money), 38, Color("2f7a2a"), true))
+	box.add_child(top)
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 10)
+	for t in [["perabot", "Perabot"], ["ruang", "Kamar & Ruang"], ["layanan", "Layanan"]]:
+		var key: String = t[0]
+		tabs.add_child(_btn(t[1], D.C_YELLOW if tray_tab == key else Color.WHITE, func(): tray_tab = key; buy_confirm = ""; refresh_sheet(), false, true))
+	box.add_child(tabs)
+	match tray_tab:
+		"perabot":
+			var otw: int = S.orders.size()
+			var inbox: int = S.cargo.size()
+			var eta := ""
+			if otw > 0:
+				var mn := 9999.0
+				for o in S.orders: mn = minf(mn, float(o.t))
+				eta = " (tiba ± %d menit)" % maxi(1, roundi(mn))
+			var st := _card()
+			st.add_child(_text("Pesanan dikirim pakai pickup. Setelah datang, tutup halaman ini lalu seret kotaknya ke kamar (barang yang sama = naik level).", 30, D.C_MUTED))
+			st.add_child(_label("Dalam perjalanan: %d%s · Di pickup: %d · Slot %d/%d" % [otw, eta, inbox, otw + inbox, game.CARGO_MAX], 30, D.C_INK, true))
+			for t in D.FURN_ORDER:
+				var f: Dictionary = D.FURN[t]
+				var ok := int(S.lvl) >= int(f.min)
+				var have := 0
+				var built := 0
+				for id in D.ROOMS:
+					if S.rooms[id].built:
+						built += 1
+						if S.rooms[id].furn.has(t): have += 1
+				_buy_row("furn:" + t, load("res://assets/furn/icon/%s.png" % t), f.n, f.d, "Terpasang di %d/%d kamar" % [have, built] if ok else "Terbuka di Level %d" % int(f.min), float(f.cost), ok, "Pesan", func(): game.act("buy", t))
+		"ruang":
+			var at := AtlasTexture.new()
+			at.atlas = game.shell_tex
+			at.region = D.rect_of("3R")
+			var empty := 0
+			for id in D.ROOMS:
+				if not S.rooms[id].built and game.floor_open(D.fl(id)): empty += 1
+			_buy_row("build", at, "Kamar Baru", "Dibangun tukang di lahan kosong. Setelah jadi, beli kasur supaya bisa disewa.", "Lahan siap dibangun: %d" % empty, game.build_cost(), empty > 0, "Pilih lahan", func(): game.start_place("build", ""), false)
+			for k in D.FACIL_ORDER:
+				var fc: Dictionary = D.FACIL[k]
+				var owned: bool = game.has_facil(k)
+				var lvok := int(S.lvl) >= int(fc.lv)
+				var sub: String = ("Sudah dibangun di lantai %d" % game.facil_floor(k)) if owned else ("" if lvok else "Terbuka di Level %d" % int(fc.lv))
+				_buy_row("facil:" + k, load("res://assets/facil/%s.png" % k), fc.n, fc.d, sub, float(fc.cost), lvok and not owned, "Pilih tempat", func(): game.start_place("facil", k), false)
+		"layanan":
+			for k in D.FAC:
+				var f2: Dictionary = D.FAC[k]
+				var own2: bool = S.fac.has(k)
+				var ok3 := int(S.lvl) >= int(f2.min)
+				var ic: Texture2D = load("res://assets/fac/%s.svg" % k) if ResourceLoader.exists("res://assets/fac/%s.svg" % k) else null
+				_buy_row("fac:" + k, ic, f2.n, f2.d, "Sudah dimiliki" if own2 else ("" if ok3 else "Terbuka di Level %d" % int(f2.min)), float(f2.cost), ok3 and not own2, "Beli", func(): game.act("buy_fac", k))
+			for k in D.APP_ORDER:
+				var ap: Dictionary = D.APPS[k]
+				var on: bool = game.has_app(k)
+				_buy_row("app:" + k, load("res://assets/fac/%s.svg" % k), ap.n, ap.tag + " · " + D.short(ap.month) + "/bulan", "Aktif" if on else ("" if int(S.lvl) >= int(ap.lv) else "Terbuka di Level %d" % int(ap.lv)), float(ap.fee), int(S.lvl) >= int(ap.lv) and not on, "Pasang", func(): game.act("app_on", k), true, "/hari")
+			var dv := _card()
+			_row(dv, _label("Toko Diamond · %d Diamond" % int(game.W.diamonds), 38), _btn("Buka", D.C_CREAM, func(): open_sheet("toko")))
+
+
+func _buy_row(key: String, tex: Texture2D, title: String, desc: String, sub: String, price: float, ok: bool, verb: String, fn: Callable, money_now := true, unit := "") -> void:
+	var S: Dictionary = game.S
+	var v := _card()
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 22)
+	var tr := TextureRect.new()
+	tr.texture = tex
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.custom_minimum_size = Vector2(190, 160)
+	if not ok: tr.modulate = Color(1, 1, 1, 0.45)
+	h.add_child(tr)
+	var mid := VBoxContainer.new()
+	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mid.alignment = BoxContainer.ALIGNMENT_CENTER
+	mid.add_child(_label(title, 40))
+	if desc != "": mid.add_child(_text(desc, 28, D.C_MUTED))
+	if sub != "": mid.add_child(_label(sub, 28, Color("8a5a3a"), true))
+	h.add_child(mid)
+	var right := VBoxContainer.new()
+	right.alignment = BoxContainer.ALIGNMENT_CENTER
+	right.add_theme_constant_override("separation", 8)
+	var pl := _label(D.rp(price) + unit, 34, Color("2f7a2a") if ok else D.C_MUTED, true)
+	pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	right.add_child(pl)
+	if ok:
+		right.add_child(_btn(verb, D.C_YELLOW, func(): buy_confirm = key; refresh_sheet()))
+	h.add_child(right)
+	v.add_child(h)
+	if buy_confirm == key:
+		var cf := _card()
+		var poor: bool = money_now and float(S.money) < price
+		cf.add_child(_label(("Uang belum cukup untuk %s." % title) if poor else ("Beli %s seharga %s%s?" % [title, D.rp(price), unit]), 34, Color("9b2f1c") if poor else D.C_INK, true))
+		var f := _flow(cf)
+		f.add_child(_btn("Batal", D.C_CREAM, func(): buy_confirm = ""; refresh_sheet()))
+		if not poor:
+			f.add_child(_btn("Ya, " + verb.to_lower(), D.C_GREEN, func():
+				buy_confirm = ""
+				fn.call()
+				if kind == "beli": refresh_sheet()))
+		v.add_child(cf)
 
 
 func _sheet_floors() -> void:

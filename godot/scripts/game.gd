@@ -3081,7 +3081,11 @@ func _box_bounce(i: int) -> void:
 
 func _activate_drag() -> void:
 	drag.active = true
-	if drag.kind == "cargo": sfx("pop", -6.0)
+	if drag.kind == "cargo":
+		sfx("pop", -6.0)
+		if int(drag.item) < S.cargo.size(): ui.ghost_label(D.FURN[S.cargo[int(drag.item)]].n)
+	elif drag.kind == "furn": ui.ghost_label(D.FURN[drag.item].n)
+	else: ui.ghost_label("")
 	var tex: Texture2D
 	var sc := 1.0
 	match drag.kind:
@@ -3232,6 +3236,12 @@ func _input(e: InputEvent) -> void:
 				scroll_v = dy / maxf(get_process_delta_time(), 0.001)
 			get_viewport().set_input_as_handled()
 		elif e is InputEventMouseButton and not e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+			if not pan.moved and not place.is_empty():
+				scroll_v = 0.0
+				_place_at(pan.start)
+				pan = {}
+				get_viewport().set_input_as_handled()
+				return
 			if not pan.moved:
 				scroll_v = 0.0
 				var id := room_at(pan.start)
@@ -3270,12 +3280,63 @@ func _input(e: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
+# ---------- Mode pilih lokasi (kamar baru / ruang fasilitas) ----------
+var place := {}
+
+
+func start_place(kind: String, item: String) -> void:
+	ui.close_sheet()
+	place = {"kind": kind, "item": item}
+	drag = {"kind": kind, "item": item}
+	var valid := _drop_validity()
+	drag = {}
+	var any := false
+	for k in valid:
+		if valid[k]: any = true
+	if not any:
+		place = {}
+		ui.toast("Belum ada tempat yang bisa dipakai.", "bad")
+		return
+	ui.show_hints(valid)
+	ui.toast("Ketuk tempat yang bertanda hijau. Ketuk di luar gedung untuk batal.", "gold")
+
+
+func cancel_place() -> void:
+	if place.is_empty(): return
+	place = {}
+	ui.show_hints({})
+
+
+func _place_at(p: Vector2) -> void:
+	var pl := place
+	cancel_place()
+	if pl.kind == "facil":
+		var f := stair_at(p)
+		if f == 0:
+			ui.toast("Batal memilih lokasi."); return
+		var why := facil_ok(f, pl.item)
+		if why != "":
+			ui.toast(why, "bad"); return
+		act("facil_build", "%d|%s" % [f, pl.item])
+		return
+	var id := room_at(p)
+	if id == "":
+		ui.toast("Batal memilih lokasi."); return
+	drag = {"kind": "build", "item": ""}
+	var why2 := _drop_ok(id)
+	drag = {}
+	if why2 != "":
+		ui.toast(why2, "bad"); return
+	act("build", id)
+
+
 func set_dekor(on: bool) -> void:
 	dekor = on
+	ui.close_tray()
 	if on:
-		ui.open_tray()
-	else:
-		ui.close_tray()
+		ui.open_sheet("beli")
+	elif ui.kind == "beli":
+		ui.close_sheet()
 	_refresh_world()
 
 
@@ -3302,6 +3363,9 @@ func _unhandled_input(e: InputEvent) -> void:
 	if not (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT):
 		return
 	var p := get_global_mouse_position()
+	if not place.is_empty() and (p.y >= D.LOBBY_TOP or p.y < 200):
+		cancel_place()
+		ui.toast("Batal memilih lokasi.")
 	if D.PILL_CLOCK.has_point(p):
 		set_speed([1, 2, 0][clampi(int(S.speed), 0, 2)])
 		return
@@ -3314,7 +3378,8 @@ func _unhandled_input(e: InputEvent) -> void:
 	for nv in D.NAV:
 		if nv[1].has_point(p):
 			if nv[0] == "upgrade":
-				set_dekor(not dekor)
+				cancel_place()
+				ui.open_sheet("beli")
 			else:
 				ui.open_sheet(nv[0])
 			return
@@ -3539,6 +3604,24 @@ func _handle_cli(args: PackedStringArray) -> void:
 					S.rooms[id].built = true
 					S.rooms[id].furn = {"kasur": 1, "lampu": 2}
 			dirty = true
+		elif a.begins_with("--buyconf="):
+			ui.buy_confirm = a.substr(10)
+		elif a == "--place":
+			S.seen = true
+			S.tut = -1
+			S.lvl = 3
+			start_place.call_deferred("build", "")
+		elif a == "--dragbox":
+			S.seen = true
+			S.tut = -1
+			S.cargo = ["kasur"]
+			truck_state = "parked"
+			truck.visible = true
+			truck.position.x = D.TRUCK_X - 470 * 0.72 * 1.87 * 0.5
+			_refresh_cargo()
+			(func():
+				begin_drag("cargo", "0", Vector2(600, 2200), true)
+				ui.move_ghost(Vector2(700, 1500))).call_deferred()
 		elif a == "--truck":
 			S.seen = true
 			S.tut = -1
