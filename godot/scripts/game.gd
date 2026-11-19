@@ -3324,6 +3324,12 @@ func _handle_cli(args: PackedStringArray) -> void:
 			S.fac["cctv"] = true
 		elif a == "--guard":
 			S.staff["satpam"] = true
+		elif a.begins_with("--traytab="):
+			S.seen = true
+			S.tut = -1
+			ui.close_sheet()
+			ui.tray_tab = a.substr(10)
+			set_dekor.call_deferred(true)
 		elif a == "--truck":
 			S.seen = true
 			S.tut = -1

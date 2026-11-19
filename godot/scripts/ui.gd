@@ -34,6 +34,8 @@ var _anim_in := false
 var _opened_at := 0
 var tray: PanelContainer
 var tray_row: HBoxContainer
+var tray_box: VBoxContainer
+var tray_tab := "perabot"
 var ghost: Sprite2D
 var hints := {}
 var hint_root: Control
@@ -216,32 +218,17 @@ func setup(p_game: Node, art: Texture2D, p_font: Font, p_font_m: Font) -> void:
 		hints["S%d" % f] = h2
 
 	tray = PanelContainer.new()
-	var tsb := _sb(D.C_PAPER, 6, 40, 20, 14)
+	var tsb := _sb(D.C_PAPER, 6, 40, 22, 16)
 	tsb.shadow_color = Color(0.24, 0.16, 0.1, 0.35)
 	tsb.shadow_offset = Vector2(0, -6)
 	tsb.shadow_size = 1
 	tray.add_theme_stylebox_override("panel", tsb)
-	tray.position = Vector2(14, 2060)
-	tray.size = Vector2(1410, 330)
+	tray.position = Vector2(14, 1700)
+	tray.size = Vector2(1410, 690)
 	tray.visible = false
-	var tv := VBoxContainer.new()
-	tv.add_theme_constant_override("separation", 6)
-	tray.add_child(tv)
-	var th := HBoxContainer.new()
-	var tt := _label("Ketuk perabot untuk membeli. Pesanan datang dengan pickup; seret kotaknya ke kamar (perabot yang sama = upgrade). Seret Kamar Baru ke lahan kosong.", 28, D.C_MUTED, true)
-	tt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	th.add_child(tt)
-	th.add_child(_btn("Fasilitas", D.C_YELLOW, func(): open_sheet("upgrade")))
-	th.add_child(_btn("Selesai", D.C_GREEN, func(): game.set_dekor(false)))
-	tv.add_child(th)
-	var sc := ScrollContainer.new()
-	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	sc.custom_minimum_size = Vector2(1370, 220)
-	tv.add_child(sc)
-	tray_row = HBoxContainer.new()
-	tray_row.add_theme_constant_override("separation", 8)
-	sc.add_child(tray_row)
+	tray_box = VBoxContainer.new()
+	tray_box.add_theme_constant_override("separation", 10)
+	tray.add_child(tray_box)
 	add_child(tray)
 
 	ghost = Sprite2D.new()
@@ -568,57 +555,158 @@ func close_tray() -> void:
 
 
 func _build_tray() -> void:
-	for c in tray_row.get_children():
+	for c in tray_box.get_children():
 		c.queue_free()
 	var S: Dictionary = game.S
-	# Kartu kamar baru
-	var at := AtlasTexture.new()
-	at.atlas = game.shell_tex
-	at.region = D.rect_of("3R")
-	tray_row.add_child(_tray_card(at, "Kamar Baru", D.short(game.build_cost()), "build", "", true))
-	for t in D.FURN_ORDER:
-		var f: Dictionary = D.FURN[t]
-		var ok := int(S.lvl) >= int(f.min)
-		tray_row.add_child(_tray_card(load("res://assets/furn/icon/%s.png" % t), f.n, D.short(f.cost) if ok else "Lv %d" % int(f.min), "furn", t, ok))
-	for k in D.FACIL_ORDER:
-		var fc: Dictionary = D.FACIL[k]
-		if game.has_facil(k): continue
-		var ok2 := int(S.lvl) >= int(fc.lv)
-		tray_row.add_child(_tray_card(load("res://assets/facil/%s.png" % k), fc.n, D.short(fc.cost) if ok2 else "Lv %d" % int(fc.lv), "facil", k, ok2))
+	# Judul + saldo + tutup
+	var th := HBoxContainer.new()
+	th.add_theme_constant_override("separation", 14)
+	var tl := _label("Beli", 46)
+	th.add_child(tl)
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	th.add_child(sp)
+	th.add_child(_label("Kas: " + D.rp(S.money), 34, Color("2f7a2a"), true))
+	th.add_child(_btn("Tutup", D.C_CREAM, func(): game.set_dekor(false)))
+	tray_box.add_child(th)
+	# Tab
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 10)
+	for t in [["perabot", "Perabot"], ["ruang", "Kamar & Ruang"], ["layanan", "Layanan"]]:
+		var key: String = t[0]
+		tabs.add_child(_btn(t[1], D.C_YELLOW if tray_tab == key else Color.WHITE, func(): tray_tab = key; _build_tray(), false, true))
+	tray_box.add_child(tabs)
+	# Petunjuk + status pengiriman
+	var info := ""
+	match tray_tab:
+		"perabot":
+			var otw: int = S.orders.size()
+			var inbox: int = S.cargo.size()
+			var eta := ""
+			if otw > 0:
+				var mn := 9999.0
+				for o in S.orders: mn = minf(mn, float(o.t))
+				eta = " (tiba ± %d menit)" % maxi(1, roundi(mn))
+			info = "Ketuk untuk memesan. Kotak datang dengan pickup, lalu seret ke kamar; barang yang sama = naik level.\nDalam perjalanan: %d%s · Di pickup: %d · Slot: %d/%d" % [otw, eta, inbox, otw + inbox, game.CARGO_MAX]
+		"ruang": info = "Tahan & seret kartu ke lahan kosong (kamar) atau ke sisi kosong tangga (ruang fasilitas). Tukang yang membangun."
+		"layanan": info = "Fasilitas kost, aplikasi, dan Toko Diamond."
+	var il := _label(info, 28, D.C_MUTED, true)
+	il.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	il.custom_minimum_size.x = 1360
+	tray_box.add_child(il)
+	var sc := ScrollContainer.new()
+	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.custom_minimum_size = Vector2(1366, 380)
+	tray_box.add_child(sc)
+	tray_row = HBoxContainer.new()
+	tray_row.add_theme_constant_override("separation", 12)
+	sc.add_child(tray_row)
+	_fix_tray.call_deferred()
+	match tray_tab:
+		"perabot":
+			for t in D.FURN_ORDER:
+				var f: Dictionary = D.FURN[t]
+				var ok := int(S.lvl) >= int(f.min)
+				var have := 0
+				var built := 0
+				for id in D.ROOMS:
+					if S.rooms[id].built:
+						built += 1
+						if S.rooms[id].furn.has(t): have += 1
+				var sub: String = f.d + "\nTerpasang %d/%d kamar" % [have, built] if ok else "Terbuka di Level %d" % int(f.min)
+				tray_row.add_child(_tray_card(load("res://assets/furn/icon/%s.png" % t), f.n, D.short(f.cost) if ok else "Lv %d" % int(f.min), "furn", t, ok, sub, "Pesan"))
+		"ruang":
+			var at := AtlasTexture.new()
+			at.atlas = game.shell_tex
+			at.region = D.rect_of("3R")
+			var empty := 0
+			for id in D.ROOMS:
+				if not S.rooms[id].built and int(S.lvl) >= int(D.FLOOR_LV[int(id[0])]): empty += 1
+			tray_row.add_child(_tray_card(at, "Kamar Baru", D.short(game.build_cost()), "build", "", empty > 0, "Lahan siap dibangun: %d" % empty, "Seret"))
+			for k in D.FACIL_ORDER:
+				var fc: Dictionary = D.FACIL[k]
+				var owned: bool = game.has_facil(k)
+				var ok2 := int(S.lvl) >= int(fc.lv) and not owned
+				var sub2: String = ("Sudah dibangun di lantai %d" % game.facil_floor(k)) if owned else (fc.d if int(S.lvl) >= int(fc.lv) else "Terbuka di Level %d" % int(fc.lv))
+				var price: String = "Dimiliki" if owned else (D.short(fc.cost) if int(S.lvl) >= int(fc.lv) else "Lv %d" % int(fc.lv))
+				tray_row.add_child(_tray_card(load("res://assets/facil/%s.png" % k), fc.n, price, "facil", k, ok2, sub2, "Seret"))
+		"layanan":
+			for k in D.FAC:
+				var f2: Dictionary = D.FAC[k]
+				var own2: bool = S.fac.has(k)
+				var ok3 := int(S.lvl) >= int(f2.min)
+				var ic: Texture2D = load("res://assets/fac/%s.svg" % k) if ResourceLoader.exists("res://assets/fac/%s.svg" % k) else null
+				tray_row.add_child(_tray_card(ic, f2.n, "Dimiliki" if own2 else (D.short(f2.cost) if ok3 else "Lv %d" % int(f2.min)), "fac", k, ok3 and not own2, f2.d if f2.d != "" else "Fasilitas kost", "Beli"))
+			for k in D.APP_ORDER:
+				var ap: Dictionary = D.APPS[k]
+				var on: bool = game.has_app(k)
+				tray_row.add_child(_tray_card(load("res://assets/fac/%s.svg" % k), ap.n, ("Aktif" if on else D.short(ap.month) + "/bln"), "app", k, int(S.lvl) >= int(ap.lv) and not on, ap.tag, "Pasang"))
+			tray_row.add_child(_tray_card(load("res://assets/ui/diamond.svg"), "Toko Diamond", "%d Diamond" % int(game.W.diamonds), "toko", "", true, "Tiket Ngebut 2x & uang kas", "Buka"))
 
 
-func _tray_card(tex: Texture2D, title: String, price: String, kind: String, item: String, ok: bool) -> Control:
+func _fix_tray() -> void:
+	tray.size = Vector2(1410, 690)
+	tray.position = Vector2(14, 1700)
+
+
+func _tray_card(tex: Texture2D, title: String, price: String, kind: String, item: String, ok: bool, sub := "", verb := "") -> Control:
 	var p := PanelContainer.new()
-	p.add_theme_stylebox_override("panel", _sb(Color.WHITE if ok else Color("efe6d6"), 4, 26, 12, 8, Color("e2d3bd")))
-	p.custom_minimum_size = Vector2(156, 210)
+	p.add_theme_stylebox_override("panel", _sb(Color.WHITE if ok else Color("efe6d6"), 4, 26, 14, 10, Color("e2d3bd")))
+	p.custom_minimum_size = Vector2(250, 370)
+	p.clip_contents = true
 	var v := VBoxContainer.new()
-	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.add_theme_constant_override("separation", 4)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var tr := TextureRect.new()
 	tr.texture = tex
 	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	tr.custom_minimum_size = Vector2(130, 110)
+	tr.custom_minimum_size = Vector2(220, 140)
 	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if not ok:
-		tr.modulate = Color(1, 1, 1, 0.4)
+		tr.modulate = Color(1, 1, 1, 0.45)
 	v.add_child(tr)
-	var l := _label(title, 25)
+	var l := _label(title, 30)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(l)
-	var pl := _label(price, 26, Color("2f7a2a") if ok else D.C_MUTED, true)
+	var pl := _label(price, 30, Color("2f7a2a") if ok else D.C_MUTED, true)
 	pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(pl)
+	if sub != "":
+		var sl := _label(sub, 22, D.C_MUTED)
+		sl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		sl.custom_minimum_size = Vector2(222, 0)
+		sl.max_lines_visible = 4
+		sl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		sl.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		v.add_child(sl)
+	if verb != "" and ok:
+		var vb := PanelContainer.new()
+		vb.add_theme_stylebox_override("panel", _sb(D.C_YELLOW if verb != "Seret" else D.C_GREEN, 4, 20, 10, 2))
+		var vl := _label(verb, 26, D.C_INK, true)
+		vl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vb.add_child(vl)
+		vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(vb)
 	p.add_child(v)
 	p.mouse_filter = Control.MOUSE_FILTER_STOP
 	p.gui_input.connect(func(e: InputEvent):
 		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+			match kind:
+				"toko": open_sheet("toko"); return
+				"fac", "app":
+					open_sheet("upgrade"); return
 			if not ok:
-				var need: int = int(D.FACIL[item].lv) if kind == "facil" else int(D.FURN[item].min)
-				toast("%s terbuka di Level %d" % [title, need], "bad")
+				if kind == "build": toast("Belum ada lahan kosong yang terbuka.", "bad")
+				elif kind == "facil" and game.has_facil(item): toast("%s sudah dibangun." % title)
+				else:
+					var need: int = int(D.FACIL[item].lv) if kind == "facil" else int(D.FURN[item].min)
+					toast("%s terbuka di Level %d" % [title, need], "bad")
 				return
 			if kind == "furn":
 				game.act("buy", item)
+				_build_tray()
 			else:
 				game.begin_drag(kind, item, game.get_global_mouse_position(), true)
 				move_ghost(game.get_global_mouse_position()))
