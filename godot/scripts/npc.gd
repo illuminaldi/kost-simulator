@@ -36,6 +36,8 @@ var gender := "l"
 var suitcase := false
 var char_id := "kutu"
 var art_map := {}        # pose -> nama file khusus (pekerja)
+static var stair_mul := 1.0     # tangga lebih bagus = naik-turun lebih cepat
+static var escalator := false
 static var _exists := {}  # karakter ilustrasi (folder di assets/chars)
 
 var mood := ""          # emosi saat diam: angry / annoyed / tired
@@ -323,7 +325,7 @@ func tick(dt: float) -> void:
 			if not s.has("d0"):
 				s.d0 = maxf(1.0, position.distance_to(tgt2))
 			var d2 := tgt2 - position
-			var step2 := 0.0 if blocked else SPEED_ROOM * 0.6 * dt * speed_mul
+			var step2 := 0.0 if blocked else SPEED_ROOM * 0.6 * dt * speed_mul * stair_mul
 			if d2.length() <= step2:
 				position = tgt2
 				modulate.a = s.a1
@@ -332,7 +334,7 @@ func tick(dt: float) -> void:
 				position += d2.normalized() * step2
 				var prog: float = 1.0 - d2.length() / float(s.d0)
 				modulate.a = lerpf(s.a0, s.a1, clampf(prog, 0.0, 1.0))
-			pose = s.pose
+			pose = "idle" if escalator and s.pose == "climb" else s.pose
 		else:
 			var tgt: Vector2 = s.walk
 			var d := tgt - position

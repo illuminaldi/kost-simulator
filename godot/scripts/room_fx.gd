@@ -25,6 +25,9 @@ var building := false
 var _built := false
 var _clean := 100.0
 var _lv := 1
+var _paint: Sprite2D
+var _paint_key := ""
+var paint_preview := {}
 
 
 func setup(p_game: Node, id: String, art: Texture2D, plan_mat: Material, font: Font) -> void:
@@ -39,6 +42,14 @@ func setup(p_game: Node, id: String, art: Texture2D, plan_mat: Material, font: F
 	_plan.region_rect = D.src_rect(id)
 	_plan.material = plan_mat
 	add_child(_plan)
+	# Lapisan cat tembok / lantai (di bawah perabot).
+	_paint = Sprite2D.new()
+	_paint.texture = art
+	_paint.centered = false
+	_paint.region_enabled = true
+	_paint.region_rect = D.src_rect(id)
+	_paint.visible = false
+	add_child(_paint)
 	# Sprite perabot (urutan gambar: belakang -> depan).
 	for t in D.ITEM_DRAW_ORDER:
 		var sp := Sprite2D.new()
@@ -137,6 +148,7 @@ func refresh(r: Dictionary, player_lv: int, cost: float, font: Font) -> void:
 	_clean = float(r.clean)
 	_lv = int(r.lv)
 	_plan.visible = not _built
+	apply_paint(r.get("paint", {}))
 	var furn: Dictionary = r.get("furn", {})
 	_furn_lv = {}
 	for t in _furn:
@@ -371,3 +383,17 @@ func set_floor_lock(t: String) -> void:
 			_sign_sb.bg_color = Color("8f7a9c")
 			_sign.reset_size()
 			_sign.position = (rect.size - _sign.size) / 2.0
+
+
+func apply_paint(p: Dictionary) -> void:
+	if not paint_preview.is_empty():
+		p = paint_preview
+	var on: bool = _built and (p.get("wall", "asli") != "asli" or p.get("motif", "polos") != "polos" or p.get("floor", "asli") != "asli")
+	_paint.visible = on
+	if not on:
+		return
+	var key := JSON.stringify(p)
+	if key == _paint_key:
+		return
+	_paint_key = key
+	_paint.material = D.paint_mat(rid, p, _paint.texture.get_size(), _paint.material as ShaderMaterial)

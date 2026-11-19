@@ -478,6 +478,9 @@ func _room_live(parent: Control, id: String, sc: float) -> void:
 	var bg := TextureRect.new()
 	bg.texture = at
 	bg.size = rect.size * sc
+	var pp: Dictionary = paint_sel if kind == "paint" else game.S.rooms[id].get("paint", {})
+	if not pp.is_empty():
+		bg.material = D.paint_mat(id, pp, game.shell_tex.get_size())
 	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	c.add_child(bg)
 	var furn: Dictionary = game.S.rooms[id].get("furn", {})
@@ -657,6 +660,16 @@ func _build_tray() -> void:
 			for id in D.ROOMS:
 				if not S.rooms[id].built and game.floor_open(D.fl(id)): empty += 1
 			tray_row.add_child(_tray_card(at, "Kamar Baru", D.short(game.build_cost()), "build", "", empty > 0, "Lahan siap dibangun: %d" % empty, "Seret"))
+			var slv: int = game.stair_lv()
+			var sat := AtlasTexture.new()
+			sat.atlas = game.shell_tex
+			sat.region = Rect2(576 + 220, 651, 150, 290)
+			if slv < D.STAIRS.size() - 1:
+				var nx: Dictionary = D.STAIRS[slv + 1]
+				var okl: bool = int(S.lvl) >= int(nx.lv)
+				_buy_row("stair%d" % slv, sat, "Upgrade Tangga → %s" % nx.n, "%s Sewa semua kamar +%d%%, penghuni naik-turun lebih cepat." % [nx.d, roundi(float(nx.bonus) * 100.0)], ("Sekarang: %s (Lv %d/%d)" % [D.STAIRS[slv].n, slv, D.STAIRS.size() - 1]) if okl else "Terbuka di Level %d" % int(nx.lv), float(nx.cost), okl, "Upgrade", func(): game.stair_upgrade())
+			else:
+				_buy_row("stairmax", sat, "Eskalator", "Tangga sudah level maksimal.", "Sudah terpasang", 0.0, false, "Upgrade", func(): pass)
 			for k in D.FACIL_ORDER:
 				var fc: Dictionary = D.FACIL[k]
 				var owned: bool = game.has_facil(k)
@@ -871,6 +884,8 @@ func open_sheet(k: String, a: String = "") -> void:
 		tab = "antre" if game.S.queue.size() > 0 else "huni"
 	elif k == "upgrade":
 		tab = "kmr"
+	elif k == "paint":
+		paint_sel = game.S.rooms[a].get("paint", {}).duplicate()
 	overlay.visible = true
 	_opened_at = Time.get_ticks_msec()
 	sheet.position.y = D.IH
@@ -879,6 +894,8 @@ func open_sheet(k: String, a: String = "") -> void:
 
 
 func close_sheet() -> void:
+	if kind == "paint":
+		game.clear_paint_preview()
 	kind = ""
 	overlay.visible = false
 
@@ -903,6 +920,8 @@ func refresh_sheet(keep: bool = true) -> void:
 		"upgrade": _sheet_upgrade()
 		"manage": _sheet_manage()
 		"facil": _sheet_facil()
+		"paint": _sheet_paint()
+		"funny": _sheet_funny()
 	_fit.call_deferred(sv if keep else 0)
 
 
@@ -1227,8 +1246,8 @@ func _sheet_rename() -> void:
 
 
 func _sheet_welcome() -> void:
-	_header("Selamat datang, Juragan Kost!", false)
-	box.add_child(_text("Kamu baru mewarisi " + str(game.S.get("kost_name", "Kost Harmoni")) + ". Kelola kamar, terima penyewa, dan jadikan kost ini yang paling nyaman se-kota!", 40))
+	_header("Selamat datang, Mbak Maryam!", false)
+	box.add_child(_text("Maryam baru mewarisi " + str(game.S.get("kost_name", "Kost Harmoni")) + " dari Nenek. Bantu dia mengelola kamar, menerima penyewa, dan menjadikan kost ini yang paling nyaman se-kota!", 40))
 	var tips := [
 		"Tahan & seret calon penyewa dari lobi ke kamar kosong yang sudah ada kasurnya.",
 		"Tombol Beli: ketuk perabot untuk memesan. Pickup datang membawa kotaknya, lalu tahan & seret kotak ke kamar. Seret kartu Kamar Baru ke lahan kosong untuk membangun.",
@@ -1333,16 +1352,26 @@ func _sheet_room() -> void:
 		elif not game.floor_open(fln):
 			v.add_child(_label("Renovasi lantai %d" % fln, 40))
 			v.add_child(_text("Lantai di atas 8 perlu direnovasi sebelum kamarnya dibangun. Syarat: Level %d, rating minimal %.1f." % [fln, D.floor_rep(fln)], 32, D.C_MUTED))
-			v.add_child(_text("Kamar makin tinggi = sewa makin mahal (+3%%/lantai). Tanpa Lift, penghuni lantai atas cepat capek.", 30, D.C_MUTED))
+			v.add_child(_text("Kamar makin tinggi = sewa makin mahal (+3%/lantai). Tanpa Lift atau Eskalator, penghuni lantai atas cepat capek.", 30, D.C_MUTED))
 			var nxt: int = int(S.get("open_floor", 8)) + 1
-			if fln == nxt:
-				v.add_child(_btn("Renovasi " + D.short(D.floor_cost(fln)), D.C_YELLOW, func(): game.renovate_floor(fln), float(S.rep) < D.floor_rep(fln) or float(S.money) < D.floor_cost(fln), false, ("Rating kost harus minimal %.1f" % D.floor_rep(fln)) if float(S.rep) < D.floor_rep(fln) else money_why(D.floor_cost(fln))))
+			if not S.get("renov", {}).is_empty() and int(S.renov.f) == fln:
+				var left: float = game.renov_left()
+				v.add_child(_label("Sedang direnovasi · sisa %s waktu nyata" % game.fmt_real(left), 34, Color("3f6f96"), true))
+				v.add_child(_text("Tukang bekerja 24 jam waktu nyata dan tetap jalan walau game ditutup. Mau cepat? Pakai Diamond.", 28, D.C_MUTED))
+				var dc: int = game.renov_speed_cost()
+				v.add_child(_btn("Percepat · %d Diamond" % dc, Color("bfe3f5"), func(): game.renov_speedup(); refresh_sheet(), int(game.W.diamonds) < dc, false, "Diamond tidak cukup (punya %d, butuh %d)" % [int(game.W.diamonds), dc]))
+			elif fln == nxt:
+				v.add_child(_btn("Mulai Renovasi (24 jam) · " + D.short(D.floor_cost(fln)), D.C_YELLOW, func(): game.renovate_floor(fln), float(S.rep) < D.floor_rep(fln) or float(S.money) < D.floor_cost(fln), false, ("Rating kost harus minimal %.1f" % D.floor_rep(fln)) if float(S.rep) < D.floor_rep(fln) else money_why(D.floor_cost(fln))))
 			else:
 				v.add_child(_text("Renovasi lantai %d dulu." % nxt, 32, D.C_MUTED))
 		else:
 			var c: float = game.build_cost()
-			if game.job_for(id, "build") != {}:
+			var bj: Dictionary = game.job_for(id, "build")
+			if bj != {}:
 				v.add_child(_text("%s sedang membangun kamar ini." % D.worker_label("build"), 38))
+				v.add_child(_label("Sisa ± %d jam game (± %s nyata pada 1x)" % [ceili(float(bj.t) / 60.0), game.fmt_real(float(bj.t) / game.GAME_MIN_PER_SEC)], 32, Color("3f6f96"), true))
+				var jc: int = game.job_speed_cost(bj)
+				v.add_child(_btn("Selesaikan sekarang · %d Diamond" % jc, Color("bfe3f5"), func(): game.job_speedup(id, "build"), int(game.W.diamonds) < jc, false, "Diamond tidak cukup (punya %d, butuh %d)" % [int(game.W.diamonds), jc]))
 				return
 			v.add_child(_text("Bangun kamar Standar baru di sini.", 38))
 			_row(v, _label(D.rp(c), 42), _btn("Bangun", D.C_GREEN, func(): _do("build", id), float(S.money) < c, false, money_why(c)))
@@ -1367,6 +1396,10 @@ func _sheet_room() -> void:
 	else:
 		f.add_child(_label("Ryan membersihkan otomatis", 30, Color("2f7a2a"), true))
 	_furn_card(id)
+	var dv := _card()
+	var pp: Dictionary = r.get("paint", {})
+	_row(dv, _label("Dekorasi", 42), _label("%s · %s · %s" % [D.PAINTS[pp.get("wall", "asli")].n, D.MOTIFS[pp.get("motif", "polos")].n, D.FLOORS[pp.get("floor", "asli")].n], 30, D.C_MUTED, true))
+	dv.add_child(_btn("Cat Tembok & Ganti Lantai", Color("cfe6f5"), func(): open_sheet("paint", id)))
 	if r.tenant != null:
 		var t: Dictionary = r.tenant
 		var pr: String = game.presence(t)
@@ -1481,11 +1514,13 @@ func _sheet_staff() -> void:
 		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		hb.add_child(col)
 		v.add_child(hb)
-		_row(col, _label(st.nama, 42), _label(D.rp(game.staff_sal(k)) + "/hari", 32, D.C_MUTED, true))
+		_row(col, _label(st.nama, 42), _label("Pemilik" if st.get("owner", false) else D.rp(game.staff_sal(k)) + "/hari", 32, D.C_MUTED, true))
 		col.add_child(_label(st.n, 32, Color("8a5a3a"), true))
 		col.add_child(_text(st.d, 30, D.C_MUTED))
 		var f := _flow(col)
-		if int(S.lvl) < int(st.min):
+		if st.get("owner", false):
+			f.add_child(_label("Pemilik kost · selalu berjaga · tidak digaji", 30, Color("2f7a2a"), true))
+		elif int(S.lvl) < int(st.min):
 			f.add_child(_label("Terbuka di Level %d" % int(st.min), 34, D.C_MUTED, true))
 		elif st.has("need") and not game.has_facil(st.need) and not on:
 			f.add_child(_label("Butuh ruang %s dulu" % D.FACIL[st.need].n, 34, D.C_MUTED, true))
@@ -1526,6 +1561,8 @@ func _sheet_facil() -> void:
 		_header("Lantai %d · sedang dibangun" % f)
 		_fac_pic(box, str(j.item), 520)
 		box.add_child(_text("%s sedang membangun %s." % [D.worker_label("build"), D.FACIL[j.item].n], 36, D.C_MUTED))
+		var fjc: int = game.job_speed_cost(j)
+		box.add_child(_btn("Selesaikan sekarang · %d Diamond" % fjc, Color("bfe3f5"), func(): game.job_speedup("S%d" % f, "fbuild"), int(game.W.diamonds) < fjc, false, "Diamond tidak cukup (punya %d, butuh %d)" % [int(game.W.diamonds), fjc]))
 		return
 	_header("Sisi tangga lantai %d" % f)
 	box.add_child(_text("Bangun satu ruang fasilitas di sini. Bisa juga diseret dari menu Beli.", 34, D.C_MUTED))
@@ -1812,3 +1849,79 @@ func _process(delta: float) -> void:
 		_svel *= pow(0.04, delta)
 	elif _sdrag.is_empty():
 		_svel = 0.0
+
+
+# ---------------- Dekorasi kamar ----------------
+var paint_sel := {}
+
+
+func _swatch(t: String, col: Color, on: bool, cb: Callable, w := 238.0) -> Button:
+	var b := Button.new()
+	b.text = t
+	b.custom_minimum_size = Vector2(w, 110)
+	b.add_theme_font_override("font", font)
+	b.add_theme_font_size_override("font_size", 28)
+	var ink := Color("3e2b1d") if col.get_luminance() > 0.45 else Color("fff6e6")
+	for st in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		b.add_theme_color_override(st, ink)
+	var n := _sb(col, 10 if on else 4, 26, 10, 10, Color("2f6f4f") if on else Color("c9b79c"))
+	b.add_theme_stylebox_override("normal", n)
+	b.add_theme_stylebox_override("hover", n)
+	b.add_theme_stylebox_override("pressed", n)
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	b.pressed.connect(cb)
+	return b
+
+
+func _pick_paint(k: String, v: String) -> void:
+	paint_sel[k] = v
+	game.preview_paint(arg, paint_sel)
+	refresh_sheet()
+
+
+func _sheet_paint() -> void:
+	var id := arg
+	var S: Dictionary = game.S
+	_header("Dekorasi Kamar %s" % D.room_name(id))
+	_room_live(box, id, 1.55)
+	var cur: Dictionary = S.rooms[id].get("paint", {})
+	var sel := paint_sel
+	var v := _card()
+	_row(v, _label("Warna Cat", 40), _label("Rp 150rb", 32, D.C_MUTED, true))
+	var f := _flow(v)
+	for k in D.PAINT_ORDER:
+		f.add_child(_swatch(D.PAINTS[k].n, Color(D.PAINTS[k].c), sel.get("wall", "asli") == k, _pick_paint.bind("wall", k)))
+	var v2 := _card()
+	v2.add_child(_label("Motif Tembok", 40))
+	var f2 := _flow(v2)
+	for k in D.MOTIF_ORDER:
+		var mp: int = int(D.MOTIFS[k].p)
+		f2.add_child(_swatch("%s%s" % [D.MOTIFS[k].n, ("\n+" + D.short(mp)) if mp > 0 else ""], Color("fbf4e8"), sel.get("motif", "polos") == k, _pick_paint.bind("motif", k)))
+	var v3 := _card()
+	v3.add_child(_label("Lantai", 40))
+	var f3 := _flow(v3)
+	for k in D.FLOOR_ORDER:
+		var fd: Dictionary = D.FLOORS[k]
+		f3.add_child(_swatch("%s%s" % [fd.n, ("\n" + D.short(float(fd.p))) if float(fd.p) > 0 else ""], Color(fd.c), sel.get("floor", "asli") == k, _pick_paint.bind("floor", k), 340.0))
+	var c: float = game.paint_cost(id, sel)
+	var tv := _card()
+	var gain: float = game.paint_comfort(sel) - game.paint_comfort(cur)
+	_row(tv, _label("Total", 40), _label(D.rp(c), 42))
+	if absf(gain) > 0.01:
+		tv.add_child(_text("Kenyamanan %+.1f → sewa ikut %s" % [gain, "naik" if gain > 0 else "turun"], 30, D.C_MUTED))
+	tv.add_child(_text("Pratinjau langsung terlihat di gedung. Penghuni ikut senang kalau kamarnya didekorasi.", 30, D.C_MUTED))
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 26)
+	h.add_child(_btn("Batal", D.C_CREAM, func(): close_sheet(), false, true))
+	h.add_child(_btn("Beli & Pasang", D.C_GREEN, func(): game.buy_paint(id, sel); open_sheet("room", id), c <= 0.0 or float(S.money) < c, true, "Belum ada yang diubah." if c <= 0.0 else money_why(c)))
+	tv.add_child(h)
+
+
+func _sheet_funny() -> void:
+	var d: Dictionary = game.funny.sheet(arg)
+	_header(d.t)
+	var v := _card()
+	v.add_child(_text(d.d, 34))
+	for o in d.o:
+		var c: float = o[2]
+		v.add_child(_btn(o[0] + ((" · " + D.short(c)) if c > 0 else ""), o[1], o[3], float(game.S.money) < c, true, money_why(c)))

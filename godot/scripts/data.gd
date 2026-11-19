@@ -295,7 +295,7 @@ const JOBS := {
 const CHAR_TUA := ["kakek", "nenek"]
 const STAFF := {
 	"cleaner": {"nama": "Ryan", "n": "Petugas Kebersihan", "sal": 50000, "min": 1, "d": "Membersihkan kamar kotor; menangani sampah, area bersama kotor & hama."},
-	"resep": {"nama": "Maryam", "n": "Penjaga Kost", "sal": 60000, "min": 1, "d": "Berjaga di meja depan. Tamu lebih sering & sabar; menagih sewa, urus kunci hilang & tegur penghuni berisik."},
+	"resep": {"nama": "Maryam", "n": "Pemilik & Penjaga Kost", "sal": 0, "min": 1, "owner": true, "d": "Cucu Nenek dan pewaris kost. Mantan eksekutif yang memilih pulang. Berjaga di meja depan: tamu lebih sabar, menagih sewa, urus kunci hilang & tegur penghuni berisik."},
 	"teknisi": {"nama": "Dimas", "n": "Teknisi", "sal": 80000, "min": 3, "d": "Memperbaiki kerusakan gratis; menangani air mati, WiFi lemot, listrik jeglek & atap bocor."},
 	"laundry": {"nama": "Budi", "n": "Petugas Laundry", "sal": 45000, "min": 2, "need": "laundry", "d": "Mengurus mesin cuci. Pemasukan Laundry jadi 2x."},
 	"kantin": {"nama": "Bu Sari", "n": "Ibu Kantin", "sal": 55000, "min": 4, "need": "kantin", "d": "Memasak di Kantin. Membuka pemasukan harian Kantin."},
@@ -322,7 +322,8 @@ const APPS := {
 			"Data riwayat penyewa: cek \"Hubungi kost lama\" gratis"]},
 }
 const APP_ORDER := ["kostterdekat", "kelolapro"]
-const ISSUES := {"AC rusak": 250000, "Keran bocor": 120000, "Lampu mati": 60000, "Kasur jebol": 300000}
+const ISSUES := {"AC rusak": 250000, "Keran bocor": 120000, "Lampu mati": 60000, "Kasur jebol": 300000, "Gosong tersambar petir": 900000}
+const RANDOM_ISSUES := ["AC rusak", "Keran bocor", "Lampu mati", "Kasur jebol"]
 # Karakter penghuni (folder di assets/chars) -> jenis kelamin untuk nama.
 const CHARS := {"kutu": "l", "kakek": "l", "siswi": "p", "flanel": "p", "nenek": "p", "kupluk": "l"}
 # Pekerja: pose -> file (Array = bergantian tiap 3.5 detik).
@@ -385,6 +386,76 @@ static func rect_of(id: String) -> Rect2:
 
 
 const EXTRA_PITCH := 392
+
+# ---- Dekorasi kamar: cat tembok, motif, lantai ----
+# Garis lantai (px dari atas kotak kamar) tiap gambar kamar acuan.
+const ROOM_FLOOR_Y := {"4L": 272, "4R": 272, "3L": 256, "3R": 256, "2L": 243, "2R": 243, "1L": 232, "1R": 232}
+const PAINTS := {
+	"asli": {"n": "Krem Asli", "c": "f2dcc0"},
+	"putih": {"n": "Putih Susu", "c": "f7f3ea"},
+	"biru": {"n": "Biru Langit", "c": "bfd9ec"},
+	"mint": {"n": "Hijau Mint", "c": "c9e6cf"},
+	"pink": {"n": "Pink Salem", "c": "f3c9c6"},
+	"kuning": {"n": "Kuning Mentega", "c": "f6e3a4"},
+	"lavender": {"n": "Lavender", "c": "d9cdea"},
+	"toska": {"n": "Toska", "c": "9fd3cf"},
+	"abu": {"n": "Abu Kalem", "c": "d3d0cb"},
+	"terakota": {"n": "Terakota", "c": "e2a98c"},
+}
+const PAINT_ORDER := ["asli", "putih", "biru", "mint", "pink", "kuning", "lavender", "toska", "abu", "terakota"]
+const MOTIFS := {
+	"polos": {"n": "Polos", "p": 0, "id": 0},
+	"garis": {"n": "Garis", "p": 100000, "id": 1},
+	"polkadot": {"n": "Polkadot", "p": 120000, "id": 2},
+	"kotak": {"n": "Kotak-kotak", "p": 120000, "id": 3},
+	"bata": {"n": "Bata", "p": 160000, "id": 4},
+	"wajik": {"n": "Wajik", "p": 140000, "id": 5},
+}
+const MOTIF_ORDER := ["polos", "garis", "polkadot", "kotak", "bata", "wajik"]
+const PAINT_PRICE := 150000.0
+
+# Tangga: bisa di-upgrade sampai eskalator. bonus = tambahan sewa, spd = kecepatan naik-turun.
+const STAIRS := [
+	{},
+	{"n": "Tangga Kayu", "d": "Tangga kayu bawaan Nenek.", "cost": 0, "lv": 1, "bonus": 0.0, "spd": 1.0},
+	{"n": "Tangga Keramik", "d": "Anak tangga dilapisi keramik, bersih dan tidak berderit.", "cost": 1500000, "lv": 3, "bonus": 0.02, "spd": 1.15},
+	{"n": "Tangga Karpet", "d": "Karpet merah dengan batang kuningan. Kesan kost jadi mewah.", "cost": 4000000, "lv": 5, "bonus": 0.04, "spd": 1.3},
+	{"n": "Eskalator", "d": "Tangga berjalan! Penghuni naik-turun tanpa capek, kost makin bergengsi.", "cost": 12000000, "lv": 8, "bonus": 0.08, "spd": 1.8},
+]
+const FLOORS := {
+	"asli": {"n": "Kayu Asli", "k": 0, "c": "d2b48f", "c2": "d2b48f", "p": 0},
+	"kayu_gelap": {"n": "Kayu Gelap", "k": 1, "c": "9a6a45", "c2": "9a6a45", "p": 300000},
+	"kayu_putih": {"n": "Kayu Putih", "k": 1, "c": "efe6d6", "c2": "efe6d6", "p": 300000},
+	"keramik": {"n": "Keramik Putih", "k": 2, "c": "f4f1ea", "c2": "e6e1d6", "p": 450000},
+	"keramik_abu": {"n": "Keramik Abu", "k": 2, "c": "c9c7c2", "c2": "b6b3ad", "p": 450000},
+	"catur": {"n": "Keramik Catur", "k": 2, "c": "f2efe8", "c2": "4a4a52", "p": 550000},
+	"karpet_biru": {"n": "Karpet Biru", "k": 3, "c": "7d9cc4", "c2": "7d9cc4", "p": 400000},
+	"karpet_hijau": {"n": "Karpet Hijau", "k": 3, "c": "8fb58a", "c2": "8fb58a", "p": 400000},
+}
+const FLOOR_ORDER := ["asli", "kayu_gelap", "kayu_putih", "keramik", "keramik_abu", "catur", "karpet_biru", "karpet_hijau"]
+
+
+## Material shader cat untuk kamar `rid` dengan pilihan `p` {wall, motif, floor}.
+static func paint_mat(rid: String, p: Dictionary, tex_size: Vector2, mat: ShaderMaterial = null) -> ShaderMaterial:
+	if mat == null:
+		mat = ShaderMaterial.new()
+		mat.shader = load("res://shaders/paint.gdshader")
+		mat.set_shader_parameter("mask", load("res://assets/paint_mask.png"))
+	var sr := src_rect(rid)
+	mat.set_shader_parameter("region_uv", Vector4(sr.position.x / tex_size.x, sr.position.y / tex_size.y, sr.size.x / tex_size.x, sr.size.y / tex_size.y))
+	mat.set_shader_parameter("room_size", sr.size)
+	mat.set_shader_parameter("floor_y", float(ROOM_FLOOR_Y.get(tpl(rid), 256)))
+	var w: String = p.get("wall", "asli")
+	mat.set_shader_parameter("wall_on", w != "asli" or p.get("motif", "polos") != "polos")
+	var wc := Color(PAINTS[w].c)
+	mat.set_shader_parameter("wall_col", wc)
+	mat.set_shader_parameter("wall_col2", wc.lerp(Color.WHITE, 0.45) if wc.get_luminance() < 0.85 else wc.darkened(0.12))
+	mat.set_shader_parameter("motif", int(MOTIFS[p.get("motif", "polos")].id))
+	var fd: Dictionary = FLOORS[p.get("floor", "asli")]
+	mat.set_shader_parameter("floor_kind", int(fd.k))
+	mat.set_shader_parameter("floor_col", Color(fd.c))
+	mat.set_shader_parameter("floor_col2", Color(fd.c2))
+	return mat
 const LOBBY_TOP := 1800.0
 
 ## Kamar lantai 5+ meminjam gambar dari kamar lantai 3 (tata letak sama).

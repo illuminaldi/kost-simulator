@@ -169,7 +169,7 @@ func _kost() -> String:
 
 func _steps() -> Array:
 	return [
-		{"t": "Halo Juragan! Saya Maryam. Yuk saya tunjukkan cara mengelola %s, pelan-pelan saja." % _kost(), "manual": true},
+		{"t": "Hai, aku Maryam! Kost ini warisan Nenek dan aku baru jadi penjaganya. Bantu aku mengelola %s, ya? Pelan-pelan saja." % _kost(), "manual": true},
 		{"t": "Ada calon penyewa datang ke lobi. Ketuk tombol Penyewa untuk melihat profilnya.", "at": "penyewa"},
 		{"t": "Sebelum menerima, cek dulu latar belakangnya: ketuk \"Cek KTP & slip gaji\". Penyewa yang sering telat bayar bikin rugi!", "top": true},
 		{"t": "Kalau aman, tutup panel ini. Lalu Hold (tahan) calon penyewa di lobi, seret, dan Drop (lepas) di kamar kosong.", "at": "room", "from": "guest"},
@@ -177,7 +177,7 @@ func _steps() -> Array:
 		{"t": "Pickup sedang datang membawa kotaknya. Begitu kotak muncul, Hold (tahan) kotaknya, seret, lalu Drop (lepas) di kamar.", "at": "boxroom", "from": "box"},
 		{"t": "Andi si kurir akan mengantar ke kamar. Sekarang ketuk Karyawan dan rekrut Ryan, petugas kebersihan.", "at": "karyawan"},
 		{"t": "Terakhir: ketuk jam di kanan atas untuk mempercepat waktu.", "at": "jam"},
-		{"t": "Mantap, Juragan! %s siap berkembang. Kalau ada masalah, cek menu Kelola ya. Semangat!" % _kost(), "manual": true, "end": true},
+		{"t": "Makasih udah bantu! %s siap berkembang. Kalau ada masalah, cek menu Kelola ya. Semangat!" % _kost(), "manual": true, "end": true},
 	]
 
 

@@ -41,6 +41,7 @@ var pan := {}
 var _last_btn := {}      # true/false (press/release) -> [msec, posisi]
 var truck: Sprite2D
 var cat_spr: Sprite2D
+var funny: Funny
 var _cat_pets := 0
 var app_tablet: Sprite2D
 var app_banner: Sprite2D
@@ -292,6 +293,17 @@ func _build_world() -> void:
 		var dst := D.rect_of("%dS" % f)
 		var sp := _sprite(bld, src, dst.position)
 		sp.scale = dst.size / src.size
+	stair_nodes = []
+	for f in range(1, D.TOP_FLOOR + 1):
+		var src2 := D.rect_of("1S") if f % 2 == 1 else D.rect_of("3S")
+		var dst2 := D.rect_of("%dS" % f)
+		var st := _Stairs.new()
+		st.variant = 1 if f % 2 == 1 else 3
+		st.position = dst2.position
+		st.scale = dst2.size / src2.size
+		bld.add_child(st)
+		stair_nodes.append(st)
+	_refresh_stairs()
 	var rooms_root := Node2D.new()
 	bld.add_child(rooms_root)
 	for id in D.ROOMS:
@@ -367,6 +379,9 @@ func _build_world() -> void:
 	app_banner.position = Vector2(205, 1915)
 	app_banner.visible = false
 	lobby_root.add_child(app_banner)
+	funny = Funny.new()
+	add_child(funny)
+	funny.setup.call_deferred(self)
 	lobby_root.move_child(app_banner, npc_lobby.get_index())
 	canvas_mod = CanvasModulate.new()
 	add_child(canvas_mod)
@@ -747,6 +762,7 @@ func _load_wallet() -> void:
 	if not W.get("free_given", false):
 		W.free_given = true
 		W.tickets = int(W.tickets) + FREE_TICKETS
+		W.diamonds = int(W.diamonds) + 30    # hadiah pemain baru
 	save_wallet()
 
 
@@ -792,7 +808,7 @@ func _turbo_tick() -> void:
 		W.turbo_min = 0
 		save_wallet()
 		S.speed = 1
-		keeper_say("Juragan, mode ngebut udah habis~", 3.5)
+		keeper_say("Yah, mode ngebut udah habis~", 3.5)
 		ui.toast("Waktu 2x habis, kembali ke 1x. Pakai Tiket Ngebut lagi untuk 2x.", "bad")
 
 
@@ -887,6 +903,8 @@ func _load_game() -> Dictionary:
 			d.facil.erase(fk)
 			d.fac["lift"] = true
 	if not d.has("cargo"): d.cargo = []
+	d.staff["resep"] = true      # Maryam pemilik kost, selalu ada
+	if d.has("strike"): d.strike.erase("resep")
 	for o in d.orders: o.t = float(o.t)
 	for j in d.jobs:
 		j.t = float(j.t)
@@ -909,7 +927,60 @@ func comfort(r: Dictionary) -> float:
 	var c := 0.0
 	for t in r.get("furn", {}):
 		c += float(D.FURN[t].c) * D.FURN_MULT[int(r.furn[t])]
+	return c + paint_comfort(r.get("paint", {}))
+
+
+## Bonus kenyamanan dari cat & lantai (menaikkan sewa sedikit).
+func paint_comfort(p: Dictionary) -> float:
+	var c := 0.0
+	if p.get("wall", "asli") != "asli": c += 0.5
+	if p.get("motif", "polos") != "polos": c += 0.3
+	var fk: int = int(D.FLOORS[p.get("floor", "asli")].k)
+	c += [0.0, 0.6, 1.0, 0.8][fk]
 	return c
+
+
+func paint_cost(rid: String, sel: Dictionary) -> float:
+	var cur: Dictionary = S.rooms[rid].get("paint", {})
+	var c := 0.0
+	if sel.get("wall", "asli") != cur.get("wall", "asli") or sel.get("motif", "polos") != cur.get("motif", "polos"):
+		c += D.PAINT_PRICE + float(D.MOTIFS[sel.get("motif", "polos")].p)
+	if sel.get("floor", "asli") != cur.get("floor", "asli"):
+		c += maxf(100000.0, float(D.FLOORS[sel.get("floor", "asli")].p))
+	return c
+
+
+func preview_paint(rid: String, sel: Dictionary) -> void:
+	if not room_fx.has(rid): return
+	room_fx[rid].paint_preview = sel.duplicate()
+	room_fx[rid].apply_paint({})
+
+
+func clear_paint_preview() -> void:
+	for fx in room_fx.values():
+		if not fx.paint_preview.is_empty():
+			fx.paint_preview = {}
+			fx.apply_paint(S.rooms[fx.rid].get("paint", {}))
+
+
+func buy_paint(rid: String, sel: Dictionary) -> void:
+	var c := paint_cost(rid, sel)
+	if c <= 0.0:
+		ui.toast("Belum ada yang diubah.", "bad"); return
+	if float(S.money) < c:
+		ui.toast("Uang tidak cukup (butuh %s)" % D.rp(c), "bad"); return
+	spend(c, "other")
+	var r: Dictionary = S.rooms[rid]
+	r.paint = sel.duplicate()
+	update_tier(r)
+	if r.tenant != null:
+		r.tenant.happy = minf(100.0, float(r.tenant.happy) + 10.0)
+		if npcs.has(r.tenant.id): npcs[r.tenant.id].say("Wah, kamarku jadi cantik!", 2.5)
+	room_fx[rid].paint_preview = {}
+	sfx("upgrade")
+	add_xp(8)
+	ui.toast("Kamar %s didekorasi ulang!" % D.room_name(rid), "gold")
+	dirty = true
 
 
 func update_tier(r: Dictionary) -> void:
@@ -925,13 +996,13 @@ func _id_of(r: Dictionary) -> String:
 
 func rent_of(r: Dictionary) -> float:
 	var fl := D.fl(_id_of(r))
-	var v: float = (30000.0 + comfort(r) * 9000.0) * D.PRICE[int(S.price)].m * (1.0 + 0.04 * fac_count() + (0.05 if has_facil("cafe") else 0.0)) * (1.0 + 0.03 * (fl - 1))
+	var v: float = (30000.0 + comfort(r) * 9000.0) * D.PRICE[int(S.price)].m * (1.0 + 0.04 * fac_count() + (0.05 if has_facil("cafe") else 0.0) + float(D.STAIRS[stair_lv()].bonus)) * (1.0 + 0.03 * (fl - 1))
 	return round(v / 1000.0) * 1000.0
 
 
 func can_rent(id: String) -> bool:
 	var r: Dictionary = S.rooms[id]
-	return r.built and r.tenant == null and r.get("furn", {}).has("kasur")
+	return r.built and r.tenant == null and r.get("furn", {}).has("kasur") and str(r.get("broken", "")) != Funny.GOSONG and not (funny and funny.game and funny.haunted(id))
 
 
 func build_cost() -> float:
@@ -1006,6 +1077,12 @@ func float_at(id: String, text: String, col: Color) -> void:
 
 # ================= Waktu & ekonomi =================
 func _process(dt: float) -> void:
+	_renov_acc += dt
+	if _renov_acc > 1.0:
+		_renov_acc = 0.0
+		if not S.get("renov", {}).is_empty():
+			_check_renov()
+			dirty = true
 	var sp := int(S.speed)
 	if not ui.is_welcome_open() and not cutscene_on and sp > 0:
 		_acc += dt
@@ -1018,6 +1095,7 @@ func _process(dt: float) -> void:
 	_separate_npcs()
 	_chat_tick(dt)
 	_thief_tick(dt)
+	if funny and funny.game: funny.tick(dt)
 	_preman_tick(dt)
 	_ojol_tick(dt)
 	if sp > 0:
@@ -1067,6 +1145,9 @@ func _notification(what: int) -> void:
 			save_game()
 
 
+var _renov_acc := 0.0
+
+
 func _step() -> void:
 	_turbo_tick()
 	_tick_jobs(2.0)
@@ -1088,7 +1169,7 @@ func _next_guest_soon() -> void:
 func _spawn_cand() -> void:
 	var base := 330.0 * (1.4 - float(S.rep) * 0.15) * (0.7 if S.staff.get("resep", false) else 1.0) \
 		* float(D.PRICE[int(S.price)].c) * pow(0.96, fac_count()) * (0.8 if has_facil("tunggu") else 1.0)
-	S.next_cand = base * randf_range(0.7, 1.3) * (0.6 if has_app("kostterdekat") else (2.4 if is_sepi() else 1.0))
+	S.next_cand = base * randf_range(0.7, 1.3) * (0.6 if has_app("kostterdekat") else (2.4 if is_sepi() else 1.0)) * (funny.cand_mul() if funny and funny.game else 1.0)
 	if S.queue.size() >= queue_cap():
 		return
 	var p := gen_person(["p", "l"].pick_random())
@@ -1107,6 +1188,7 @@ func _hourly() -> void:
 	_auto_checkin()
 	var h := int(S.min) / 60
 	_maybe_thief(h)
+	if funny: funny.hourly(h)
 	_maybe_preman(h)
 	_maybe_ojol(h)
 	_maybe_galon(h)
@@ -1116,7 +1198,7 @@ func _hourly() -> void:
 			continue
 		r.clean = clampf(float(r.clean) - (0.6 * _trait_mult(r.tenant, "dirt") if r.tenant != null else 0.08) * (0.85 if S.fac.has("jemur") else 1.0) * (0.75 if has_facil("laundry") else 1.0), 0, 100)
 		if r.tenant != null and str(r.broken) == "" and randf() < 0.003:
-			r.broken = D.ISSUES.keys().pick_random()
+			r.broken = D.RANDOM_ISSUES.pick_random()
 			ui.toast("%s di Kamar %s!" % [r.broken, D.room_name(id)], "bad")
 	var pat := (72 if S.staff.get("resep", false) else 48) + (36 if has_facil("tunggu") else 0)
 	var keep := []
@@ -1182,7 +1264,7 @@ func is_sepi() -> bool:
 func _check_sepi() -> void:
 	if not is_sepi() or S.get("sepi_told", false): return
 	S.sepi_told = true
-	keeper_say("Juragan, kost lagi sepi nih...", 4.0)
+	keeper_say("Hmm, kost lagi sepi nih...", 4.0)
 	ui.toast("Kost mulai sepi! Calon penyewa jarang datang. Promosikan kost lewat KostTerdekat (Kelola › Fasilitas Kost).", "bad")
 
 
@@ -1196,7 +1278,7 @@ func _maybe_tip(id: String) -> void:
 	S.today.rent = float(S.today.rent) + tip
 	float_at(id, "Tips +" + D.short(tip), Color("c08a10"))
 	sfx("buy", -8.0)
-	var why: String = ["Kamarnya nyaman banget!", "Makasih udah dirawat baik!", "Kost terbaik!", "Buat jajan, Juragan!"].pick_random()
+	var why: String = ["Kamarnya nyaman banget!", "Makasih udah dirawat baik!", "Kost terbaik!", "Buat jajan, Mbak Maryam!"].pick_random()
 	ui.toast("%s memberi tips %s: \"%s\"" % [t.name, D.rp(tip), why], "gold")
 	if npcs.has(t.id): npcs[t.id].say(why, 2.5)
 
@@ -1220,7 +1302,7 @@ func collect_due(id: String) -> void:
 	float_at(id, "+" + D.short(a), Color("2f7a2a"))
 	sfx("buy", -6.0)
 	if r.tenant != null and npcs.has(r.tenant.id) and randf() < 0.5:
-		npcs[r.tenant.id].say(["Ini sewanya, Juragan!", "Lunas ya~", "Makasih, Juragan!"].pick_random(), 2.2)
+		npcs[r.tenant.id].say(["Ini sewanya, Mbak Maryam!", "Lunas ya~", "Makasih, Mbak!"].pick_random(), 2.2)
 	dirty = true
 
 
@@ -1335,7 +1417,7 @@ func _staff_daily() -> void:
 			ui.toast("%s kembali bekerja setelah istirahat." % D.staff_label(k), "gold")
 	var rooms := built_rooms()
 	for k in S.staff.keys():
-		if not S.staff[k]: continue
+		if not S.staff[k] or D.STAFF[k].get("owner", false): continue
 		var over := rooms - staff_cap(k)
 		var t := staff_tired(k)
 		t = t + over * 9.0 if over > 0 else t - 20.0
@@ -1346,7 +1428,7 @@ func _staff_daily() -> void:
 			S.strike[k] = int(S.day) + 1
 			S.tired[k] = 100.0
 			ui.toast("%s kecapekan & MOGOK sehari! Upgrade level-nya di menu Karyawan." % D.staff_label(k), "bad")
-			keeper_say("Juragan, %s mogok kerja..." % D.STAFF[k].nama, 4.0)
+			keeper_say("Aduh, %s mogok kerja..." % D.STAFF[k].nama, 4.0)
 		elif t >= 70.0 and over > 0:
 			ui.toast("%s mulai kecapekan (%d%%). Kamar terlalu banyak untuk Level %d." % [D.STAFF[k].nama, roundi(t), staff_lv(k)], "bad")
 
@@ -1408,7 +1490,7 @@ const CHAT_LONG := {
 }
 # Dialog saat penghuni sedang punya perasaan/masalah: [kalimat penghuni & lawan bicara bergantian]
 const MOOD_KEEPER := {
-	"marah": [["Mbak Maryam, aku kesel banget! Kamarku bikin nggak nyaman!", "Aduh, maaf ya. Ceritain pelan-pelan, apa yang bikin kesel?", "Pokoknya kotor, sumpek, bikin bete!", "Siap, saya laporkan ke Juragan hari ini juga. Sabar ya~", "...Oke deh, makasih Mbak."]],
+	"marah": [["Mbak Maryam, aku kesel banget! Kamarku bikin nggak nyaman!", "Aduh, maaf ya. Ceritain pelan-pelan, apa yang bikin kesel?", "Pokoknya kotor, sumpek, bikin bete!", "Siap, aku beresin hari ini juga. Sabar ya~", "...Oke deh, makasih Mbak."]],
 	"pusing": [["Mbak, kepalaku pusing banget...", "Aduh, udah makan belum? Minum air putih dulu, ya.", "Belum sempat, tugasnya numpuk.", "Istirahat dulu. Nanti saya bikinin teh hangat.", "Mbak Maryam baik banget, makasih!"]],
 	"lelah": [["Hoaam... capek banget hari ini, Mbak.", "Kerja keras ya? Langsung mandi air hangat terus tidur.", "Iya, besok masuk pagi lagi.", "Semangat! Kost ini rumahmu, istirahat yang cukup ya."]],
 	"air_mati": [["Mbak, air di kamarku mati! Aku belum mandi!", "Waduh! Saya cek pompanya sekarang, ya.", "Cepetan ya Mbak, mau berangkat kerja..."]],
@@ -1764,7 +1846,7 @@ func _context_lines(a: Dictionary, b: Dictionary) -> Array:
 		else:
 			opts.append(["Mbak Maryam, paketku udah datang?", "Sudah, ada di meja depan.", "Makasih, Mbak!"])
 			if int(a.stay) <= 1: opts.append(["Mbak, jam malam kost ini jam berapa?", "Jam sebelas, Kak. Tamu nggak boleh menginap, ya."])
-			if float(S.rooms[a.room].get("due", 0.0)) > 0: opts.append(["Mbak, sewaku udah bisa dibayar?", "Bisa, Kak. Nanti Juragan yang tagih langsung, ya."])
+			if float(S.rooms[a.room].get("due", 0.0)) > 0: opts.append(["Mbak, sewaku udah bisa dibayar?", "Bisa, Kak. Nanti aku tagih langsung ke kamar, ya."])
 	elif a.kind in ["res", "cand"] and b.kind in ["staff", "worker"]:
 		match str(b.role):
 			"cleaner":
@@ -1963,7 +2045,7 @@ func spawn_preman() -> void:
 	n.plan("lobby", Vector2(880, D.LOBBY_Y), "stand", func(m: Npc):
 		m.work = {"t": 9999.0, "pose": "demand"}
 		m.say("Bos! Uang keamanan dulu dong, %s!" % D.short(preman_amount()), 4.0)
-		keeper_say("Juragan... ada preman minta jatah.", 4.0)
+		keeper_say("Waduh... ada preman minta jatah.", 4.0)
 		ui.toast("Preman minta pungli %s! Ketuk premannya untuk menanggapi." % D.rp(preman_amount()), "bad"))
 
 
@@ -2048,7 +2130,7 @@ func preman_answer(how: String) -> void:
 						if S.rooms[id].built and str(S.rooms[id].broken) == "": pool.append(id)
 					if not pool.is_empty():
 						var rid: String = pool.pick_random()
-						var keys: Array = D.ISSUES.keys()
+						var keys: Array = D.RANDOM_ISSUES
 						S.rooms[rid].broken = keys.pick_random()
 						dmg = " Dia juga merusak %s di Kamar %s!" % [str(S.rooms[rid].broken), D.room_name(rid)]
 						preman.say("Nih, biar tahu rasa!", 3.0)
@@ -2072,6 +2154,8 @@ func floor_lock_text(f: int) -> String:
 ## Teks papan untuk lahan kosong di lantai terkunci ("" = boleh dibangun).
 func floor_lock_sign(f: int) -> String:
 	if f <= 8 or floor_open(f): return ""
+	if not S.get("renov", {}).is_empty() and int(S.renov.f) == f:
+		return "Direnovasi\n" + fmt_real(renov_left())
 	if int(S.lvl) < f: return ""      # papan "Terkunci Level X" bawaan
 	return "Renovasi\n%s" % D.short(D.floor_cost(f))
 
@@ -2084,7 +2168,53 @@ func renovate_floor(f: int) -> void:
 		ui.toast("Rating kost harus minimal %.1f untuk renovasi lantai %d" % [D.floor_rep(f), f], "bad"); return
 	if float(S.money) < D.floor_cost(f):
 		ui.toast("Uang belum cukup (%s)" % D.rp(D.floor_cost(f)), "bad"); return
+	if not S.get("renov", {}).is_empty():
+		ui.toast("Renovasi lantai %d masih berjalan." % int(S.renov.f), "bad"); return
 	spend(D.floor_cost(f), "other")
+	# Renovasi berjalan 24 jam waktu nyata (tetap berjalan walau game ditutup).
+	S.renov = {"f": f, "end": Time.get_unix_time_from_system() + RENOV_SECS}
+	ui.toast("Renovasi lantai %d dimulai: selesai dalam 24 jam (bisa dipercepat pakai Diamond)." % f, "gold")
+	sfx("buy")
+	dirty = true
+
+
+const RENOV_SECS := 24 * 3600
+const GAME_MIN_PER_SEC := 20.0   # 1x: 20 menit game per detik nyata
+
+
+func renov_left() -> float:
+	if S.get("renov", {}).is_empty(): return 0.0
+	return maxf(0.0, float(S.renov.end) - Time.get_unix_time_from_system())
+
+
+## "23j 10m" waktu nyata.
+func fmt_real(secs: float) -> String:
+	var h := int(secs) / 3600
+	var m := (int(secs) % 3600) / 60
+	return ("%dj %02dm" % [h, m]) if h > 0 else ("%dm %02ds" % [m, int(secs) % 60])
+
+
+## Biaya Diamond untuk mempercepat: renovasi 1 Diamond / 30 menit nyata.
+func renov_speed_cost() -> int:
+	return maxi(1, ceili(renov_left() / 1800.0))
+
+
+func renov_speedup() -> void:
+	var c := renov_speed_cost()
+	if int(W.diamonds) < c:
+		ui.toast("Diamond tidak cukup (butuh %d). Beli di Toko." % c, "bad")
+		ui.open_sheet("toko")
+		return
+	W.diamonds = int(W.diamonds) - c
+	save_wallet()
+	S.renov.end = Time.get_unix_time_from_system()
+	_check_renov()
+
+
+func _check_renov() -> void:
+	if S.get("renov", {}).is_empty() or renov_left() > 0.0: return
+	var f := int(S.renov.f)
+	S.renov = {}
 	S.open_floor = f
 	add_xp(50)
 	ui.toast("Lantai %d selesai direnovasi! Kamarnya siap dibangun." % f, "gold")
@@ -2093,6 +2223,28 @@ func renovate_floor(f: int) -> void:
 	save_game()
 	save_wallet()
 	get_tree().reload_current_scene()
+
+
+## Percepat pembangunan kamar / ruang fasilitas: 1 Diamond per 2 jam game sisa.
+func job_speed_cost(j: Dictionary) -> int:
+	return maxi(1, ceili(float(j.t) / 120.0))
+
+
+func job_speedup(room: String, type: String) -> void:
+	var j := job_for(room, type)
+	if j.is_empty(): return
+	var c := job_speed_cost(j)
+	if int(W.diamonds) < c:
+		ui.toast("Diamond tidak cukup (butuh %d). Beli di Toko." % c, "bad")
+		ui.open_sheet("toko")
+		return
+	W.diamonds = int(W.diamonds) - c
+	save_wallet()
+	_finish_job(j)
+	if npcs.has("job-" + str(j.id)):
+		_remove_npc(npcs["job-" + str(j.id)])
+	sfx("upgrade")
+	ui.close_sheet()
 
 
 ## Lantai tertinggi yang ditampilkan: lantai terbuka + 1 lantai berikutnya (masih terkunci).
@@ -2520,6 +2672,7 @@ func _resolve_event(e: Dictionary, action: String, cost: float, by_staff: bool =
 
 func _new_day() -> void:
 	_staff_daily()
+	if funny: funny.daily()
 	_events_daily_penalty()
 	_roll_events()
 	_facil_daily()
@@ -2534,7 +2687,7 @@ func _new_day() -> void:
 		var t: Dictionary = r.tenant
 		var d: float = 2 + int(D.PRICE[int(S.price)].h) + mini(fac_count(), 5) + (2 if S.staff.get("satpam", false) else 0) + facil_happy()
 		# Lantai tinggi tanpa lift: capek naik tangga.
-		if D.fl(id) > 5 and not S.fac.has("lift"): d -= 0.5 * (D.fl(id) - 5)
+		if D.fl(id) > 5 and not S.fac.has("lift"): d -= (0.15 if stair_lv() >= 4 else 0.5) * (D.fl(id) - 5)
 		if float(r.clean) < 45: d -= 6
 		if float(r.clean) < 20: d -= 10
 		if str(r.broken) != "": d -= 10
@@ -3267,6 +3420,12 @@ func act(a: String, arg: String = "") -> void:
 			var parts := arg.split("|")
 			var r: Dictionary = S.rooms[parts[1]]
 			if r.tenant != null or not r.built: return
+			if funny and funny.haunted(parts[1]):
+				ui.toast("Calon penyewa menolak: \"Kamar itu berhantu! Hiii...\" Periksa jendelanya dulu.", "bad")
+				return
+			if str(r.get("broken", "")) == Funny.GOSONG:
+				ui.toast("Kamar masih gosong kena petir. Renovasi dulu (panggil teknisi).", "bad")
+				return
 			var idx := -1
 			for i in range(S.queue.size()):
 				if S.queue[i].id == parts[0]: idx = i
@@ -3300,6 +3459,7 @@ func act(a: String, arg: String = "") -> void:
 		"staff_up":
 			staff_upgrade(arg)
 		"fire":
+			if D.STAFF[arg].get("owner", false): return
 			S.staff.erase(arg)
 			if S.has("strike"): S.strike.erase(arg)
 			ui.toast("%s diberhentikan" % D.staff_label(arg))
@@ -3720,7 +3880,7 @@ func _unhandled_input(e: InputEvent) -> void:
 			else:
 				ui.open_sheet(nv[0])
 			return
-	if _preman_tap(p) or _thief_tap(p):
+	if (funny and funny.game and funny.tap(p)) or _preman_tap(p) or _thief_tap(p):
 		get_viewport().set_input_as_handled()
 		return
 	var bi := _box_at(p)
@@ -3891,6 +4051,17 @@ func _handle_cli(args: PackedStringArray) -> void:
 			print("truck ", truck.position, " ", truck.scale, " state ", truck_state)
 			for b in box_nodes: print("box ", truck.to_global(b.position))
 			for y in range(2100, 2240, 20): print(y, " ", _box_at(Vector2(400, y)))
+		elif a == "--paint":
+			var combos := [{"wall": "biru", "motif": "garis", "floor": "keramik"}, {"wall": "pink", "motif": "polkadot", "floor": "kayu_gelap"},
+				{"wall": "mint", "motif": "bata", "floor": "karpet_hijau"}, {"wall": "kuning", "motif": "wajik", "floor": "catur"},
+				{"wall": "lavender", "motif": "kotak", "floor": "keramik_abu"}, {"wall": "toska", "motif": "polos", "floor": "kayu_putih"},
+				{"wall": "terakota", "motif": "polos", "floor": "asli"}, {"wall": "abu", "motif": "garis", "floor": "karpet_biru"}]
+			var i := 0
+			for id in D.ROOMS:
+				if S.rooms[id].built:
+					S.rooms[id].paint = combos[i % combos.size()]
+					i += 1
+			dirty = true
 		elif a == "--allfurn":
 			for id in D.ROOMS:
 				S.rooms[id].built = true
@@ -4016,6 +4187,15 @@ func _handle_cli(args: PackedStringArray) -> void:
 			S.tut = -1
 			ui.close_sheet()
 			S.cargo = ["lampu", "kasur"]
+		elif a == "--renovtest":
+			S.lvl = 9; S.rep = 5.0; S.money = 99000000.0
+			renovate_floor(9)
+		elif a.begins_with("--funny="):
+			var fk := a.substr(8)
+			get_tree().create_timer(0.5).timeout.connect(func(): funny.start(fk))
+		elif a.begins_with("--stair="):
+			S.stair_lv = int(a.substr(8))
+			_refresh_stairs()
 		elif a == "--rich":
 			W.diamonds = 500
 		elif a == "--stats":
@@ -4122,3 +4302,157 @@ func _handle_cli(args: PackedStringArray) -> void:
 	var img := get_viewport().get_texture().get_image()
 	img.save_png(shot)
 	get_tree().quit()
+
+
+# ---------------- Tangga & eskalator ----------------
+var stair_nodes: Array = []
+
+
+func stair_lv() -> int:
+	return clampi(int(S.get("stair_lv", 1)), 1, D.STAIRS.size() - 1)
+
+
+func _refresh_stairs() -> void:
+	var lv := stair_lv()
+	Npc.stair_mul = float(D.STAIRS[lv].spd)
+	Npc.escalator = lv >= 4
+	for st in stair_nodes:
+		st.lv = lv
+		st.queue_redraw()
+
+
+func stair_upgrade() -> void:
+	var lv := stair_lv()
+	if lv >= D.STAIRS.size() - 1: return
+	var nx: Dictionary = D.STAIRS[lv + 1]
+	if int(S.lvl) < int(nx.lv):
+		ui.toast("%s terbuka di Level %d" % [nx.n, int(nx.lv)], "bad"); return
+	if float(S.money) < float(nx.cost):
+		ui.toast(ui.money_why(float(nx.cost)), "bad"); return
+	spend(float(nx.cost), "other")
+	S.stair_lv = lv + 1
+	_refresh_stairs()
+	sfx("upgrade")
+	add_xp(30)
+	ui.toast("Tangga di-upgrade jadi %s! Sewa semua kamar +%d%%." % [nx.n, roundi(float(nx.bonus) * 100.0)], "gold")
+	keeper_say("Wah, %s! Nenek pasti bangga." % nx.n, 3.5)
+	dirty = true
+
+
+## Gambar ulang anak tangga sesuai level (1 = gambar asli, 4 = eskalator bergerak).
+class _Stairs extends Node2D:
+	var variant := 3
+	var lv := 1
+	var t := 0.0
+	const N := 9
+	func _process(dt: float) -> void:
+		if lv >= 4:
+			t += dt
+			queue_redraw()
+	func _edges() -> Array:
+		# [kiri atas, kanan atas, kanan bawah, kiri bawah] dalam koordinat gambar ruang tangga
+		if variant == 3:
+			return [Vector2(233, 0), Vector2(331, 0), Vector2(357, 277), Vector2(233, 277)]
+		return [Vector2(57, 0), Vector2(158, 0), Vector2(146, 284), Vector2(27, 284)]
+	func _xs(e: Array, y: float) -> Vector2:
+		var k: float = y / float(e[3].y)
+		return Vector2(lerpf(e[0].x, e[3].x, k), lerpf(e[1].x, e[2].x, k))
+	func _band(e: Array, y0: float, y1: float, col: Color) -> void:
+		var a := _xs(e, y0)
+		var b := _xs(e, y1)
+		draw_colored_polygon(PackedVector2Array([Vector2(a.x, y0), Vector2(a.y, y0), Vector2(b.y, y1), Vector2(b.x, y1)]), col)
+	func _draw() -> void:
+		if lv <= 1: return
+		var e := _edges()
+		var h: float = float(e[3].y)
+		var ink := Color("3d2a1e")
+		if lv < 4:
+			var tread := Color("efe9df") if lv == 2 else Color("e9e2d6")
+			var riser := Color("cfc4b4")
+			var sh := h / N
+			for i in range(N):
+				var y0 := i * sh
+				_band(e, y0, y0 + sh * 0.38, tread)
+				_band(e, y0 + sh * 0.38, y0 + sh, riser)
+				var a := _xs(e, y0 + sh * 0.38)
+				draw_line(Vector2(a.x, y0 + sh * 0.38), Vector2(a.y, y0 + sh * 0.38), Color(ink, 0.55), 2.5)
+				var c := _xs(e, y0 + sh)
+				draw_line(Vector2(c.x, y0 + sh), Vector2(c.y, y0 + sh), ink, 3.0)
+			if lv == 3:
+				# Karpet merah di tengah + batang kuningan
+				for i in range(N):
+					var y0 := i * sh
+					var m := _xs(e, y0 + sh * 0.5)
+					var w := (m.y - m.x) * 0.56
+					var cx := (m.x + m.y) * 0.5
+					draw_rect(Rect2(cx - w / 2, y0, w, sh), Color("b8433a"))
+					draw_rect(Rect2(cx - w / 2, y0 + sh * 0.36, w, sh * 0.1), Color("8f2f29"))
+					draw_line(Vector2(cx - w / 2 - 6, y0 + sh - 3), Vector2(cx + w / 2 + 6, y0 + sh - 3), Color("e2b54a"), 4.0)
+			draw_polyline(PackedVector2Array([e[0], e[3]]), ink, 4.0)
+			draw_polyline(PackedVector2Array([e[1], e[2]]), ink, 4.0)
+			return
+		# Eskalator: badan baja, anak tangga beralur yang bergerak naik, kaca & pegangan karet.
+		_band(e, 0, h, Color("8f959c"))
+		var sh2 := h / N
+		var off := fmod(t * 34.0, sh2)
+		for i in range(-1, N + 1):
+			var y0 := i * sh2 - off
+			var ya := clampf(y0, 0.0, h)
+			var yb := clampf(y0 + sh2 * 0.62, 0.0, h)
+			if yb > ya: _band(e, ya, yb, Color("c3c8ce"))
+			var yc := clampf(y0 + sh2 * 0.62, 0.0, h)
+			var yd := clampf(y0 + sh2, 0.0, h)
+			if yd > yc: _band(e, yc, yd, Color("7b8189"))
+			for g in range(1, 7):
+				var yy := y0 + sh2 * 0.62 * g / 7.0
+				if yy > 0 and yy < h:
+					var a := _xs(e, yy)
+					draw_line(Vector2(a.x + 6, yy), Vector2(a.y - 6, yy), Color("a7adb4"), 1.5)
+			var yl := y0 + sh2 * 0.62
+			if yl > 0 and yl < h:
+				var c := _xs(e, yl)
+				draw_line(Vector2(c.x + 4, yl), Vector2(c.y - 4, yl), Color("f2c94c"), 3.0)   # garis kuning tepi
+		# Kaca pembatas & pegangan karet hitam di dua sisi
+		for side in [[e[0], e[3], 1.0], [e[1], e[2], -1.0]]:
+			var p0: Vector2 = side[0]
+			var p1: Vector2 = side[1]
+			var dx: float = side[2] * 16.0
+			draw_colored_polygon(PackedVector2Array([p0, p0 + Vector2(dx, 0), p1 + Vector2(dx, 0), p1]), Color(0.72, 0.88, 0.97, 0.55))
+			draw_line(p0, p1, Color("1f2226"), 7.0)
+			draw_line(p0 + Vector2(dx, 0), p1 + Vector2(dx, 0), Color(1, 1, 1, 0.6), 2.0)
+		# Tapak bawah (landing) logam
+		var b := _xs(e, h)
+		draw_rect(Rect2(b.x - 4, h - 12, b.y - b.x + 8, 14), Color("b9bec4"))
+		draw_line(Vector2(b.x - 4, h - 12), Vector2(b.y + 4, h - 12), Color("3d4148"), 3.0)
+
+
+## Gelembung bicara sementara di lobi (untuk karakter non-NPC seperti induk beruang).
+func npc_say_at(pos: Vector2, text: String, dur: float = 3.0) -> void:
+	var p := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color("fffaf0")
+	sb.border_color = D.C_LINE
+	sb.set_border_width_all(4)
+	sb.set_corner_radius_all(26)
+	sb.content_margin_left = 24
+	sb.content_margin_right = 24
+	sb.content_margin_top = 10
+	sb.content_margin_bottom = 14
+	p.add_theme_stylebox_override("panel", sb)
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_override("font", font)
+	l.add_theme_font_size_override("font_size", 34)
+	l.add_theme_color_override("font_color", D.C_INK)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size.x = 520
+	p.add_child(l)
+	p.z_index = 46
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lobby_root.add_child(p)
+	p.reset_size()
+	p.position = Vector2(clampf(pos.x - p.size.x / 2.0, 20, D.IW - p.size.x - 20), pos.y - p.size.y)
+	var t := p.create_tween()
+	t.tween_interval(dur)
+	t.tween_property(p, "modulate:a", 0.0, 0.4)
+	t.tween_callback(p.queue_free)
