@@ -812,7 +812,7 @@ func _spawn_cand() -> void:
 		return
 	var p := gen_person(["p", "l"].pick_random())
 	if S.staff.get("resep", false):
-		p.checked["wawancara"] = true    # Mariam mewawancarai tamu di meja depan
+		p.checked["wawancara"] = true    # Maryam mewawancarai tamu di meja depan
 	if has_app("kostterdekat"):
 		p.checked["kerja"] = true        # profil terverifikasi di aplikasi
 		p.via = "KostTerdekat"
@@ -940,7 +940,7 @@ func keeper_say(text: String, dur: float = 3.5) -> void:
 		_desk_say_t = dur
 
 
-## Label di atas meja depan: nama Mariam, atau kalimatnya (dibungkus, tetap di dalam layar).
+## Label di atas meja depan: nama Maryam, atau kalimatnya (dibungkus, tetap di dalam layar).
 func _desk_text(text: String, talk: bool) -> void:
 	var l := desk_tag.get_child(0) as Label
 	# Bungkus manual per ±24 huruf (autowrap di PanelContainer membuat tinggi kotak keliru).
@@ -1001,14 +1001,14 @@ const CHAT_LONG := {
 	"kantin": [["Bu Sari, nasi goreng satu.", "Pedas atau nggak, Nak?", "Pedas dong, Bu!", "Siap, sebentar ya."]],
 	"laundry": [["Mas Budi, titip cucian ya.", "Oke, besok sore beres.", "Sekalian disetrika ya, Mas.", "Beres!"]],
 	"keeper": [
-		["Mbak Mariam, paketku udah datang?", "Sudah, ada di meja depan.", "Makasih, Mbak!"],
-		["Mbak Mariam, airnya lancar kan?", "Aman, baru dicek tadi pagi.", "Sip, makasih!"],
+		["Mbak Maryam, paketku udah datang?", "Sudah, ada di meja depan.", "Makasih, Mbak!"],
+		["Mbak Maryam, airnya lancar kan?", "Aman, baru dicek tadi pagi.", "Sip, makasih!"],
 	],
 }
 # Dialog saat penghuni sedang punya perasaan/masalah: [kalimat penghuni & lawan bicara bergantian]
 const MOOD_KEEPER := {
-	"marah": [["Mbak Mariam, aku kesel banget! Kamarku bikin nggak nyaman!", "Aduh, maaf ya. Ceritain pelan-pelan, apa yang bikin kesel?", "Pokoknya kotor, sumpek, bikin bete!", "Siap, saya laporkan ke Juragan hari ini juga. Sabar ya~", "...Oke deh, makasih Mbak."]],
-	"pusing": [["Mbak, kepalaku pusing banget...", "Aduh, udah makan belum? Minum air putih dulu, ya.", "Belum sempat, tugasnya numpuk.", "Istirahat dulu. Nanti saya bikinin teh hangat.", "Mbak Mariam baik banget, makasih!"]],
+	"marah": [["Mbak Maryam, aku kesel banget! Kamarku bikin nggak nyaman!", "Aduh, maaf ya. Ceritain pelan-pelan, apa yang bikin kesel?", "Pokoknya kotor, sumpek, bikin bete!", "Siap, saya laporkan ke Juragan hari ini juga. Sabar ya~", "...Oke deh, makasih Mbak."]],
+	"pusing": [["Mbak, kepalaku pusing banget...", "Aduh, udah makan belum? Minum air putih dulu, ya.", "Belum sempat, tugasnya numpuk.", "Istirahat dulu. Nanti saya bikinin teh hangat.", "Mbak Maryam baik banget, makasih!"]],
 	"lelah": [["Hoaam... capek banget hari ini, Mbak.", "Kerja keras ya? Langsung mandi air hangat terus tidur.", "Iya, besok masuk pagi lagi.", "Semangat! Kost ini rumahmu, istirahat yang cukup ya."]],
 	"air_mati": [["Mbak, air di kamarku mati! Aku belum mandi!", "Waduh! Saya cek pompanya sekarang, ya.", "Cepetan ya Mbak, mau berangkat kerja..."]],
 	"wifi_lemot": [["Mbak, WiFi-nya lemot banget, aku lagi meeting online!", "Aduh, coba saya restart router-nya dulu, ya."]],
@@ -1020,7 +1020,7 @@ const MOOD_KEEPER := {
 	"paket_hilang": [["Mbak, paketku kok nggak ada ya?", "Hmm, coba saya cek CCTV dan buku tamu dulu."]],
 }
 const MOOD_FRIEND := {
-	"marah": [["Lagi bete ya? Mukamu kusut banget.", "Iya, kamarku bikin kesel.", "Lapor aja ke Mbak Mariam, dia cepat tanggap kok.", "Oke, nanti aku bilang."]],
+	"marah": [["Lagi bete ya? Mukamu kusut banget.", "Iya, kamarku bikin kesel.", "Lapor aja ke Mbak Maryam, dia cepat tanggap kok.", "Oke, nanti aku bilang."]],
 	"pusing": [["Kamu pucat, lagi sakit?", "Pusing dikit...", "Nih, aku punya minyak angin. Istirahat ya!", "Makasih banget!"]],
 	"lelah": [["Capek ya? Mau kubikinin mie?", "Boleh banget... laper.", "Yuk ke dapur bareng!"]],
 }
@@ -1054,7 +1054,7 @@ func _room_of_npc(n: Npc) -> String:
 	return ""
 
 
-## Penghuni yang sedang kesal/pusing lewat lobi → curhat ke Mariam di meja depan.
+## Penghuni yang sedang kesal/pusing lewat lobi → curhat ke Maryam di meja depan.
 var _desk_convo := {}
 
 

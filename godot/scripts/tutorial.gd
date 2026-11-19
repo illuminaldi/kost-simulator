@@ -1,6 +1,6 @@
 class_name Tutorial
 extends Control
-## Tutorial interaktif: Mariam memberi satu tugas per langkah, panah menunjuk ke tempat
+## Tutorial interaktif: Maryam memberi satu tugas per langkah, panah menunjuk ke tempat
 ## yang harus disentuh, dan langkah berikutnya terbuka begitu tugasnya benar-benar dikerjakan.
 
 var game: Node
@@ -75,7 +75,7 @@ func setup(p_game: Node, p_ui: Node, p_font: Font) -> void:
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	h.add_child(v)
 	var who := Label.new()
-	who.text = "Mariam · Tutorial"
+	who.text = "Maryam · Tutorial"
 	who.add_theme_font_override("font", font)
 	who.add_theme_font_size_override("font_size", 32)
 	who.add_theme_color_override("font_color", Color("b06a3b"))
@@ -152,7 +152,7 @@ func _kost() -> String:
 
 func _steps() -> Array:
 	return [
-		{"t": "Halo Juragan! Saya Mariam. Yuk saya tunjukkan cara mengelola %s, pelan-pelan saja." % _kost(), "manual": true},
+		{"t": "Halo Juragan! Saya Maryam. Yuk saya tunjukkan cara mengelola %s, pelan-pelan saja." % _kost(), "manual": true},
 		{"t": "Ada calon penyewa datang ke lobi. Ketuk tombol Penyewa untuk melihat profilnya.", "at": "penyewa"},
 		{"t": "Sebelum menerima, cek dulu latar belakangnya: ketuk \"Cek KTP & slip gaji\". Penyewa yang sering telat bayar bikin rugi!", "top": true},
 		{"t": "Kalau aman, tutup panel ini. Lalu Hold (tahan) calon penyewa di lobi, seret, dan Drop (lepas) di kamar kosong.", "at": "room", "from": "guest"},

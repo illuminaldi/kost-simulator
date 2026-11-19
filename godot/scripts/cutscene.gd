@@ -78,9 +78,9 @@ func setup(p_ui: Node, p_font: Font, p_art: Texture2D, cur_name: String) -> void
 		{"bg": "city", "who": "", "t": "Di kota besar yang tak pernah tidur, kamu merantau sendirian, mencari kerja dan tempat untuk pulang..."},
 		{"bg": "letter", "who": "", "t": "Sampai suatu sore, datang sepucuk surat dari kampung."},
 		{"bg": "old", "who": "", "t": "Kost tua peninggalan Nenek sudah lama sepi. Kamar-kamarnya kosong, catnya mulai pudar."},
-		{"bg": "lobby", "who": "Mariam", "t": "\"Selamat datang, Juragan! Saya Mariam, penjaga kost ini sejak zaman Nenek.\""},
-		{"bg": "lobby2", "who": "Mariam", "t": "\"Kita mulai pelan-pelan, ya. Satu kamar, satu penghuni, satu senyum. Lama-lama kost ini ramai lagi!\""},
-		{"bg": "name", "who": "Mariam", "t": "\"Oh iya, kost ini mau dikasih nama apa, Juragan?\""},
+		{"bg": "lobby", "who": "Maryam", "t": "\"Selamat datang, Juragan! Saya Maryam, penjaga kost ini sejak zaman Nenek.\""},
+		{"bg": "lobby2", "who": "Maryam", "t": "\"Kita mulai pelan-pelan, ya. Satu kamar, satu penghuni, satu senyum. Lama-lama kost ini ramai lagi!\""},
+		{"bg": "name", "who": "Maryam", "t": "\"Oh iya, kost ini mau dikasih nama apa, Juragan?\""},
 	]
 	_next()
 
