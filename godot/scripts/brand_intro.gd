@@ -79,7 +79,7 @@ func _next() -> void:
 				queue_free())
 			return
 	_no_mouse(cur)   # semua isi adegan tembus sentuhan, ketukan sampai ke root
-	cur.modulate.a = 0.0 if scene_i > 0 else 1.0
+	cur.modulate.a = 0.0    # semua adegan muncul pelan setelah splash loading (ikon Cozy Kost)
 	root.add_child(cur)
 	if scene_i == 1: _play("brand_kostterdekat")
 	elif scene_i == 2: _play("brand_cozy")
