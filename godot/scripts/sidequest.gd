@@ -478,9 +478,9 @@ class _Walk extends Node2D:
 	const INK := Color("4a3626")
 
 	func _ready() -> void:
-		_city = load("res://assets/side/kota.jpg")
+		_city = load("res://assets/side/kota.jpg" if theme == "kota" else "res://assets/side/taman.jpg")
 		var ci := _city.get_image()
-		_sky = ci.get_pixel(10, 4)
+		_sky = ci.get_pixel(ci.get_width() / 2, 4)
 		ci.flip_x()
 		_city_f = ImageTexture.create_from_image(ci)
 		_make_traffic()
@@ -504,7 +504,7 @@ class _Walk extends Node2D:
 		var H := float(D.IH)
 		var off := t * 420.0 * float(-dir)   # pemandangan bergeser berlawanan arah langkah
 		var kota := theme == "kota"
-		if kota and _city:
+		if _city:
 			_draw_city(off)
 			return
 		# Langit
@@ -559,22 +559,27 @@ class _Walk extends Node2D:
 	## Jalan kota bergambar (dari ilustrasi), disambung bergantian dengan cerminannya agar mulus.
 	func _draw_city(off: float) -> void:
 		var W := float(D.IW)
-		var sc := 1.25
+		var kota := theme == "kota"
+		var sc := 1.25 if kota else 1.0
 		var tw := _city.get_width() * sc
 		var th := _city.get_height() * sc
-		var top := 2320.0 - th
+		var top := (2320.0 - th) if kota else 440.0
 		draw_rect(Rect2(0, 0, W, top + 4), _sky)
 		var start := floori(-off / tw) - 1
 		for i in range(start, start + int(W / tw) + 3):
 			var x := i * tw + off
 			draw_texture_rect(_city if posmod(i, 2) == 0 else _city_f, Rect2(x, top, tw, th), false)
-		draw_rect(Rect2(0, 2320, W, D.IH - 2320), Color("d9d6cf"))
-		_draw_traffic(off, top + 1300.0 * sc, 70.0)
+		if kota:
+			draw_rect(Rect2(0, 2320, W, D.IH - 2320), Color("d9d6cf"))
+			_draw_traffic(off, top + 1300.0 * sc, 70.0)
+		else:
+			draw_rect(Rect2(0, top + th - 2, W, D.IH - top - th + 2), Color("5f5a57"))
+			_draw_traffic(off, 2130.0, 60.0)
 		var tex: Texture2D = _frames[int(t * 6.0) % 2]
 		var s := 1.4
 		var sz := tex.get_size() * s
 		var bob := -absf(sin(t * 12.0)) * 8.0
-		var feet := top + (1940.0 - 470.0) * sc
+		var feet := (top + (1940.0 - 470.0) * sc) if kota else 2245.0
 		draw_texture_rect(tex, Rect2(W / 2.0 - sz.x / 2.0, feet - sz.y + bob, sz.x, sz.y), false)
 		_label_draw()
 
