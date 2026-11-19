@@ -114,6 +114,7 @@ func _next() -> void:
 	var sc: Dictionary = scenes[idx]
 	var old := stage.get_children()
 	var layer_c := _build(sc.bg)
+	_no_mouse(layer_c)
 	layer_c.modulate.a = 0.0
 	stage.add_child(layer_c)
 	var tw := create_tween()
@@ -128,6 +129,14 @@ func _next() -> void:
 	typing.tween_property(text_lbl, "visible_ratio", 1.0, sc.t.length() * 0.035)
 	if sc.bg == "name":
 		typing.tween_callback(_ask_name)
+
+
+## Semua isi adegan tembus sentuhan, supaya ketukan sampai ke root (lanjut adegan).
+func _no_mouse(n: Node) -> void:
+	if n is Control:
+		(n as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for ch in n.get_children():
+		_no_mouse(ch)
 
 
 # ---------- Adegan ----------

@@ -105,6 +105,22 @@ func _maybe_intro(args: PackedStringArray) -> void:
 		ui.tutorial.start(int(S.tut))
 
 
+func _clicktest() -> void:
+	await get_tree().create_timer(2.5).timeout
+	for i in range(4):
+		for pr in [true, false]:
+			var e := InputEventMouseButton.new()
+			e.button_index = MOUSE_BUTTON_LEFT
+			e.position = Vector2(700, 800)
+			e.global_position = e.position
+			e.pressed = pr
+			Input.parse_input_event(e)
+			await get_tree().create_timer(0.15).timeout
+		await get_tree().create_timer(0.6).timeout
+	for c in get_children():
+		if c is Cutscene: print("CUTSCENE idx=", c.idx)
+
+
 func play_intro() -> Cutscene:
 	ui.close_sheet()
 	ui.tutorial.visible = false
@@ -2438,6 +2454,8 @@ func _handle_cli(args: PackedStringArray) -> void:
 			S.tut = int(a.substr(6))
 		elif a.begins_with("--name="):
 			S.kost_name = a.substr(7)
+		elif a == "--clicktest":
+			_clicktest.call_deferred()
 		elif a == "--waitlist":
 			S.seen = true
 			ui.close_sheet()
