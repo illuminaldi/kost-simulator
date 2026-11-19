@@ -23,6 +23,7 @@ var toasts: VBoxContainer
 var overlay: Control
 var sheet: PanelContainer
 var scroll: ScrollContainer
+var tutorial: Tutorial
 var box: VBoxContainer
 var kind := ""
 var arg := ""
@@ -278,6 +279,10 @@ func setup(p_game: Node, art: Texture2D, p_font: Font, p_font_m: Font) -> void:
 	box.add_theme_constant_override("separation", 18)
 	scroll.add_child(box)
 	add_child(overlay)
+	tutorial = Tutorial.new()
+	add_child(tutorial)
+	tutorial.setup(game, self, font)
+	tutorial.visible = false
 
 
 # ---------- Helper gaya ----------
@@ -745,6 +750,7 @@ func refresh_sheet(keep: bool = true) -> void:
 		c.queue_free()
 	match kind:
 		"welcome": _sheet_welcome()
+		"rename": _sheet_rename()
 		"room": _sheet_room()
 		"tenants": _sheet_tenants()
 		"staff": _sheet_staff()
@@ -793,9 +799,35 @@ func _do(action: String, a: String = "") -> void:
 	game.act(action, a)
 
 
+func ask_rename() -> void:
+	if OS.has_feature("web"):
+		var r = JavaScriptBridge.eval("window.prompt('Nama kost kamu?', %s)" % JSON.stringify(str(game.S.get("kost_name", ""))))
+		if r != null and str(r).strip_edges() != "":
+			_do("rename", str(r))
+		return
+	open_sheet("rename")
+
+
+func _sheet_rename() -> void:
+	_header("Ganti nama kost")
+	var le := LineEdit.new()
+	le.text = str(game.S.get("kost_name", "Kost Harmoni"))
+	le.max_length = 22
+	le.add_theme_font_override("font", font)
+	le.add_theme_font_size_override("font_size", 52)
+	le.custom_minimum_size = Vector2(0, 100)
+	var ls := _sb(Color.WHITE, 5, 22, 26, 0)
+	le.add_theme_stylebox_override("normal", ls)
+	le.add_theme_stylebox_override("focus", ls)
+	le.add_theme_color_override("font_color", D.C_INK)
+	box.add_child(le)
+	var f := _flow(box)
+	f.add_child(_btn("Simpan", D.C_YELLOW, func(): _do("rename", le.text); close_sheet()))
+
+
 func _sheet_welcome() -> void:
 	_header("Selamat datang, Juragan Kost!", false)
-	box.add_child(_text("Kamu baru mewarisi Kost Harmoni. Kelola kamar, terima penyewa, dan jadikan kost ini yang paling nyaman se-kota!", 40))
+	box.add_child(_text("Kamu baru mewarisi " + str(game.S.get("kost_name", "Kost Harmoni")) + ". Kelola kamar, terima penyewa, dan jadikan kost ini yang paling nyaman se-kota!", 40))
 	var tips := [
 		"Tahan & seret calon penyewa dari lobi ke kamar kosong yang sudah ada kasurnya.",
 		"Tombol Beli: ketuk perabot untuk memesan. Pickup datang membawa kotaknya, lalu tahan & seret kotak ke kamar. Seret kartu Kamar Baru ke lahan kosong untuk membangun.",
@@ -998,7 +1030,7 @@ func _sheet_staff() -> void:
 			tot += int(D.STAFF[k].sal)
 	var appfee := 0
 	for k in S.get("apps", {}):
-		appfee += int(D.APPS[k].fee)
+		appfee += roundi(D.APPS[k].fee)
 	box.add_child(_text("Total gaji: %s/hari%s (dibayar pukul 17:00)" % [D.rp(tot), (" + aplikasi " + D.rp(appfee)) if appfee > 0 else ""], 36, D.C_MUTED))
 	for k in D.STAFF:
 		var st: Dictionary = D.STAFF[k]
@@ -1105,7 +1137,7 @@ func _sheet_upgrade() -> void:
 			v.add_child(_text(fc.d, 32, D.C_MUTED))
 	# Aplikasi langganan
 	box.add_child(_label("Aplikasi", 44))
-	box.add_child(_text("Langganan harian, dibayar bersama gaji pukul 17:00. Bisa dihentikan kapan saja.", 32, D.C_MUTED))
+	box.add_child(_text("Langganan bulanan, ditagih per hari bersama gaji pukul 17:00. Bisa dihentikan kapan saja.", 32, D.C_MUTED))
 	for k in D.APP_ORDER:
 		var ap: Dictionary = D.APPS[k]
 		var v := _card()
@@ -1130,7 +1162,7 @@ func _sheet_upgrade() -> void:
 		else:
 			right = _btn("Pasang", D.C_GREEN, func(): _do("app_on", k))
 		_row(col, _label(ap.n, 40), right)
-		col.add_child(_label("%s · %s/hari%s" % [ap.tag, D.short(ap.fee), "  · Aktif" if on else ""], 30, Color("2f7a2a") if on else Color("8a5a3a"), true))
+		col.add_child(_label("%s · %s/bulan (± %s/hari)%s" % [ap.tag, D.short(ap.month), D.rp(roundi(ap.fee)), "  · Aktif" if on else ""], 30, Color("2f7a2a") if on else Color("8a5a3a"), true))
 		for perk in ap.perks:
 			col.add_child(_text("• " + perk, 30, D.C_MUTED))
 	# Ruang fasilitas di samping tangga + karyawannya
@@ -1181,7 +1213,12 @@ func _sheet_upgrade() -> void:
 
 func _sheet_manage() -> void:
 	var S: Dictionary = game.S
-	_header("Kelola Kost Harmoni")
+	_header("Kelola " + str(S.get("kost_name", "Kost Harmoni")))
+	var nv := _card()
+	_row(nv, _label(str(S.get("kost_name", "Kost Harmoni")), 40), _btn("Ganti nama", D.C_CREAM, func(): ask_rename()))
+	var nf := _flow(nv)
+	nf.add_child(_btn("Ulangi tutorial", D.C_CREAM, func(): _do("tutorial")))
+	nf.add_child(_btn("Putar cerita awal", D.C_CREAM, func(): _do("intro")))
 	if S.events.is_empty():
 		_card().add_child(_text("Tidak ada masalah. Kost aman & tenteram.", 34, Color("2f7a2a")))
 	for e in S.events:

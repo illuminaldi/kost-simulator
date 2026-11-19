@@ -87,9 +87,52 @@ func _ready() -> void:
 	_sync_npcs()
 	_refresh_cargo()
 	ui.update_hud()
-	if not S.get("seen", false):
-		ui.open_sheet("welcome")
 	_handle_cli(args)
+	_maybe_intro.call_deferred(args)
+
+
+# ================= Cerita pembuka & tutorial =================
+var cutscene_on := false
+
+
+func _maybe_intro(args: PackedStringArray) -> void:
+	if args.has("--intro") or not S.get("seen", false):
+		var cs := play_intro()
+		for a in args:
+			if a.begins_with("--introat="):
+				for _i in range(int(a.substr(10))): cs._next()
+	elif int(S.get("tut", -1)) >= 0:
+		ui.tutorial.start(int(S.tut))
+
+
+func play_intro() -> Cutscene:
+	ui.close_sheet()
+	ui.tutorial.visible = false
+	cutscene_on = true
+	var cs := Cutscene.new()
+	add_child(cs)
+	cs.setup(ui, font, art, str(S.get("kost_name", "Kost Harmoni")))
+	cs.finished.connect(func(nm: String):
+		cutscene_on = false
+		var first: bool = not S.get("seen", false)
+		S.kost_name = nm
+		S.seen = true
+		_refresh_sign()
+		ui.toast("%s resmi dibuka!" % nm, "gold")
+		if first:
+			ui.tutorial.start(0)
+		save_game())
+	return cs
+
+
+var kost_sign: PanelContainer
+
+
+func _refresh_sign() -> void:
+	if kost_sign:
+		(kost_sign.get_child(0) as Label).text = str(S.get("kost_name", "Kost Harmoni"))
+		kost_sign.reset_size()
+		kost_sign.position.x = 770.0 - kost_sign.size.x / 2.0
 
 
 # ================= Dunia =================
@@ -219,6 +262,26 @@ func _build_world() -> void:
 	recep_art.scale = Vector2(0.9, 0.9)
 	recep_art.z_index = 0
 	npc_lobby.add_child(recep_art)
+	kost_sign = PanelContainer.new()
+	var ksb := StyleBoxFlat.new()
+	ksb.bg_color = Color("b8835a")
+	ksb.border_color = Color("5a3d2b")
+	ksb.set_border_width_all(6)
+	ksb.set_corner_radius_all(16)
+	ksb.content_margin_left = 30
+	ksb.content_margin_right = 30
+	ksb.content_margin_top = 4
+	ksb.content_margin_bottom = 8
+	kost_sign.add_theme_stylebox_override("panel", ksb)
+	var kl := Label.new()
+	kl.add_theme_font_override("font", font)
+	kl.add_theme_font_size_override("font_size", 40)
+	kl.add_theme_color_override("font_color", Color("fff2dc"))
+	kost_sign.add_child(kl)
+	kost_sign.position = Vector2(600, 1868)
+	kost_sign.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lobby_root.add_child(kost_sign)
+	_refresh_sign.call_deferred()
 	desk_tag = PanelContainer.new()
 	var dsb := StyleBoxFlat.new()
 	dsb.bg_color = Color.WHITE
@@ -337,7 +400,7 @@ func _new_game() -> void:
 	S = {"money": 1500000.0, "lvl": 1, "xp": 0.0, "day": 1, "min": 420, "rep": 3.5, "price": 1, "speed": 1,
 		"rooms": rooms, "staff": {}, "fac": {}, "queue": [], "next_cand": 150.0,
 		"today": {"rent": 0.0, "salary": 0.0, "util": 0.0, "other": 0.0}, "last": null,
-		"total": {"rent": 0.0, "served": 0}, "seen": false, "jobs": [], "orders": [], "cargo": [], "events": [], "prevent": {}, "facil": {}, "apps": {}}
+		"total": {"rent": 0.0, "served": 0}, "seen": false, "jobs": [], "orders": [], "cargo": [], "events": [], "prevent": {}, "facil": {}, "apps": {}, "kost_name": "Kost Harmoni", "tut": 0}
 	var t1 := gen_person("p")
 	t1.job = "Mahasiswa"; t1.pref = 1; t1.happy = 78
 	rooms["1R"].tenant = t1
@@ -613,7 +676,7 @@ func float_at(id: String, text: String, col: Color) -> void:
 # ================= Waktu & ekonomi =================
 func _process(dt: float) -> void:
 	var sp := int(S.speed)
-	if not ui.is_welcome_open() and sp > 0:
+	if not ui.is_welcome_open() and not cutscene_on and sp > 0:
 		_acc += dt
 		var guard := 0
 		while _acc >= 0.1 and guard < 10:
@@ -786,7 +849,7 @@ func _pay_salary() -> void:
 		if S.staff[k]:
 			s += D.STAFF[k].sal
 	for k in S.apps:
-		s += float(D.APPS[k].fee)
+		s += roundf(float(D.APPS[k].fee))
 	if s > 0:
 		spend(s, "salary")
 		ui.toast("Gaji karyawan dibayar %s" % D.rp(s))
@@ -1773,6 +1836,18 @@ func _finish_fix(n: Npc, R: String) -> void:
 # ================= Aksi pemain =================
 func act(a: String, arg: String = "") -> void:
 	match a:
+		"rename":
+			var nm := arg.strip_edges().left(22)
+			if nm == "": return
+			S.kost_name = nm
+			_refresh_sign()
+			ui.toast("Nama kost diganti: %s" % nm, "gold")
+		"tutorial":
+			ui.close_sheet()
+			ui.tutorial.start(0)
+		"intro":
+			play_intro()
+			return
 		"start":
 			S.seen = true
 			save_game()
@@ -1895,7 +1970,7 @@ func act(a: String, arg: String = "") -> void:
 			var ap: Dictionary = D.APPS[arg]
 			if int(S.lvl) < int(ap.lv) or has_app(arg): return
 			S.apps[arg] = true
-			ui.toast("%s aktif! Biaya %s/hari dibayar pukul 17:00" % [ap.n, D.rp(ap.fee)], "gold")
+			ui.toast("%s aktif! %s/bulan (± %s/hari)" % [ap.n, D.rp(ap.month), D.rp(roundi(ap.fee))], "gold")
 			add_xp(20)
 		"app_off":
 			S.apps.erase(arg)
@@ -1915,7 +1990,8 @@ func act(a: String, arg: String = "") -> void:
 		"reset":
 			_new_game()
 			ui.confirm = ""
-			ui.open_sheet("welcome")
+			ui.tutorial.visible = false
+			play_intro()
 			ui.toast("Game dimulai ulang")
 	_sync_npcs()
 	_refresh_world()
@@ -2356,6 +2432,12 @@ func _handle_cli(args: PackedStringArray) -> void:
 			for k in ["air_mati", "telat_bayar", "atap_bocor"]:
 				S.events.append({"id": "x" + k, "type": k, "room": "" if Ev.DEF[k].scope == "kost" else ("1R" if k == "telat_bayar" else "2L"), "age": 1, "auto": -1})
 			dirty = true
+		elif a.begins_with("--tut="):
+			S.seen = true
+			ui.close_sheet()
+			S.tut = int(a.substr(6))
+		elif a.begins_with("--name="):
+			S.kost_name = a.substr(7)
 		elif a == "--waitlist":
 			S.seen = true
 			ui.close_sheet()

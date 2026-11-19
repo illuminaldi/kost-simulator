@@ -245,13 +245,13 @@ const FAC := {
 	"cctv": {"n": "CCTV", "cost": 1000000, "min": 3, "d": "Peluang pencurian turun separuh."},
 	"parkir": {"n": "Parkir Motor", "cost": 1500000, "min": 4, "d": ""},
 }
-# ---------- Aplikasi (langganan harian, dibayar bersama gaji pukul 17:00) ----------
+# ---------- Aplikasi (langganan bulanan, ditagih per hari = bulanan/30 bersama gaji pukul 17:00) ----------
 const APPS := {
-	"kostterdekat": {"n": "KostTerdekat", "tag": "Aplikasi cari kost", "fee": 25000, "lv": 2,
+	"kostterdekat": {"n": "KostTerdekat", "tag": "Aplikasi cari kost", "month": 178000, "fee": 178000.0 / 30.0, "lv": 2,
 		"perks": ["Kost tampil di aplikasi: calon penyewa lebih sering datang & antrean bisa 2 orang",
 			"Calon dari aplikasi sudah terverifikasi KTP & penghasilan (cek otomatis)",
 			"Ulasan penghuni yang betah menaikkan rating lebih cepat"]},
-	"kelolapro": {"n": "KelolaPro", "tag": "Aplikasi manajemen kost", "fee": 35000, "lv": 3,
+	"kelolapro": {"n": "KelolaPro", "tag": "Aplikasi manajemen kost", "month": 99000, "fee": 99000.0 / 30.0, "lv": 3,
 		"perks": ["Tagihan & pengingat bayar otomatis: telat bayar jauh berkurang",
 			"Keluhan penghuni masuk lebih cepat: dampak masalah kost berkurang",
 			"Data riwayat penyewa: cek \"Hubungi kost lama\" gratis"]},
