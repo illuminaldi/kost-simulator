@@ -159,9 +159,25 @@ static func facil_rect(f: int) -> Rect2:
 	return Rect2(r.position.x + (half if f % 2 == 1 else 0.0), r.position.y, half, r.size.y)
 
 
+# Area aman untuk perabot fasilitas: tidak menutupi pintu (dekat x 580-600 & 930-970) & tangga.
+const FACIL_W := 140.0
+const FACIL_SVG_FLOOR := 0.78   # posisi alas perabot pada gambar (0..1)
+
+
+static func facil_center_x(f: int) -> float:
+	return 850.0 if f % 2 == 1 else 680.0
+
+
+## Kotak gambar fasilitas (diperkecil & digeser menjauhi pintu), alas perabot tetap di lantai.
+static func facil_draw_rect(f: int) -> Rect2:
+	var r := rect_of("%dS" % f)
+	var h := FACIL_W * 367.0 / 200.0
+	var floor_y := r.position.y + r.size.y * FACIL_SVG_FLOOR
+	return Rect2(facil_center_x(f) - FACIL_W / 2.0, floor_y - h * FACIL_SVG_FLOOR, FACIL_W, h)
+
+
 static func facil_spot(f: int) -> Vector2:
-	var r := facil_rect(f)
-	return Vector2(r.position.x + r.size.x / 2.0, FEET[f])
+	return Vector2(facil_center_x(f), FEET[f])
 
 
 const FURN_ORDER := ["kasur", "lampu", "tanaman", "karpet", "dekor", "rak"]

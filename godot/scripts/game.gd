@@ -693,7 +693,8 @@ func _refresh_facil() -> void:
 		var key: String = k if k != "" else str(j.item)
 		var tex: Texture2D = load("res://assets/facil/%s.png" % key)
 		sp.texture = tex
-		var fr := D.facil_rect(int(f))
+		var fr := D.facil_draw_rect(int(f))
+		sp.position = fr.position
 		sp.scale = fr.size / tex.get_size()
 		sp.visible = true
 		sp.modulate = Color(1, 1, 1, 1) if k != "" else Color(1, 1, 1, 0.35)
@@ -940,7 +941,7 @@ func _goal_of(w: Dictionary) -> Dictionary:
 			var fc: Dictionary = D.FACIL[S.facil[fk]]
 			if hr in fc.visit and absi(("%s%d" % [w.p.id, hr]).hash()) % 100 < 45:
 				var ff := int(fk)
-				var off := float(absi(str(w.p.id).hash()) % 90) - 45.0
+				var off := float(absi(str(w.p.id).hash()) % 70) - 35.0
 				return {"key": "fac|%s|%d" % [fk, hr], "scene": "S%d" % ff, "spot": D.facil_spot(ff) + Vector2(off, 0), "pose": fc.pose}
 	if pr == "sleep" and furn.has("kasur"):
 		return {"key": R + "|lie", "scene": R, "spot": bed_spot(R), "pose": "lie"}
@@ -1388,7 +1389,7 @@ func _staff_brain() -> void:
 			"laundry", "kantin", "barista":
 				var ff := facil_floor(D.STAFF[n.role].need)
 				if ff > 0:
-					n.plan("S%d" % ff, D.facil_spot(ff) + Vector2(-30 if ff % 2 == 0 else 30, -4), "counter", func(m: Npc): m.work = {"t": randf_range(20.0, 40.0), "pose": "counter"})
+					n.plan("S%d" % ff, D.facil_spot(ff) + Vector2(-24 if ff % 2 == 0 else 24, -4), "counter", func(m: Npc): m.work = {"t": randf_range(20.0, 40.0), "pose": "counter"})
 				else:
 					_idle_staff(n)
 			_:
