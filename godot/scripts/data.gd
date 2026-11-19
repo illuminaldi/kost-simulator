@@ -128,6 +128,42 @@ const FURN := {
 	"rak": {"n": "Rak Buku", "cost": 300000, "c": 2.0, "min": 2, "icon": "2L_rak", "d": "Tempat menyimpan buku & barang."},
 	"meja": {"n": "Meja Kerja", "cost": 350000, "c": 2.0, "min": 3, "icon": "2M_meja", "d": "Disukai freelancer & mahasiswa."},
 }
+# ---------- Ruang fasilitas di samping tangga ----------
+# happy: +kebahagiaan harian semua penghuni; inc: pemasukan per penghuni per hari (butuh karyawan kalau ada "staff").
+# visit: jam-jam penghuni mampir.
+const FACIL := {
+	"tunggu": {"n": "Ruang Tunggu", "lv": 1, "cost": 800000, "happy": 0, "inc": 0, "visit": [], "pose": "stand",
+		"d": "Sofa nyaman di dekat lobi. Calon penyewa lebih sabar & lebih sering datang."},
+	"laundry": {"n": "Laundry", "lv": 2, "cost": 1200000, "happy": 1, "inc": 4000, "staff": "laundry", "visit": [9, 19], "pose": "stand",
+		"d": "Kamar lebih lambat kotor. Jasa cuci menambah pemasukan (2x dengan Petugas Laundry)."},
+	"mushola": {"n": "Mushola", "lv": 3, "cost": 1000000, "happy": 2, "inc": 0, "visit": [5, 12, 15, 18], "pose": "stand",
+		"d": "Tempat ibadah yang tenang. Penghuni lebih betah & rating naik pelan."},
+	"dapur": {"n": "Dapur Bersama", "lv": 3, "cost": 1500000, "happy": 2, "inc": 0, "visit": [7, 19], "pose": "stand",
+		"d": "Penghuni bisa masak sendiri. Masalah area kotor lebih jarang."},
+	"kantin": {"n": "Kantin", "lv": 4, "cost": 2000000, "happy": 2, "inc": 6000, "staff": "kantin", "visit": [12, 18], "pose": "stand",
+		"d": "Makan murah tanpa keluar kost. Pemasukan harian kalau ada Ibu Kantin."},
+	"cafe": {"n": "Cafe", "lv": 5, "cost": 2500000, "happy": 2, "inc": 8000, "staff": "barista", "visit": [15, 20], "pose": "stand",
+		"d": "Tempat nongkrong & kerja. Harga sewa +5%; pemasukan harian kalau ada Barista."},
+	"gym": {"n": "Gym", "lv": 6, "cost": 3000000, "happy": 3, "inc": 0, "visit": [6, 17], "pose": "stand",
+		"d": "Penghuni olahraga pagi & sore. Kebahagiaan naik."},
+	"rooftop": {"n": "Taman Rooftop", "lv": 7, "cost": 3500000, "happy": 3, "inc": 0, "visit": [16, 20], "pose": "stand",
+		"d": "Taman hijau untuk santai sore. Rating kost naik setiap hari."},
+}
+const FACIL_ORDER := ["tunggu", "laundry", "mushola", "dapur", "kantin", "cafe", "gym", "rooftop"]
+
+
+## Sisi kosong ruang tangga (lantai ganjil: kanan, genap: kiri).
+static func facil_rect(f: int) -> Rect2:
+	var r := rect_of("%dS" % f)
+	var half := r.size.x / 2.0
+	return Rect2(r.position.x + (half if f % 2 == 1 else 0.0), r.position.y, half, r.size.y)
+
+
+static func facil_spot(f: int) -> Vector2:
+	var r := facil_rect(f)
+	return Vector2(r.position.x + r.size.x / 2.0, FEET[f])
+
+
 const FURN_ORDER := ["kasur", "lampu", "tanaman", "karpet", "dekor", "rak"]
 const FURN_MULT := [0.0, 1.0, 1.6, 2.3]
 const FURN_LV_NAME := ["", "Biasa", "Bagus", "Mewah"]
@@ -146,15 +182,16 @@ const STAFF := {
 	"cleaner": {"n": "Petugas Kebersihan", "sal": 50000, "min": 1, "d": "Membersihkan kamar kotor; menangani sampah, area bersama kotor & hama."},
 	"resep": {"n": "Penjaga Kost", "sal": 60000, "min": 1, "d": "Berjaga di meja depan. Tamu lebih sering & sabar; menagih sewa, urus kunci hilang & tegur penghuni berisik."},
 	"teknisi": {"n": "Teknisi", "sal": 80000, "min": 3, "d": "Memperbaiki kerusakan gratis; menangani air mati, WiFi lemot, listrik jeglek & atap bocor."},
+	"laundry": {"n": "Petugas Laundry", "sal": 45000, "min": 2, "need": "laundry", "d": "Mengurus mesin cuci. Pemasukan Laundry jadi 2x."},
+	"kantin": {"n": "Ibu Kantin", "sal": 55000, "min": 4, "need": "kantin", "d": "Memasak di Kantin. Membuka pemasukan harian Kantin."},
+	"barista": {"n": "Barista", "sal": 60000, "min": 5, "need": "cafe", "d": "Meracik kopi di Cafe. Membuka pemasukan harian Cafe."},
 	"satpam": {"n": "Satpam", "sal": 70000, "min": 3, "d": "Patroli di depan kost. Mencegah pencurian; urus tamu menginap & paket hilang."},
 }
 const FAC := {
 	"wifi": {"n": "WiFi Kencang", "cost": 800000, "min": 1, "d": ""},
 	"jemur": {"n": "Area Jemuran", "cost": 900000, "min": 2, "d": "Kamar lebih lambat kotor."},
-	"dapur": {"n": "Dapur Bersama", "cost": 1200000, "min": 3, "d": ""},
 	"cctv": {"n": "CCTV", "cost": 1000000, "min": 3, "d": "Peluang pencurian turun separuh."},
 	"parkir": {"n": "Parkir Motor", "cost": 1500000, "min": 4, "d": ""},
-	"taman": {"n": "Taman & Gazebo", "cost": 2000000, "min": 5, "d": ""},
 }
 const ISSUES := {"AC rusak": 250000, "Keran bocor": 120000, "Lampu mati": 60000, "Kasur jebol": 300000}
 # Karakter penghuni (folder di assets/chars) -> jenis kelamin untuk nama.
@@ -181,6 +218,9 @@ const HATS := ["#d98c6a", "#7d9a6b", "#6f8fb0", "#b5654a", "#c9a14a"]
 const BAGC := ["#a0764e", "#c79a5b", "#8f6a4a"]
 
 const STAFF_LOOK := {
+	"laundry": {"skin": "#ecc29b", "hair": "#3b2a20", "style": "short", "shirt": "#8fb3c9", "pants": "#3f4a5a", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#6f8fb0"},
+	"kantin": {"skin": "#d6a378", "hair": "#2f2320", "style": "bun", "shirt": "#e9a35a", "pants": "#6b5a48", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#fff"},
+	"barista": {"skin": "#f2c7a5", "hair": "#6b4a2b", "style": "cap", "shirt": "#3f4a44", "pants": "#2f3a33", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#2f3833"},
 	"cleaner": {"skin": "#f6d3b3", "hair": "#6b4a2b", "style": "bun", "shirt": "#7d9a6b", "pants": "#4f5d4a", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#7d9a6b"},
 	"satpam": {"skin": "#d6a378", "hair": "#1f1a17", "style": "cap", "shirt": "#3d4f7a", "pants": "#2f3a52", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#2f3a52"},
 	"teknisi": {"skin": "#ecc29b", "hair": "#3b2a20", "style": "beanie", "shirt": "#e09a4a", "pants": "#5d5a66", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#c9a14a"},

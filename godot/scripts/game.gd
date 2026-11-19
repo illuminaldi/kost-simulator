@@ -37,6 +37,8 @@ var scroll_v := 0.0
 var pan := {}
 var _last_btn := {}      # true/false (press/release) -> [msec, posisi]
 var truck: Sprite2D
+var facil_sp := {}
+var facil_lights := {}
 var box_tex: Texture2D
 var box_nodes: Array = []
 var truck_state := "gone"      # gone / coming / parked / going
@@ -141,6 +143,14 @@ func _build_world() -> void:
 		rooms_root.add_child(fx)
 		fx.setup(self, id, shell_tex, null, font)
 		room_fx[id] = fx
+	for f in range(1, D.TOP_FLOOR + 1):
+		var sp := Sprite2D.new()
+		sp.centered = false
+		var fr := D.facil_rect(f)
+		sp.position = fr.position
+		sp.visible = false
+		bld.add_child(sp)
+		facil_sp[f] = sp
 	npc_layer = Node2D.new()
 	npc_layer.y_sort_enabled = true
 	bld.add_child(npc_layer)
@@ -183,6 +193,10 @@ func _build_world() -> void:
 		for l in D.LAMPS[id]:
 			arr.append(_mk_light(Vector2(r.position.x + l[0] * r.size.x, r.position.y + l[1] * r.size.y), l[2], bld))
 		room_lights[id] = arr
+	for f in range(1, D.TOP_FLOOR + 1):
+		var fr := D.facil_rect(f)
+		var pl := _mk_light(fr.position + Vector2(fr.size.x / 2.0, 70), 95, bld)
+		facil_lights[f] = pl
 	for l in D.STAIR_LAMPS:
 		fixed_lights.append(_mk_light(Vector2(l[0], l[1]), l[2], bld))
 	for l in D.GROUND_LAMPS:
@@ -240,6 +254,9 @@ func _refresh_world() -> void:
 	for id in D.ROOMS:
 		room_fx[id].dekor = dekor
 		room_fx[id].building = job_for(id, "build") != {}
+	_refresh_facil()
+	for id in D.ROOMS:
+		pass
 		var ev_id := event_at(id)
 		S.rooms[id]["_ev"] = "" if ev_id.is_empty() else str(ev_id.type)
 		room_fx[id].refresh(S.rooms[id], int(S.lvl), build_cost(), font)
@@ -274,6 +291,9 @@ func _update_light() -> void:
 		for pl in room_lights[id]:
 			pl.enabled = on
 			pl.energy = gl * 1.15
+	for f in facil_lights:
+		facil_lights[f].enabled = gl > 0.02 and S.facil.has(str(f))
+		facil_lights[f].energy = gl * 1.0
 	for pl in fixed_lights:
 		pl.enabled = gl > 0.02
 		pl.energy = gl * 0.9
@@ -294,7 +314,7 @@ func _new_game() -> void:
 	S = {"money": 1500000.0, "lvl": 1, "xp": 0.0, "day": 1, "min": 420, "rep": 3.5, "price": 1, "speed": 1,
 		"rooms": rooms, "staff": {}, "fac": {}, "queue": [], "next_cand": 150.0,
 		"today": {"rent": 0.0, "salary": 0.0, "util": 0.0, "other": 0.0}, "last": null,
-		"total": {"rent": 0.0, "served": 0}, "seen": false, "jobs": [], "orders": [], "cargo": [], "events": [], "prevent": {}}
+		"total": {"rent": 0.0, "served": 0}, "seen": false, "jobs": [], "orders": [], "cargo": [], "events": [], "prevent": {}, "facil": {}}
 	var t1 := gen_person("p")
 	t1.job = "Mahasiswa"; t1.pref = 1; t1.happy = 78
 	rooms["1R"].tenant = t1
@@ -387,6 +407,7 @@ func _load_game() -> Dictionary:
 	if not d.has("orders"): d.orders = []
 	if not d.has("events"): d.events = []
 	if not d.has("prevent"): d.prevent = {}
+	if not d.has("facil"): d.facil = {}
 	if not d.has("cargo"): d.cargo = []
 	for o in d.orders: o.t = float(o.t)
 	for j in d.jobs:
@@ -419,7 +440,7 @@ func update_tier(r: Dictionary) -> void:
 
 
 func rent_of(r: Dictionary) -> float:
-	var v: float = (30000.0 + comfort(r) * 9000.0) * D.PRICE[int(S.price)].m * (1.0 + 0.04 * fac_count())
+	var v: float = (30000.0 + comfort(r) * 9000.0) * D.PRICE[int(S.price)].m * (1.0 + 0.04 * fac_count() + (0.05 if has_facil("cafe") else 0.0))
 	return round(v / 1000.0) * 1000.0
 
 
@@ -576,7 +597,7 @@ func _next_guest_soon() -> void:
 
 func _spawn_cand() -> void:
 	var base := 330.0 * (1.4 - float(S.rep) * 0.15) * (0.7 if S.staff.get("resep", false) else 1.0) \
-		* float(D.PRICE[int(S.price)].c) * pow(0.96, fac_count())
+		* float(D.PRICE[int(S.price)].c) * pow(0.96, fac_count()) * (0.8 if has_facil("tunggu") else 1.0)
 	S.next_cand = base * randf_range(0.7, 1.3)
 	if S.queue.size() >= 1:
 		return
@@ -593,11 +614,11 @@ func _hourly() -> void:
 		var r: Dictionary = S.rooms[id]
 		if not r.built:
 			continue
-		r.clean = clampf(float(r.clean) - (0.6 if r.tenant != null else 0.08) * (0.85 if S.fac.has("jemur") else 1.0), 0, 100)
+		r.clean = clampf(float(r.clean) - (0.6 if r.tenant != null else 0.08) * (0.85 if S.fac.has("jemur") else 1.0) * (0.75 if has_facil("laundry") else 1.0), 0, 100)
 		if r.tenant != null and str(r.broken) == "" and randf() < 0.003:
 			r.broken = D.ISSUES.keys().pick_random()
 			ui.toast("%s di Kamar %s!" % [r.broken, D.room_name(id)], "bad")
-	var pat := 72 if S.staff.get("resep", false) else 48
+	var pat := (72 if S.staff.get("resep", false) else 48) + (36 if has_facil("tunggu") else 0)
 	var keep := []
 	for p in S.queue:
 		p.wait = int(p.wait) + 1
@@ -648,6 +669,81 @@ func _pay_salary() -> void:
 		ui.toast("Gaji karyawan dibayar %s" % D.rp(s))
 
 
+# ================= Ruang fasilitas =================
+func has_facil(k: String) -> bool:
+	for f in S.facil:
+		if S.facil[f] == k: return true
+	return false
+
+
+func facil_floor(k: String) -> int:
+	for f in S.facil:
+		if S.facil[f] == k: return int(f)
+	return 0
+
+
+func _refresh_facil() -> void:
+	for f in facil_sp:
+		var sp: Sprite2D = facil_sp[f]
+		var k: String = S.facil.get(str(f), "")
+		var j := job_for("S%d" % f, "fbuild")
+		if j.is_empty() and k == "":
+			sp.visible = false
+			continue
+		var key: String = k if k != "" else str(j.item)
+		var tex: Texture2D = load("res://assets/facil/%s.png" % key)
+		sp.texture = tex
+		var fr := D.facil_rect(int(f))
+		sp.scale = fr.size / tex.get_size()
+		sp.visible = true
+		sp.modulate = Color(1, 1, 1, 1) if k != "" else Color(1, 1, 1, 0.35)
+
+
+func facil_ok(f: int, k: String) -> String:
+	var fc: Dictionary = D.FACIL[k]
+	if int(S.lvl) < int(fc.lv): return "%s terbuka di Level %d" % [fc.n, int(fc.lv)]
+	if int(S.lvl) < int(D.FLOOR_LV[f]): return "Lantai %d terbuka di Level %d" % [f, int(D.FLOOR_LV[f])]
+	if S.facil.has(str(f)) or job_for("S%d" % f, "fbuild") != {}: return "Sisi tangga lantai %d sudah terpakai" % f
+	if has_facil(k): return "%s sudah ada di kost" % fc.n
+	for j in S.jobs:
+		if j.type == "fbuild" and j.item == k: return "%s sedang dibangun" % fc.n
+	if float(S.money) < float(fc.cost): return "Uang belum cukup (%s)" % D.rp(fc.cost)
+	return ""
+
+
+func stair_at(p: Vector2) -> int:
+	if p.y >= D.LOBBY_TOP or p.y < 200: return 0
+	var q := to_bld(p)
+	for f in range(1, D.TOP_FLOOR + 1):
+		if D.facil_rect(f).has_point(q): return f
+	return 0
+
+
+func _facil_daily() -> void:
+	var occ := each_tenant().size()
+	var inc := 0.0
+	for f in S.facil:
+		var fc: Dictionary = D.FACIL[S.facil[f]]
+		var mult := 1.0
+		if fc.has("staff"):
+			var on: bool = S.staff.get(fc.staff, false)
+			if S.facil[f] == "laundry": mult = 2.0 if on else 1.0
+			else: mult = 1.0 if on else 0.0
+		inc += float(fc.inc) * mult * occ
+	if has_facil("rooftop"): S.rep = clampf(float(S.rep) + 0.02, 1, 5)
+	if has_facil("mushola"): S.rep = clampf(float(S.rep) + 0.01, 1, 5)
+	if inc > 0:
+		S.money = float(S.money) + inc
+		S.today.rent = float(S.today.rent) + inc
+		ui.toast("Pemasukan fasilitas: %s" % D.rp(inc), "gold")
+
+
+func facil_happy() -> int:
+	var h := 0
+	for f in S.facil: h += int(D.FACIL[S.facil[f]].happy)
+	return h
+
+
 # ================= Masalah kost (event) =================
 func event_at(room: String) -> Dictionary:
 	for e in S.events:
@@ -669,7 +765,8 @@ func _roll_events() -> void:
 		for e in S.events:
 			if e.type == k: busy = true
 		if busy: continue
-		if randf() > float(ev.p): continue
+		var pmul := 0.4 if (k == "area_kotor" and has_facil("dapur")) else 1.0
+		if randf() > float(ev.p) * pmul: continue
 		var room := ""
 		if ev.scope == "room":
 			var pool := []
@@ -763,6 +860,7 @@ func _resolve_event(e: Dictionary, action: String, cost: float, by_staff: bool =
 func _new_day() -> void:
 	_events_daily_penalty()
 	_roll_events()
+	_facil_daily()
 	var occ := each_tenant().size()
 	if occ > 0:
 		spend(occ * 15000.0, "util")
@@ -772,7 +870,7 @@ func _new_day() -> void:
 		var id: String = e[0]
 		var r: Dictionary = e[1]
 		var t: Dictionary = r.tenant
-		var d: float = 2 + int(D.PRICE[int(S.price)].h) + mini(fac_count(), 5) + (2 if S.staff.get("satpam", false) else 0)
+		var d: float = 2 + int(D.PRICE[int(S.price)].h) + mini(fac_count(), 5) + (2 if S.staff.get("satpam", false) else 0) + facil_happy()
 		if float(r.clean) < 45: d -= 6
 		if float(r.clean) < 20: d -= 10
 		if str(r.broken) != "": d -= 10
@@ -836,6 +934,14 @@ func _goal_of(w: Dictionary) -> Dictionary:
 	var R: String = w.room
 	var sp: Dictionary = D.SPOT[R]
 	var furn: Dictionary = S.rooms[R].get("furn", {})
+	if pr == "sit" or pr == "work":
+		var hr := int(S.min) / 60
+		for fk in S.facil:
+			var fc: Dictionary = D.FACIL[S.facil[fk]]
+			if hr in fc.visit and absi(("%s%d" % [w.p.id, hr]).hash()) % 100 < 45:
+				var ff := int(fk)
+				var off := float(absi(str(w.p.id).hash()) % 90) - 45.0
+				return {"key": "fac|%s|%d" % [fk, hr], "scene": "S%d" % ff, "spot": D.facil_spot(ff) + Vector2(off, 0), "pose": fc.pose}
 	if pr == "sleep" and furn.has("kasur"):
 		return {"key": R + "|lie", "scene": R, "spot": bed_spot(R), "pose": "lie"}
 	if pr == "work":
@@ -1026,7 +1132,7 @@ func _fix_jobbed(r: Dictionary) -> bool:
 
 func add_job(type: String, room: String, item: String = "", lv: int = 0) -> void:
 	S.jobs.append({"id": "j%d" % randi(), "type": type, "room": room, "item": item, "lv": lv,
-		"t": float(D.WORKER[type].mins), "started": false})
+		"t": float(D.WORKER["build" if type == "fbuild" else type].mins), "started": false})
 	dirty = true
 	_jobs_brain()
 
@@ -1043,7 +1149,7 @@ func _tick_jobs(mins: float) -> void:
 
 func _finish_job(j: Dictionary) -> void:
 	S.jobs.erase(j)
-	var r: Dictionary = S.rooms[j.room]
+	var r: Dictionary = S.rooms.get(j.room, {})
 	match j.type:
 		"build":
 			r.built = true
@@ -1052,6 +1158,10 @@ func _finish_job(j: Dictionary) -> void:
 			update_tier(r)
 			ui.toast("Kamar %s selesai dibangun!" % D.room_name(j.room), "gold")
 			add_xp(20)
+		"fbuild":
+			S.facil[j.room.substr(1)] = j.item
+			ui.toast("%s di lantai %s sudah jadi!" % [D.FACIL[j.item].n, j.room.substr(1)], "gold")
+			add_xp(40)
 		"fix":
 			if str(r.broken) != "":
 				float_at(j.room, "Diperbaiki", Color("3f6f96"))
@@ -1209,7 +1319,7 @@ func _jobs_brain() -> void:
 			continue
 		if j.type == "deliver" and truck_state != "parked":
 			return
-		var cfg: Dictionary = D.WORKER[j.type]
+		var cfg: Dictionary = D.WORKER["build" if j.type == "fbuild" else j.type]
 		var n := Npc.new()
 		npc_lobby.add_child(n)
 		var start := Vector2(D.TRUCK_X + 120, D.LOBBY_Y) if j.type == "deliver" else Vector2(D.OUT_X, D.LOBBY_Y)
@@ -1229,8 +1339,10 @@ func _jobs_brain() -> void:
 
 func _staff_brain() -> void:
 	_jobs_brain()
-	for role in ["cleaner", "satpam", "teknisi"]:
+	for role in ["cleaner", "satpam", "teknisi", "laundry", "kantin", "barista"]:
 		var on: bool = S.staff.get(role, false)
+		if D.STAFF[role].has("need") and not has_facil(D.STAFF[role].need):
+			on = false
 		var nid: String = "staff-" + role
 		if on and not npcs.has(nid):
 			var n := Npc.new()
@@ -1244,6 +1356,9 @@ func _staff_brain() -> void:
 			elif role == "satpam":
 				n.char_id = "satpam"
 				n.art_map = {"walk": "walk", "stand": ["idle", "inspect", "idle", "help"]}
+			elif role in ["laundry", "kantin", "barista"]:
+				n.char_id = role
+				n.art_map = {"walk": "walk", "stand": "happy" if role == "laundry" else "idle", "counter": "happy" if role == "laundry" else ["idle", "happy"]}
 			elif role == "teknisi":
 				n.char_id = "teknisi"
 				n.art_map = D.WORKER.fix.map.duplicate()
@@ -1268,6 +1383,12 @@ func _staff_brain() -> void:
 				if R != "":
 					n.target = R
 					n.plan(R, _spot_in(R), "fix", func(x: Npc): x.work = {"t": 5.0, "pose": "fix", "fn": func(y: Npc): _finish_fix(y, R)})
+				else:
+					_idle_staff(n)
+			"laundry", "kantin", "barista":
+				var ff := facil_floor(D.STAFF[n.role].need)
+				if ff > 0:
+					n.plan("S%d" % ff, D.facil_spot(ff) + Vector2(-30 if ff % 2 == 0 else 30, -4), "counter", func(m: Npc): m.work = {"t": randf_range(20.0, 40.0), "pose": "counter"})
 				else:
 					_idle_staff(n)
 			_:
@@ -1298,6 +1419,8 @@ func _pick_room(self_n: Npc, filter: Callable, score: Callable) -> String:
 
 
 func _spot_in(R: String) -> Vector2:
+	if R.begins_with("S"):
+		return D.facil_spot(int(R.substr(1))) + Vector2(randf_range(-40, 40), 0)
 	return Vector2(float(D.CX[R[1]]) + randf_range(-80, 80), float(D.FEET[int(R[0])]))
 
 
@@ -1352,6 +1475,16 @@ func act(a: String, arg: String = "") -> void:
 		"dekor":
 			set_dekor(not dekor)
 			return
+		"facil_build":
+			var parts2 := arg.split("|")
+			var ff := int(parts2[0])
+			var why := facil_ok(ff, parts2[1])
+			if why != "":
+				ui.toast(why, "bad"); return
+			spend(float(D.FACIL[parts2[1]].cost), "other")
+			add_job("fbuild", "S%d" % ff, parts2[1])
+			ui.toast("Tukang mulai membangun %s di lantai %d" % [D.FACIL[parts2[1]].n, ff])
+			ui.close_sheet()
 		"event":
 			var parts := arg.split("|")
 			for e in S.events:
@@ -1508,12 +1641,19 @@ func _activate_drag() -> void:
 			at.region = D.rect_of("3R")
 			tex = at
 			sc = 0.45
+		"facil":
+			tex = load("res://assets/facil/%s.png" % drag.item)
+			sc = 0.42
 	ui.show_ghost(tex, sc)
 	ui.show_hints(_drop_validity())
 
 
 func _drop_validity() -> Dictionary:
 	var out := {}
+	if drag.get("kind", "") == "facil":
+		for f in range(1, D.TOP_FLOOR + 1):
+			out["S%d" % f] = facil_ok(f, drag.item) == ""
+		return out
 	for id in D.ROOMS:
 		out[id] = _drop_ok(id) == ""
 	return out
@@ -1562,6 +1702,15 @@ func _end_drag(p: Vector2) -> void:
 			ui.open_sheet("tenants")
 		elif d.kind == "cargo":
 			ui.toast("Tahan & seret kotak %s ke kamar tujuan" % D.FURN[S.cargo[int(d.item)]].n)
+		return
+	if d.kind == "facil":
+		var f := stair_at(p)
+		if f == 0: return
+		var why2 := facil_ok(f, d.item)
+		if why2 != "":
+			ui.toast(why2, "bad")
+			return
+		act("facil_build", "%d|%s" % [f, d.item])
 		return
 	var id := room_at(p)
 	if id == "":
@@ -1617,6 +1766,10 @@ func _input(e: InputEvent) -> void:
 				var id := room_at(pan.start)
 				if id != "":
 					ui.open_sheet("room", id)
+				else:
+					var sf := stair_at(pan.start)
+					if sf > 0 and int(S.lvl) >= int(D.FLOOR_LV[sf]):
+						ui.open_sheet("facil", str(sf))
 			pan = {}
 			get_viewport().set_input_as_handled()
 		return
@@ -1628,11 +1781,14 @@ func _input(e: InputEvent) -> void:
 		if drag.active:
 			ui.move_ghost(p)
 			var id := room_at(p)
+			if drag.kind == "facil":
+				var sf := stair_at(p)
+				id = "S%d" % sf if sf > 0 else ""
 			if id != _hover_room:
 				for rid in D.ROOMS:
 					room_fx[rid].set_preview("")
 				_hover_room = id
-				if id != "" and (drag.kind == "furn" or drag.kind == "cargo") and _drop_ok(id) == "":
+				if id != "" and not id.begins_with("S") and (drag.kind == "furn" or drag.kind == "cargo") and _drop_ok(id) == "":
 					room_fx[id].set_preview(drag.item if drag.kind == "furn" else S.cargo[int(drag.item)])
 			ui.hover_hint(id)
 		get_viewport().set_input_as_handled()
@@ -1743,6 +1899,18 @@ func _selftest() -> void:
 	act("fix", "3L")
 	S.rooms["3R"].clean = 10.0
 	act("clean", "3R")
+	S.lvl = 8
+	var fi := 1
+	for k in D.FACIL_ORDER:
+		act("facil_build", "%d|%s" % [fi, k])
+		fi += 1
+	for j in S.jobs.duplicate():
+		if j.type == "fbuild": _finish_job(j)
+	for k in ["laundry", "kantin", "barista"]: act("hire", k)
+	_facil_daily()
+	ui.open_sheet("facil", "1")
+	ui.open_sheet("facil", "8")
+	_staff_brain()
 	for k in Ev.DEF:
 		var ex := {"id": "t" + k, "type": k, "room": "" if Ev.DEF[k].scope == "kost" else "1L", "age": 0, "auto": -1}
 		S.events.append(ex)
@@ -1837,6 +2005,16 @@ func _handle_cli(args: PackedStringArray) -> void:
 			S.lvl = 5
 			for k in ["air_mati", "telat_bayar", "atap_bocor"]:
 				S.events.append({"id": "x" + k, "type": k, "room": "" if Ev.DEF[k].scope == "kost" else ("1R" if k == "telat_bayar" else "2L"), "age": 1, "auto": -1})
+			dirty = true
+		elif a == "--facil":
+			S.seen = true
+			ui.close_sheet()
+			S.lvl = 8
+			var fi := 1
+			for k in D.FACIL_ORDER:
+				S.facil[str(fi)] = k
+				fi += 1
+			for k in ["laundry", "kantin", "barista"]: S.staff[k] = true
 			dirty = true
 		elif a == "--keeper":
 			_keeper_walk = 0.5

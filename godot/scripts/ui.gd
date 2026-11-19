@@ -198,6 +198,21 @@ func setup(p_game: Node, art: Texture2D, p_font: Font, p_font_m: Font) -> void:
 		h.visible = false
 		hint_root.add_child(h)
 		hints[id] = h
+	for f in range(1, D.TOP_FLOOR + 1):
+		var r2 := D.facil_rect(f)
+		var h2 := Panel.new()
+		var hs2 := StyleBoxFlat.new()
+		hs2.bg_color = Color(0.5, 0.85, 0.45, 0.16)
+		hs2.border_color = Color("5fae4f")
+		hs2.set_border_width_all(8)
+		hs2.set_corner_radius_all(10)
+		h2.add_theme_stylebox_override("panel", hs2)
+		h2.position = r2.position
+		h2.size = r2.size
+		h2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		h2.visible = false
+		hint_root.add_child(h2)
+		hints["S%d" % f] = h2
 
 	tray = PanelContainer.new()
 	var tsb := _sb(D.C_PAPER, 6, 40, 20, 14)
@@ -558,6 +573,11 @@ func _build_tray() -> void:
 		var f: Dictionary = D.FURN[t]
 		var ok := int(S.lvl) >= int(f.min)
 		tray_row.add_child(_tray_card(load("res://assets/furn/icon/%s.png" % t), f.n, D.short(f.cost) if ok else "Lv %d" % int(f.min), "furn", t, ok))
+	for k in D.FACIL_ORDER:
+		var fc: Dictionary = D.FACIL[k]
+		if game.has_facil(k): continue
+		var ok2 := int(S.lvl) >= int(fc.lv)
+		tray_row.add_child(_tray_card(load("res://assets/facil/%s.png" % k), fc.n, D.short(fc.cost) if ok2 else "Lv %d" % int(fc.lv), "facil", k, ok2))
 
 
 func _tray_card(tex: Texture2D, title: String, price: String, kind: String, item: String, ok: bool) -> Control:
@@ -587,7 +607,8 @@ func _tray_card(tex: Texture2D, title: String, price: String, kind: String, item
 	p.gui_input.connect(func(e: InputEvent):
 		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
 			if not ok:
-				toast("%s terbuka di Level %d" % [title, int(D.FURN[item].min)], "bad")
+				var need: int = int(D.FACIL[item].lv) if kind == "facil" else int(D.FURN[item].min)
+				toast("%s terbuka di Level %d" % [title, need], "bad")
 				return
 			if kind == "furn":
 				game.act("buy", item)
@@ -727,6 +748,7 @@ func refresh_sheet(keep: bool = true) -> void:
 		"staff": _sheet_staff()
 		"upgrade": _sheet_upgrade()
 		"manage": _sheet_manage()
+		"facil": _sheet_facil()
 	_fit.call_deferred(sv if keep else 0)
 
 
@@ -935,11 +957,66 @@ func _sheet_staff() -> void:
 		var f := _flow(v)
 		if int(S.lvl) < int(st.min):
 			f.add_child(_label("Terbuka di Level %d" % int(st.min), 34, D.C_MUTED, true))
+		elif st.has("need") and not game.has_facil(st.need) and not on:
+			f.add_child(_label("Butuh ruang %s dulu" % D.FACIL[st.need].n, 34, D.C_MUTED, true))
 		elif on:
 			f.add_child(_btn("Berhentikan", D.C_RED, func(): _do("fire", k)))
 			f.add_child(_label("  Sedang bekerja", 34, Color("2f7a2a"), true))
 		else:
 			f.add_child(_btn("Rekrut", D.C_YELLOW, func(): _do("hire", k)))
+
+
+func _sheet_facil() -> void:
+	var S: Dictionary = game.S
+	var f := int(arg)
+	var k: String = S.facil.get(arg, "")
+	var j: Dictionary = game.job_for("S%d" % f, "fbuild")
+	if k != "":
+		var fc: Dictionary = D.FACIL[k]
+		_header("%s · lantai %d" % [fc.n, f])
+		_fac_pic(box, k, 520)
+		var v := _card()
+		v.add_child(_text(fc.d, 34, D.C_MUTED))
+		if int(fc.happy) > 0: v.add_child(_text("+%d kebahagiaan harian untuk semua penghuni" % int(fc.happy), 32, Color("2f7a2a")))
+		if fc.has("staff"):
+			var st: Dictionary = D.STAFF[fc.staff]
+			var on: bool = S.staff.get(fc.staff, false)
+			_row(v, _label(st.n, 36), _label("Sedang bekerja", 32, Color("2f7a2a"), true) if on else _btn("Rekrut " + D.short(st.sal) + "/hari", D.C_YELLOW, func(): _do("hire", fc.staff)))
+		return
+	if not j.is_empty():
+		_header("Lantai %d · sedang dibangun" % f)
+		_fac_pic(box, str(j.item), 520)
+		box.add_child(_text("Tukang sedang membangun %s." % D.FACIL[j.item].n, 36, D.C_MUTED))
+		return
+	_header("Sisi tangga lantai %d" % f)
+	box.add_child(_text("Bangun satu ruang fasilitas di sini. Bisa juga diseret dari menu Beli.", 34, D.C_MUTED))
+	for key in D.FACIL_ORDER:
+		var fc2: Dictionary = D.FACIL[key]
+		if game.has_facil(key): continue
+		var v2 := _card()
+		var hb := HBoxContainer.new()
+		hb.add_theme_constant_override("separation", 20)
+		_fac_pic(hb, key, 170)
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.add_child(_label(fc2.n, 40))
+		col.add_child(_text(fc2.d, 30, D.C_MUTED))
+		var why: String = game.facil_ok(f, key)
+		if int(S.lvl) < int(fc2.lv):
+			col.add_child(_label("Terbuka di Level %d" % int(fc2.lv), 32, D.C_MUTED, true))
+		else:
+			col.add_child(_btn("Bangun " + D.short(fc2.cost), D.C_GREEN, func(): _do("facil_build", "%d|%s" % [f, key]), why != ""))
+		hb.add_child(col)
+		v2.add_child(hb)
+
+
+func _fac_pic(parent: Control, k: String, h: float) -> void:
+	var tr := TextureRect.new()
+	tr.texture = load("res://assets/facil/%s.png" % k)
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.custom_minimum_size = Vector2(h * 0.55, h)
+	parent.add_child(tr)
 
 
 func _sheet_upgrade() -> void:
