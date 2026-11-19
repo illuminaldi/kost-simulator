@@ -304,6 +304,10 @@ func _build_world() -> void:
 		bld.add_child(st)
 		stair_nodes.append(st)
 	_refresh_stairs()
+	# Ornamen samping gedung: pipa talang + unit AC luar di lantai yang kamarnya pakai AC.
+	var side := _SideDecor.new()
+	side.game = self
+	bld.add_child(side)
 	var rooms_root := Node2D.new()
 	bld.add_child(rooms_root)
 	for id in D.ROOMS:
@@ -4456,3 +4460,56 @@ func npc_say_at(pos: Vector2, text: String, dur: float = 3.0) -> void:
 	t.tween_interval(dur)
 	t.tween_property(p, "modulate:a", 0.0, 0.4)
 	t.tween_callback(p.queue_free)
+
+
+## Samping kiri gedung: pipa talang dari atap ke tanah, dan unit AC outdoor (kipasnya berputar)
+## di tiap lantai yang punya kamar ber-AC (kipas angin level 2 ke atas).
+class _SideDecor extends Node2D:
+	var game: Node
+	var t := 0.0
+	const INK := Color("3e2b1d")
+	func _process(dt: float) -> void:
+		t += dt
+		queue_redraw()
+	func _has_ac(f: int) -> bool:
+		for c in ["L", "R"]:
+			var r: Dictionary = game.S.rooms.get("%d%s" % [f, c], {})
+			if r.get("built", false) and int(r.get("furn", {}).get("kipas", 0)) >= 2:
+				return true
+		return false
+	func _draw() -> void:
+		var top := D.BUILDING_TOP + 200.0
+		var bot := D.LOBBY_TOP
+		# Pipa talang
+		draw_rect(Rect2(70, top, 14, bot - top), Color("98a2ab"))
+		draw_rect(Rect2(70, top, 14, bot - top), INK, false, 3.0)
+		draw_line(Vector2(74, top), Vector2(74, bot), Color(1, 1, 1, 0.45), 2.0)
+		var y := top + 60.0
+		while y < bot:
+			draw_rect(Rect2(66, y, 22, 10), Color("7d8790"))
+			draw_rect(Rect2(66, y, 22, 10), INK, false, 2.0)
+			y += 180.0
+		draw_rect(Rect2(58, top - 14, 40, 18), Color("98a2ab"))
+		draw_rect(Rect2(58, top - 14, 40, 18), INK, false, 3.0)
+		# Unit AC luar
+		for f in range(1, D.TOP_FLOOR + 1):
+			if not _has_ac(f): continue
+			var yy: float = D.ROWS[f].x + 170.0
+			var box := Rect2(6, yy, 60, 52)
+			draw_line(Vector2(66, yy + 22), Vector2(92, yy + 22), Color("f2f2f2"), 6.0)
+			draw_line(Vector2(66, yy + 22), Vector2(92, yy + 22), Color(INK, 0.5), 1.5)
+			draw_rect(box, Color("ececE6"))
+			draw_rect(box, INK, false, 4.0)
+			var c := Vector2(34, yy + 26)
+			draw_circle(c, 18, Color("cfcfca"))
+			draw_arc(c, 18, 0, TAU, 24, INK, 3.0)
+			var a := t * 9.0 + f
+			for k in range(3):
+				var ang := a + TAU * k / 3.0
+				draw_line(c, c + Vector2(cos(ang), sin(ang)) * 15.0, Color("8d8d88"), 4.0)
+			draw_circle(c, 4, INK)
+			for k in range(3):
+				draw_line(Vector2(56, yy + 10 + k * 12), Vector2(62, yy + 10 + k * 12), Color("9a9a95"), 2.0)
+			draw_line(Vector2(10, yy + 52), Vector2(10, yy + 64), INK, 4.0)
+			draw_line(Vector2(62, yy + 52), Vector2(62, yy + 64), INK, 4.0)
+			draw_line(Vector2(4, yy + 64), Vector2(68, yy + 64), INK, 4.0)
