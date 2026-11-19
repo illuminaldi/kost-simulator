@@ -118,7 +118,7 @@ static func tint_material(i: int, ch: String = "") -> Material:
 
 func set_tint(i: int) -> void:
 	_sp.material = tint_material(i, char_id)
-const ART_POSES := ["stand", "walk", "climb", "sit", "work", "lie", "react", "mood", "sweep", "fix", "counter", "job", "place", "steal", "caught", "demand", "count", "happy", "angry", "carry"]
+const ART_POSES := ["stand", "walk", "climb", "sit", "work", "lie", "react", "mood", "sweep", "fix", "counter", "job", "place", "steal", "caught", "demand", "count", "happy", "angry", "carry", "lift", "hold"]
 
 var _sp: Sprite2D
 var _bub: PanelContainer

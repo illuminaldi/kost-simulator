@@ -873,6 +873,7 @@ func _process(dt: float) -> void:
 	_chat_tick(dt)
 	_thief_tick(dt)
 	_preman_tick(dt)
+	_ojol_tick(dt)
 	if sp > 0:
 		for n in npcs.values().duplicate():
 			if is_instance_valid(n):
@@ -960,6 +961,8 @@ func _hourly() -> void:
 	var h := int(S.min) / 60
 	_maybe_thief(h)
 	_maybe_preman(h)
+	_maybe_ojol(h)
+	_maybe_galon(h)
 	for id in D.ROOMS:
 		var r: Dictionary = S.rooms[id]
 		if not r.built:
@@ -1790,6 +1793,122 @@ func preman_answer(how: String) -> void:
 	dirty = true
 
 
+# ================= Bang Ojol & Kang Galon =================
+var ojol: Npc = null
+var ojol_for := ""
+var _ojol_state := ""
+var _ojol_t := 0.0
+var galon: Npc = null
+const OJOL_NAMES := ["Bang Rizal", "Bang Udin", "Bang Joko", "Bang Fikri", "Bang Tono"]
+const FOODS := ["nasi padang", "ayam geprek", "martabak", "bakso", "seblak", "kopi susu", "mie ayam"]
+
+
+func _maybe_ojol(h: int) -> void:
+	if ojol != null or not ((h >= 11 and h <= 13) or (h >= 18 and h <= 20)): return
+	var pool := []
+	for e in each_tenant():
+		var t: Dictionary = e[1].tenant
+		if presence(t) in ["sit", "work"] and npcs.has(t.id): pool.append(t)
+	if pool.is_empty() or randf() > 0.35: return
+	var t: Dictionary = pool.pick_random()
+	spawn_ojol(t)
+
+
+func spawn_ojol(t: Dictionary) -> void:
+	var n := Npc.new()
+	npc_lobby.add_child(n)
+	n.setup("ojol", "visitor", D.STAFF_LOOK.teknisi, Vector2(D.IW + 250, D.LOBBY_Y), font)
+	n.art = true
+	n.char_id = "ojol"
+	n.art_map = {"walk": "ride", "stand": "ride3"}
+	n.set_meta("spd", 2.4)
+	n.set_meta("nama", OJOL_NAMES.pick_random())
+	npcs["ojol"] = n
+	ojol = n
+	ojol_for = str(t.id)
+	_ojol_state = "come"
+	var food: String = FOODS.pick_random()
+	n.plan("lobby", Vector2(760, D.LOBBY_Y), "stand", func(m: Npc):
+		_ojol_state = "wait"
+		_ojol_t = 0.0
+		m.dir = -1
+		sfx("arrive", -12.0)
+		m.say("Paket %s atas nama %s!" % [food, t.name], 3.5)
+		ui.toast("Bang Ojol mengantar %s untuk %s" % [food, t.name])
+		dirty = true)
+
+
+func _ojol_tick(dt: float) -> void:
+	if ojol == null: return
+	if not is_instance_valid(ojol):
+		ojol = null
+		return
+	if _ojol_state != "wait": return
+	_ojol_t += dt * maxf(1.0, float(int(S.speed)))
+	var who: Npc = npcs.get(ojol_for)
+	if who != null and is_instance_valid(who) and who.scene == "lobby" and who.route.size() == 0 and absf(who.position.x - ojol.position.x) < 240:
+		who.dir = 1
+		who.say("Makasih, Bang!", 2.2)
+		ojol.say("Sama-sama, bintang 5 ya!", 2.4)
+		who.react("happy", 2.0)
+		for e in each_tenant():
+			if str(e[1].tenant.id) == ojol_for:
+				e[1].tenant.happy = clampf(float(e[1].tenant.happy) + 4.0, 0, 100)
+		_ojol_leave()
+	elif _ojol_t > 45.0:
+		keeper_say("Saya terima ya, Bang. Nanti saya antar.", 3.0)
+		ojol.say("Siap, Mbak!", 2.0)
+		_ojol_leave()
+
+
+func _ojol_leave() -> void:
+	_ojol_state = "leave"
+	ojol_for = ""
+	dirty = true
+	var n := ojol
+	n.work = {"t": 2.5, "pose": "stand", "fn": func(m: Npc):
+		m.plan("lobby", Vector2(D.IW + 300, D.LOBBY_Y), "stand", func(z: Npc):
+			_remove_npc(z)
+			ojol = null
+			_ojol_state = "")}
+
+
+## Kang Galon mengantar air minum setiap 2 hari pagi.
+func _maybe_galon(h: int) -> void:
+	if galon != null or h != 9 or int(S.day) % 2 != 0 or each_tenant().is_empty(): return
+	spawn_galon()
+
+
+func spawn_galon() -> void:
+	var n := Npc.new()
+	npc_lobby.add_child(n)
+	n.setup("galon", "visitor", D.STAFF_LOOK.teknisi, Vector2(D.OUT_X, D.LOBBY_Y), font)
+	n.art = true
+	n.char_id = "galon"
+	n.art_map = {"walk": "carry", "stand": "hold", "lift": "lift", "happy": "happy"}
+	n.set_meta("nama", "Kang Ujang")
+	npcs["galon"] = n
+	galon = n
+	var gal := maxi(1, int(ceil(each_tenant().size() / 3.0)))
+	var cost := 20000.0 * gal
+	var ff := facil_floor("dapur")
+	var scene := "S%d" % ff if ff > 0 else "lobby"
+	var spot := D.facil_spot(ff) if ff > 0 else Vector2(1000, D.LOBBY_Y)
+	n.plan(scene, spot, "stand", func(m: Npc):
+		m.say("Galonnya, %s!" % ("Mbak Maryam" if ff == 0 else "taruh di dapur ya"), 2.6)
+		if ff == 0: keeper_say("Makasih, Kang!", 2.5)
+		spend(cost, "util")
+		ui.toast("Kang Galon mengantar %d galon air minum (%s)" % [gal, D.rp(cost)])
+		for e in each_tenant():
+			e[1].tenant.happy = clampf(float(e[1].tenant.happy) + 1.0, 0, 100)
+		m.work = {"t": 2.2, "pose": "lift", "fn": func(k: Npc):
+			k.art_map["walk"] = "walk"
+			k.work = {"t": 1.5, "pose": "happy", "fn": func(z: Npc):
+				z.plan("lobby", Vector2(D.OUT_X - 200, D.LOBBY_Y), "stand", func(y: Npc):
+					_remove_npc(y)
+					galon = null)}})
+
+
 # ================= Ruang fasilitas =================
 func has_facil(k: String) -> bool:
 	for f in S.facil:
@@ -2109,6 +2228,8 @@ func _goal_of(w: Dictionary) -> Dictionary:
 	var pr := presence(w.p)
 	if pr == "away":
 		return {"key": "out"}
+	if ojol_for == str(w.p.id) and ojol != null and _ojol_state == "wait":
+		return {"key": "ojol", "scene": "lobby", "spot": Vector2(ojol.position.x - 150, D.LOBBY_Y), "pose": "stand"}
 	var R: String = w.room
 	var sp: Dictionary = D.SPOT[R]
 	var furn: Dictionary = S.rooms[R].get("furn", {})
@@ -2230,7 +2351,7 @@ func _sync_npcs() -> void:
 		want[e[1].tenant.id] = {"kind": "res", "p": e[1].tenant, "room": e[0]}
 	for nid in npcs.keys():
 		var n: Npc = npcs[nid]
-		if n.kind == "staff" or n.kind == "worker" or n.kind == "keeper" or n.kind == "thief" or n.kind == "preman":
+		if n.kind == "staff" or n.kind == "worker" or n.kind == "keeper" or n.kind == "thief" or n.kind == "preman" or n.kind == "visitor":
 			continue
 		if not want.has(nid):
 			n.set_bubble("")
@@ -3324,6 +3445,16 @@ func _handle_cli(args: PackedStringArray) -> void:
 			ui.close_sheet()
 			ui.tray_tab = a.substr(10)
 			set_dekor.call_deferred(true)
+		elif a == "--ojol":
+			S.seen = true
+			S.tut = -1
+			ui.close_sheet()
+			(func(): spawn_ojol(each_tenant()[0][1].tenant)).call_deferred()
+		elif a == "--galon":
+			S.seen = true
+			S.tut = -1
+			ui.close_sheet()
+			spawn_galon.call_deferred()
 		elif a == "--truck":
 			S.seen = true
 			S.tut = -1
