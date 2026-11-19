@@ -3372,7 +3372,10 @@ func _staff_brain() -> void:
 		if D.STAFF[role].has("need") and not has_facil(D.STAFF[role].need):
 			on = false
 		var nid: String = "staff-" + role
+		if on and not npcs.has(nid) and _clock - _staff_spawn_t < 2.5:
+			continue
 		if on and not npcs.has(nid):
+			_staff_spawn_t = _clock
 			var n := Npc.new()
 			npc_lobby.add_child(n)
 			n.setup(nid, "staff", D.STAFF_LOOK[role], Vector2(D.OUT_X, D.LOBBY_Y), font)
@@ -3427,8 +3430,24 @@ func _staff_brain() -> void:
 				_idle_staff(n)
 
 
+## Tiap karyawan punya titik santai sendiri di lobi, dan tidak berdiri menumpuk dengan orang lain.
+const IDLE_X := {"cleaner": [150, 300], "teknisi": [420, 560], "satpam": [640, 900]}
+
+
+var _staff_spawn_t := -99.0
+
+
 func _idle_staff(n: Npc) -> void:
-	var x := randf_range(260, 1080) if n.role == "satpam" else randf_range(160, 380)
+	var rg: Array = IDLE_X.get(n.role, [160, 900])
+	var x := randf_range(rg[0], rg[1])
+	for _i in range(6):
+		var clash := false
+		for m in npcs.values():
+			if m != n and m.scene == "lobby" and absf(m.position.x - x) < 150.0:
+				clash = true
+				break
+		if not clash: break
+		x = randf_range(rg[0], rg[1])
 	n.plan("lobby", Vector2(x, D.LOBBY_Y), "stand", func(m: Npc): m.work = {"t": randf_range(3.0, 7.0), "pose": "stand"})
 
 

@@ -570,7 +570,7 @@ func _show_padel() -> void:
 	_ball = _Ball.new()
 	_layer.add_child(_ball)
 	_ray = _sprite("res://assets/chars/trainer/clip_L.png", 1.15, Vector2(185, 2140))
-	_mar = _sprite("res://assets/chars/penjaga/idle_L.png", 1.75, Vector2(820, 2130))
+	_mar = _sprite("res://assets/chars/padel_back/ready_L.png", 1.7, Vector2(820, 2130))
 	_ball.player = _mar
 	_ball.missed.connect(_point.bind(1))
 	_ball.foe_missed.connect(_point.bind(0))
@@ -667,6 +667,15 @@ func _say(t: String) -> void:
 
 func _process(_dt: float) -> void:
 	if view != "padel" or _ball == null: return
+	if _mp_t > 0.0:
+		_mp_t -= _dt
+		if _mp_t <= 0.0: _mpose("ready")
+	elif _ball.state == "in" and _ball.in_zone() and _mar.texture.resource_path.find("back_L") < 0:
+		_mpose("back")
+	elif _ball.state == "in" and not _ball.in_zone() and _ball.t > _ball.dur * 0.3 and _mar.texture.resource_path.find("ready") >= 0:
+		_mpose("run" if randf() < 0.5 else "run2", 0.5)
+	elif _ball.state == "idle" and _mar.texture.resource_path.find("back_L") >= 0:
+		_mpose("ready")
 	# Lawan bergerak mengikuti bola
 	var tx := clampf(_ball.a.x if _ball.state == "in" else _ball.b.x, 520, 1060)
 	_opp.position.x = lerpf(_opp.position.x, tx - _opp.size.x / 2.0, 0.08)
@@ -697,12 +706,7 @@ func _process(_dt: float) -> void:
 func _on_hit() -> void:
 	_rally += 1
 	game.sfx("pop", -4.0)
-	_mar.texture = load("res://assets/chars/penjaga/happy_L.png")
-	var tw := _mar.create_tween()
-	tw.tween_property(_mar, "rotation", -0.12, 0.08)
-	tw.tween_property(_mar, "rotation", 0.0, 0.15)
-	tw.tween_interval(0.6)
-	tw.tween_callback(func(): _mar.texture = load("res://assets/chars/penjaga/idle_L.png"))
+	_mpose("follow", 0.7)
 	if _tut < 4:
 		_tut = 4
 		game.S.side["padel_tut"] = true
@@ -711,14 +715,29 @@ func _on_hit() -> void:
 		_ray_say("Reli %d pukulan! Pertahankan ritmenya!" % _rally)
 
 
+var _mp_t := 0.0
+
+
+## Ganti pose Maryam (tampak belakang), kembali ke "ready" setelah `secs`.
+func _mpose(p: String, secs: float = 0.0) -> void:
+	var tex: Texture2D = load("res://assets/chars/padel_back/%s_L.png" % p)
+	var feet := _mar.position + Vector2(_mar.size.x / 2.0, _mar.size.y)
+	_mar.texture = tex
+	_mar.size = tex.get_size() * 1.7
+	_mar.position = feet - Vector2(_mar.size.x / 2.0, _mar.size.y)
+	_mp_t = secs
+
+
 func _point(who: int) -> void:
 	pts[who] += 1
 	_rally = 0
 	game.sfx("pop" if who == 0 else "arrive", -6.0)
 	_opp.texture = load("res://assets/chars/%s/%s_L.png" % [FOES[foe][2], FOES[foe][4] if who == 1 else FOES[foe][3]])
+	_mpose("cheer" if who == 0 else "tired", 1.2)
 	if pts[who] >= 4 and pts[who] - pts[1 - who] >= 2:
 		if who == 0:
 			_say("GAME! Maryam menang!")
+			_mpose("cheer", 2.2)
 			_ray_say("Hebat, Mbak Maryam menang! %s minta tanding ulang tuh." % FOES[foe][0])
 			if _toast_once("padel"):
 				game.add_xp(25)
@@ -1046,7 +1065,7 @@ class _Ball extends Node2D:
 		t = 0.0
 		dur = randf_range(1.25, 1.55) - skill * 0.3
 		a = Vector2(randf_range(640, 980), 1010)
-		var px := player.position.x + player.size.x * 0.78 if player else 980.0
+		var px := player.position.x + player.size.x * 0.8 if player else 980.0
 		b = Vector2(px + randf_range(-30, 40), 1730)
 
 	func swing() -> void:
@@ -1067,7 +1086,7 @@ class _Ball extends Node2D:
 
 	func _draw() -> void:
 		# Raket Maryam
-		if player:
+		if player and false:
 			var hand := player.position + Vector2(player.size.x * 0.82, player.size.y * 0.5)
 			var ang := -0.5 - (sin((0.28 - _swing_t) / 0.28 * PI) * 1.6 if _swing_t > 0 else 0.0)
 			var dir := Vector2(cos(ang), sin(ang))
