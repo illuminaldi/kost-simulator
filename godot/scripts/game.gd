@@ -2,6 +2,9 @@ extends Node2D
 ## Kost Simulator — logika utama: waktu, ekonomi, penyewa, NPC, cahaya, input.
 
 const SAVE_PATH := "user://kost_save.json"
+const WALLET_PATH := "user://wallet.json"   # dompet terpisah: tidak ikut terhapus saat "Mulai baru"
+const TURBO_MIN := 7 * 1440                 # 1 Tiket Ngebut = 2x selama 7 hari di dalam game
+const FREE_TICKETS := 3
 const PLAN_SHADER := """
 shader_type canvas_item;
 void fragment() {
@@ -37,6 +40,7 @@ var scroll_v := 0.0
 var pan := {}
 var _last_btn := {}      # true/false (press/release) -> [msec, posisi]
 var truck: Sprite2D
+var driver: Sprite2D
 var facil_sp := {}
 var facil_lights := {}
 var box_tex: Texture2D
@@ -83,6 +87,9 @@ func _ready() -> void:
 		S = _load_game()
 	if S.is_empty():
 		_new_game()
+	_load_wallet()
+	if int(S.speed) > 2: S.speed = 2
+	if int(S.speed) == 2 and int(W.turbo_min) <= 0: S.speed = 1
 	_refresh_world()
 	_sync_npcs()
 	_refresh_cargo()
@@ -241,7 +248,14 @@ func _build_world() -> void:
 	_sprite(bld, Rect2(0, 0, D.IW, D.LOBBY_TOP + 40), Vector2.ZERO)
 	# Lantai tambahan (5-8): salinan lantai 3 yang ditumpuk ke atas, lalu atap.
 	for f in range(5, D.TOP_FLOOR + 1):
-		_sprite(bld, Rect2(0, 627, D.IW, D.EXTRA_PITCH), Vector2(0, 242 - (f - 4) * D.EXTRA_PITCH))
+		var fy := 242 - (f - 4) * D.EXTRA_PITCH
+		_sprite(bld, Rect2(0, 627, D.IW, D.EXTRA_PITCH), Vector2(0, fy))
+		# Sisi kiri selang-seling: tanaman gantung / langit polos (bukan pohon berulang).
+		if f % 2 == 1:
+			_sprite(bld, Rect2(0, 235, 86, D.EXTRA_PITCH), Vector2(0, fy))
+		else:
+			var sky := _sprite(bld, Rect2(0, 240, 40, 40), Vector2(0, fy))
+			sky.scale = Vector2(86.0 / 40.0, D.EXTRA_PITCH / 40.0)
 	_sprite(bld, Rect2(0, 0, D.IW, 242), Vector2(0, D.BUILDING_TOP))
 	for f in range(1, D.TOP_FLOOR + 1):
 		var src := D.rect_of("1S") if f % 2 == 1 else D.rect_of("3S")
@@ -281,6 +295,17 @@ func _build_world() -> void:
 	truck.visible = false
 	truck.z_index = 50          # pickup selalu di lapisan paling atas lobi
 	lobby_root.add_child(truck)
+	# Andi (kurir) jadi supir: kepala & bahu terlihat di jendela kabin.
+	driver = Sprite2D.new()
+	driver.texture = load("res://assets/chars/kurir/walk_L.png")
+	driver.centered = false
+	driver.region_enabled = true
+	driver.region_rect = Rect2(0, 0, 206, 150)
+	driver.flip_h = true
+	driver.scale = Vector2(0.78, 0.78)
+	driver.position = Vector2(262, 108)
+	driver.show_behind_parent = false
+	truck.add_child(driver)
 	npc_lobby = Node2D.new()
 	npc_lobby.y_sort_enabled = true
 	lobby_root.add_child(npc_lobby)
@@ -588,6 +613,101 @@ func _screen(pid: String, check: String) -> void:
 		ui.toast("%s %s: aman" % [ck.n, p.name])
 
 
+# ================= Dompet: Diamond & Tiket Ngebut =================
+var W := {}
+
+
+func _load_wallet() -> void:
+	W = {}
+	if FileAccess.file_exists(WALLET_PATH):
+		var d = JSON.parse_string(FileAccess.get_file_as_string(WALLET_PATH))
+		if typeof(d) == TYPE_DICTIONARY: W = d
+	for k in ["diamonds", "tickets", "turbo_min"]:
+		W[k] = int(W.get(k, 0))
+	if not W.get("free_given", false):
+		W.free_given = true
+		W.tickets = int(W.tickets) + FREE_TICKETS
+	save_wallet()
+
+
+func save_wallet() -> void:
+	var f := FileAccess.open(WALLET_PATH, FileAccess.WRITE)
+	if f: f.store_string(JSON.stringify(W))
+
+
+## Jeda / 1x gratis. 2x butuh Tiket Ngebut (berlaku 7 hari di game, hanya terpakai saat 2x).
+func set_speed(v: int) -> void:
+	v = clampi(v, 0, 2)
+	if v == 2 and int(W.turbo_min) <= 0:
+		if int(W.tickets) > 0:
+			W.tickets = int(W.tickets) - 1
+			W.turbo_min = TURBO_MIN
+			save_wallet()
+			ui.toast("Tiket Ngebut dipakai! Kecepatan 2x selama 7 hari di game. Sisa tiket: %d" % int(W.tickets), "gold")
+			sfx("upgrade", -6.0)
+		else:
+			ui.toast("Tiket Ngebut habis. Beli di Toko.", "bad")
+			ui.open_sheet("toko")
+			return
+	S.speed = v
+	ui.toast("Kecepatan %dx" % v if v > 0 else "Waktu dijeda")
+	if ui.kind in ["manage", "toko"]: ui.refresh_sheet()
+
+
+func turbo_text() -> String:
+	var m := int(W.get("turbo_min", 0))
+	if m <= 0: return ""
+	var d := m / 1440
+	var h := (m % 1440) / 60
+	return ("%d hari %d jam" % [d, h]) if d > 0 else ("%d jam" % maxi(1, h))
+
+
+func _turbo_tick() -> void:
+	if int(S.speed) != 2: return
+	W.turbo_min = int(W.turbo_min) - 2
+	if int(W.turbo_min) == 1440:
+		ui.toast("Waktu 2x tinggal 1 hari di game.", "gold")
+	if int(W.turbo_min) % 120 == 0: save_wallet()
+	if int(W.turbo_min) <= 0:
+		W.turbo_min = 0
+		save_wallet()
+		S.speed = 1
+		keeper_say("Juragan, mode ngebut udah habis~", 3.5)
+		ui.toast("Waktu 2x habis, kembali ke 1x. Pakai Tiket Ngebut lagi untuk 2x.", "bad")
+
+
+## Toko (bayar pakai Diamond). Diamond dibeli di Play Store pada versi Android.
+const SHOP := {
+	"tiket1": {"n": "1 Tiket Ngebut", "d": "Kecepatan 2x selama 7 hari di game", "cost": 25},
+	"tiket5": {"n": "5 Tiket Ngebut", "d": "Hemat 20%", "cost": 100},
+	"uang1": {"n": "Kantong Uang", "d": "", "cost": 30, "money": 500000},
+	"uang2": {"n": "Peti Uang", "d": "", "cost": 100, "money": 2000000},
+}
+const DIAMOND_PACKS := [["60", "Rp 15.000"], ["330 (+10%)", "Rp 75.000"], ["700 (+17%)", "Rp 150.000"]]
+
+
+func shop_money(k: String) -> float:
+	return float(SHOP[k].get("money", 0)) * maxf(1.0, int(S.lvl) * 0.75)
+
+
+func shop_buy(k: String) -> void:
+	var it: Dictionary = SHOP[k]
+	if int(W.diamonds) < int(it.cost):
+		ui.toast("Diamond belum cukup.", "bad")
+		return
+	W.diamonds = int(W.diamonds) - int(it.cost)
+	match k:
+		"tiket1": W.tickets = int(W.tickets) + 1
+		"tiket5": W.tickets = int(W.tickets) + 5
+		_:
+			var m := shop_money(k)
+			S.money = float(S.money) + m
+			ui.toast("+%s masuk ke kas kost!" % D.rp(m), "gold")
+	save_wallet()
+	sfx("buy")
+	ui.refresh_sheet()
+
+
 func save_game() -> void:
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
@@ -804,6 +924,7 @@ func _notification(what: int) -> void:
 
 
 func _step() -> void:
+	_turbo_tick()
 	_tick_jobs(2.0)
 	S.min = int(S.min) + 2
 	S.next_cand = float(S.next_cand) - 2.0
@@ -1045,7 +1166,7 @@ const MOOD_FRIEND := {
 const MOOD_STAFF := {
 	"cleaner": [["Mas Ryan, kamarku tolong dibersihin dong.", "Siap, habis ini langsung saya ke sana!"]],
 	"teknisi": [["Mas Dimas, ada yang rusak di kamarku...", "Oke, saya bawa perkakas dulu, ya."]],
-	"satpam": [["Pak Aji, tadi ada orang asing di depan.", "Tenang, saya patroli lebih sering malam ini."]],
+	"satpam": [["Pak Aji, paketku kok hilang ya?", "Saya cek CCTV & buku tamu dulu, Kak."]],
 }
 
 
@@ -1064,6 +1185,16 @@ func _talk_mood(n: Npc) -> String:
 		if hr >= 20 or hr < 2: return "lelah"
 		return ""
 	return ""
+
+
+## Curhat ke petugas hanya kalau memang urusan petugas itu.
+func _staff_fits(role: String, mood: String, n: Npc) -> bool:
+	var id := _room_of_npc(n)
+	match role:
+		"teknisi": return mood in ["air_mati", "mcb", "atap_bocor", "wifi_lemot"] or (id != "" and str(S.rooms[id].broken) != "")
+		"cleaner": return mood == "hama" or (id != "" and float(S.rooms[id].clean) < 45)
+		"satpam": return mood == "paket_hilang" or _recent("maling", 0, 2)
+	return false
 
 
 func _room_of_npc(n: Npc) -> String:
@@ -1145,7 +1276,7 @@ func _greet() -> String:
 
 func _chatty(n: Npc) -> bool:
 	if n == null or not is_instance_valid(n) or not n.visible: return false
-	if n.kind not in ["res", "cand", "staff", "keeper"]: return false
+	if n.kind not in ["res", "cand", "staff", "keeper", "worker"]: return false
 	if n.leaving or n.fade_state != "" or n.chat_with != null: return false
 	if n.pose == "lie" or n.pose == "climb": return false
 	return float(_chat_cd.get(n.id, 0.0)) <= _clock
@@ -1222,7 +1353,7 @@ func _chat_tick(dt: float) -> void:
 			if ma != "" and dist < near * 0.8 and randf() < 0.6:
 				var lines: Array = []
 				if b.kind == "keeper" and MOOD_KEEPER.has(ma): lines = MOOD_KEEPER[ma].pick_random()
-				elif b.kind == "staff" and MOOD_STAFF.has(b.role) and ma in ["marah", "pusing", "atap_bocor", "mcb", "air_mati", "hama", "paket_hilang"]:
+				elif b.kind == "staff" and MOOD_STAFF.has(b.role) and _staff_fits(b.role, ma, a):
 					lines = MOOD_STAFF[b.role].pick_random()
 				elif b.kind == "res" and MOOD_FRIEND.has(ma):
 					var fl: Array = MOOD_FRIEND[ma].pick_random()
@@ -1244,27 +1375,168 @@ func _chat_tick(dt: float) -> void:
 			if both_idle and randf() < 0.35 and _convos.filter(func(c): return c.long).size() < 3:
 				_start_long(a, b)
 			elif not both_idle and dist < near * 0.6 and randf() < 0.5:
-				_start_chat(a, b, [_greet(), CHAT_REPLY[randi() % CHAT_REPLY.size()]], false)
+				var bn2 := _panggil(_who(b))
+				var hr2 := int(S.min) / 60
+				var tg := "Pagi" if hr2 < 11 else ("Siang" if hr2 < 15 else ("Sore" if hr2 < 18 else "Malam"))
+				_start_chat(a, b, [_greet() if bn2 == "" or randf() < 0.5 else "%s, %s!" % [tg, bn2], CHAT_REPLY[randi() % CHAT_REPLY.size()]], false)
 			break
 
 
 func _start_long(a: Npc, b: Npc) -> void:
-	var key := "res"
-	for m in [a, b]:
-		if m.kind == "staff" and CHAT_LONG.has(m.role): key = m.role
-		elif m.kind == "keeper": key = "keeper"
-	if key == "res" and a.kind == "cand" and b.kind == "cand": key = "cand"
-	# Pembeli/penghuni yang memulai, petugas yang menjawab.
-	if a.kind in ["staff", "keeper"]:
+	# Yang lebih "tamu" (penghuni/calon) memulai, petugas menjawab.
+	var rank := {"cand": 0, "res": 1, "worker": 2, "staff": 2, "keeper": 3}
+	if int(rank.get(a.kind, 1)) > int(rank.get(b.kind, 1)):
 		var t := a
 		a = b
 		b = t
-	var sets: Array = CHAT_LONG[key]
-	var lines: Array = sets[randi() % sets.size()]
+	var lines := _context_lines(_who(a), _who(b))
+	if lines.is_empty(): return
 	_start_chat(a, b, lines, true)
 
 
+## Data singkat tentang NPC untuk memilih topik obrolan yang masuk akal.
+func _who(n: Npc) -> Dictionary:
+	var w := {"kind": n.kind, "name": str(n.get_meta("nama", "")), "role": n.role, "job": "", "room": "", "floor": 0, "stay": 99, "happy": 70.0, "clean": 100.0, "p": {}}
+	if n.kind == "keeper": w.name = D.STAFF.resep.nama
+	if n.kind == "worker":
+		w.role = n.char_id   # tukang / teknisi / kurir
+		w.name = {"tukang": D.WORKER.build.nama, "teknisi": D.WORKER.fix.nama, "kurir": D.WORKER.deliver.nama}.get(n.char_id, "")
+	if n.kind == "res":
+		var id := _room_of_npc(n)
+		if id != "":
+			var r: Dictionary = S.rooms[id]
+			var t: Dictionary = r.tenant
+			w.name = t.name
+			w.job = str(t.job)
+			w.room = id
+			w.floor = int(id[0])
+			w.stay = int(t.stay)
+			w.happy = float(t.happy)
+			w.clean = float(r.clean)
+			w.p = t
+	if n.kind == "cand":
+		for q in S.queue:
+			if q.id == n.id:
+				w.name = q.name
+				w.job = str(q.job)
+				w.p = q
+	return w
+
+
+func _log_recent(type: String, room: String) -> void:
+	if not S.has("recent"): S.recent = []
+	S.recent.append({"type": type, "room": room, "day": int(S.day)})
+	while S.recent.size() > 20: S.recent.pop_front()
+
+
+func _recent(type: String, floor: int = 0, days: int = 1) -> bool:
+	for e in S.get("recent", []):
+		if e.type == type and int(S.day) - int(e.day) <= days and (floor == 0 or str(e.room) == "" or int(str(e.room)[0]) == floor):
+			return true
+	for e in S.events:
+		if e.type == type and (floor == 0 or str(e.room) == "" or int(str(e.room)[0]) == floor):
+			return true
+	return false
+
+
+const KOTA := ["Solo", "Medan", "Makassar", "Padang", "Malang", "Bandung", "Palembang", "Pontianak", "Kupang", "Banjarmasin"]
+const SAPA := {"cleaner": "Mas", "teknisi": "Mas", "satpam": "Pak", "laundry": "Mas", "kantin": "Bu", "barista": "Kak", "tukang": "Pak", "kurir": "Mas"}
+
+
+func _panggil(w: Dictionary) -> String:
+	var nm: String = w.name
+	if nm == "": return ""
+	if w.kind == "keeper": return "Mbak " + nm
+	if w.kind in ["staff", "worker"] and not nm.begins_with("Bu ") and not nm.begins_with("Pak "):
+		return "%s %s" % [SAPA.get(w.role, "Mas"), nm]
+	return nm
+
+
+## Pilih obrolan sesuai siapa yang bicara, jam, & kejadian yang benar-benar terjadi.
+func _context_lines(a: Dictionary, b: Dictionary) -> Array:
+	var hr := int(S.min) / 60
+	var pagi := hr >= 5 and hr < 10
+	var makan := (hr >= 11 and hr <= 13) or (hr >= 18 and hr <= 20)
+	var malam := hr >= 19 or hr < 4
+	var opts: Array = []
+	var bn := _panggil(b)
+	if a.kind == "res" and b.kind == "res":
+		if int(b.stay) <= 1:
+			opts.append(["Eh, penghuni baru ya? Aku %s dari kamar %s." % [a.name, D.room_name(a.room)], "Iya, aku %s. Baru pindah ke sini." % b.name, "Selamat datang! Kalau butuh apa-apa bilang aja.", "Makasih ya!"])
+		if pagi:
+			match str(b.job):
+				"Mahasiswa": opts.append(["Pagi! Ada kuliah jam berapa?", "Jam sembilan, mau berangkat nih.", "Semangat kuliahnya!"])
+				"Karyawan", "Manajer": opts.append(["Pagi! Mau berangkat kerja?", "Iya, takut kena macet.", "Hati-hati di jalan!"])
+				"Freelancer": opts.append(["Hari ini kerja dari kamar lagi?", "Iya, lagi kejar deadline klien.", "Semangat! Jangan lupa makan."])
+		if str(b.job) == "Perawat" and hr >= 12 and hr < 14:
+			opts.append(["Mau masuk shift siang ya?", "Iya, jaga sampai malam.", "Semangat, Kak!"])
+		if str(b.job) == "Mahasiswa" and hr >= 16:
+			opts.append(["Tugas kuliahmu udah kelar?", "Belum, deadline-nya besok...", "Semangat! Nanti kubantu cek.", "Kamu penyelamatku!"])
+		if str(b.job) in ["Karyawan", "Manajer"] and hr >= 18:
+			opts.append(["Baru pulang? Lembur ya?", "Iya, kerjaan lagi numpuk.", "Istirahat gih, mukamu capek."])
+		if _recent("berisik", int(a.floor)):
+			opts.append(["Semalam kamar sebelah berisik banget, kamu kebangun nggak?", "Iya, aku sampai susah tidur.", "Semoga Mbak Maryam udah negur."])
+		if _recent("air_mati"):
+			opts.append(["Airnya sempat mati ya tadi?", "Iya, untung sekarang udah nyala lagi."])
+		if _recent("hama"):
+			opts.append(["Kamu lihat kecoak juga nggak kemarin?", "Lihat! Ihh, semoga udah dibasmi."])
+		if makan:
+			if has_facil("kantin"): opts.append(["Udah makan? Ke kantin bareng, yuk!", "Boleh! Aku traktir es teh.", "Asik, makasih ya!"])
+			else: opts.append(["Udah makan? Beli nasi goreng depan, yuk!", "Yuk, laper juga nih."])
+		if S.fac.has("wifi") and not _recent("wifi_lemot"):
+			opts.append(["WiFi lancar ya hari ini.", "Iya, nonton nggak buffering lagi.", "Betah deh di sini."])
+		if int(S.day) % 7 >= 5:
+			opts.append(["Weekend ada rencana?", "Mau pulang kampung sebentar.", "Titip oleh-oleh ya, hehe.", "Siap, nanti kubawain keripik!"])
+		if has_facil("gym") and (hr in [6, 7, 16, 17]):
+			opts.append(["Nge-gym bareng yuk?", "Ayo, biar sehat!"])
+		if float(S.rep) >= 4.0:
+			opts.append(["Kost ini makin bagus ya.", "Iya, betah banget di sini."])
+		var k1: String = KOTA[absi(str(a.name).hash()) % KOTA.size()]
+		var k2: String = KOTA[absi(str(b.name).hash()) % KOTA.size()]
+		opts.append(["Kamu asli mana?", "Aku dari %s. Kamu?" % k2, "%s. Sama-sama merantau ya." % k1, "Iya, kost ini jadi rumah kedua."])
+	elif a.kind in ["res", "cand"] and b.kind == "keeper":
+		if a.kind == "cand":
+			opts.append(["Mbak, masih ada kamar kosong?", "Ada, Kak. Tunggu sebentar, saya cek dulu ya."])
+		else:
+			opts.append(["Mbak Maryam, paketku udah datang?", "Sudah, ada di meja depan.", "Makasih, Mbak!"])
+			if int(a.stay) <= 1: opts.append(["Mbak, jam malam kost ini jam berapa?", "Jam sebelas, Kak. Tamu nggak boleh menginap, ya."])
+			if float(S.rooms[a.room].get("due", 0.0)) > 0: opts.append(["Mbak, sewaku udah bisa dibayar?", "Bisa, Kak. Nanti Juragan yang tagih langsung, ya."])
+	elif a.kind in ["res", "cand"] and b.kind in ["staff", "worker"]:
+		match str(b.role):
+			"cleaner":
+				if a.kind == "res" and float(a.clean) < 50: opts.append(["%s, kamarku tolong dibersihin dong." % bn, "Siap, habis ini saya ke sana!"])
+				else: opts.append(["Makasih ya %s, lorongnya jadi kinclong." % bn, "Sama-sama, Kak. Jaga kebersihan, ya!"])
+			"teknisi":
+				if a.kind == "res" and (str(S.rooms[a.room].broken) != "" or not event_at(a.room).is_empty()):
+					opts.append(["%s, ada yang rusak di kamarku..." % bn, "Oke, saya bawa perkakas dulu, ya."])
+				else: opts.append(["%s, lagi cek apa?" % bn, "Cek instalasi listrik, biar aman.", "Makasih, Mas!"])
+			"satpam":
+				if _recent("maling", 0, 2): opts.append(["Pak Aji, katanya ada maling ya?", "Iya, tapi tenang, sudah saya usir."])
+				elif malam: opts.append(["Pak Aji, aman malam ini?", "Aman, Kak. Saya keliling terus."])
+				else: opts.append(["Pak Aji, titip motor ya.", "Siap, saya jagain."])
+			"kurir": opts.append(["Paket buat siapa, %s?" % bn, "Perabot baru buat salah satu kamar!", "Wah, asik!"])
+			"tukang": opts.append(["Lagi bangun apa, %s?" % bn, "Ruangan baru, biar kost makin rame!"])
+			"barista", "kantin", "laundry":
+				var sets: Array = CHAT_LONG[b.role]
+				opts.append(sets.pick_random())
+	elif a.kind == "cand" and b.kind == "res":
+		opts.append(["Kak, kost ini enak nggak?", "Enak kok, Mbak Maryam ramah!" if float(b.happy) > 60 else "Lumayan... kadang ada aja masalahnya.", "Makasih infonya, Kak!"])
+	elif a.kind == "cand" and b.kind == "cand":
+		opts.append(CHAT_LONG.cand.pick_random())
+	elif a.kind in ["staff", "worker", "keeper"] and b.kind in ["staff", "worker", "keeper"]:
+		var an := _panggil(a)
+		if makan: opts.append(["Udah makan, %s?" % bn, "Belum, nanti bareng aja.", "Oke, habis kerjaan ini ya."])
+		if pagi: opts.append(["Pagi, %s! Udah ngopi?" % bn, "Udah dong, biar semangat.", "Mantap!"])
+		if malam: opts.append(["Shift malam lagi, %s?" % bn, "Iya. Kopi dulu biar melek.", "Semangat!"])
+		if hr >= 15 and hr < 19: opts.append(["Capek juga ya hari ini, %s." % bn, "Iya, tapi kost-nya makin rame, %s." % an])
+		if not makan and not pagi and not malam: opts.append(["Kerjaan aman, %s?" % bn, "Aman, %s. Lancar hari ini." % an])
+	if opts.is_empty(): return []
+	return opts.pick_random()
+
+
 func _start_chat(a: Npc, b: Npc, lines: Array, long: bool) -> void:
+	if OS.is_debug_build() and OS.get_cmdline_user_args().has("--chatlog"):
+		print("CHAT %02d:00 %s(%s)->%s(%s): %s" % [int(S.min) / 60, a.kind, a.role if a.role != "" else _who(a).job, b.kind, b.role if b.role != "" else _who(b).job, " / ".join(lines)])
 	a.chat_with = b
 	b.chat_with = a
 	_convos.append({"n": [a, b], "lines": lines, "i": 0, "t": 0.0, "long": long})
@@ -1364,6 +1636,7 @@ func _thief_flee(line: String) -> void:
 
 
 func _thief_end(msg: String, loss: float) -> void:
+	_log_recent("maling", "")
 	if OS.is_debug_build(): print("THIEF ", msg)
 	if loss > 0:
 		spend(loss, "other")
@@ -1503,7 +1776,19 @@ func preman_answer(how: String) -> void:
 					e[1].tenant.happy = clampf(float(e[1].tenant.happy) - 6.0, 0, 100)
 				S.rep = clampf(float(S.rep) - 0.05, 1, 5)
 				S.preman_next = int(S.day) + 3
-				ui.toast("Preman marah & mengancam. Penghuni jadi takut (kebahagiaan turun). Rekrut Aji (Satpam) atau lapor polisi." if how == "refuse" else "Preman dicuekin, marah-marah & menakuti penghuni.", "bad")
+				var dmg := ""
+				if how == "ignore":
+					# Didiamkan: preman merusak barang di salah satu kamar.
+					var pool := []
+					for id in D.ROOMS:
+						if S.rooms[id].built and str(S.rooms[id].broken) == "": pool.append(id)
+					if not pool.is_empty():
+						var rid: String = pool.pick_random()
+						var keys: Array = D.ISSUES.keys()
+						S.rooms[rid].broken = keys.pick_random()
+						dmg = " Dia juga merusak %s di Kamar %s!" % [str(S.rooms[rid].broken), D.room_name(rid)]
+						preman.say("Nih, biar tahu rasa!", 3.0)
+				ui.toast(("Preman marah & mengancam. Penghuni jadi takut (kebahagiaan turun). Rekrut Aji (Satpam) atau lapor polisi." if how == "refuse" else "Preman dicuekin, marah-marah & menakuti penghuni.") + dmg, "bad")
 				_preman_leave("angry", 2.5)
 	dirty = true
 
@@ -1645,6 +1930,7 @@ func _roll_events() -> void:
 		elif randf() > float(ev.p) * pmul: continue
 		var e := {"id": "e%d" % randi(), "type": k, "room": room, "age": 0, "auto": -1}
 		S.events.append(e)
+		_log_recent(k, room)
 		ui.toast("Masalah: %s%s" % [ev.n, (" di Kamar " + D.room_name(room)) if room != "" else ""], "bad")
 		dirty = true
 		return    # paling banyak satu masalah baru per hari
@@ -2169,6 +2455,7 @@ func _truck_tick(dt: float) -> void:
 	match truck_state:
 		"gone":
 			if need:
+				driver.visible = true
 				truck_state = "coming"
 				truck.visible = true
 				truck.flip_h = false
@@ -2184,8 +2471,13 @@ func _truck_tick(dt: float) -> void:
 					ui.toast("Pickup sudah sampai. Seret kotaknya ke kamar!", "gold")
 		"parked":
 			truck.position.y = D.LOBBY_Y + 45 - 470 * 0.72
+			var out := false
+			for n in npcs.values():
+				if n.char_id == "kurir": out = true
+			driver.visible = not out
 			if not need:
 				truck_state = "going"
+				driver.visible = true
 		"going":
 			truck.position.x = move_toward(truck.position.x, -800, 900 * dt)
 			if truck.position.x <= -800:
@@ -2515,7 +2807,9 @@ func act(a: String, arg: String = "") -> void:
 			S.price = int(arg)
 			ui.toast("Harga sewa: %s" % D.PRICE[int(arg)].n)
 		"speed":
-			S.speed = int(arg)
+			set_speed(int(arg))
+		"shop":
+			shop_buy(arg)
 		"reset":
 			_new_game()
 			ui.confirm = ""
@@ -2560,6 +2854,33 @@ func begin_drag(kind: String, item: String, start: Vector2, active: bool) -> voi
 	drag = {"kind": kind, "item": item, "start": start, "active": false}
 	if active:
 		_activate_drag()
+
+
+func _box_tag(b: Node2D, text: String) -> void:
+	var p := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color.WHITE
+	sb.border_color = D.C_LINE
+	sb.set_border_width_all(5)
+	sb.set_corner_radius_all(24)
+	sb.content_margin_left = 18
+	sb.content_margin_right = 18
+	sb.content_margin_bottom = 6
+	p.add_theme_stylebox_override("panel", sb)
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_override("font", font)
+	l.add_theme_font_size_override("font_size", 40)
+	l.add_theme_color_override("font_color", D.C_INK)
+	p.add_child(l)
+	p.z_index = 60
+	lobby_root.add_child(p)
+	p.reset_size()
+	p.position = truck.to_global(b.position) + Vector2(54 - p.size.x / 2.0, -80)
+	var t := p.create_tween()
+	t.tween_property(p, "position:y", p.position.y - 40, 1.6)
+	t.parallel().tween_property(p, "modulate:a", 0.0, 1.6).set_delay(0.8)
+	t.tween_callback(p.queue_free)
 
 
 ## Kotak yang baru tiba melompat kecil di bak pickup.
@@ -2654,6 +2975,13 @@ func _end_drag(p: Vector2) -> void:
 		npcs[d.item].modulate.a = 1.0
 	if d.kind == "cargo" and int(d.item) < box_nodes.size():
 		box_nodes[int(d.item)].modulate.a = 1.0
+		if not d.active and int(d.item) < S.cargo.size():
+			# Ketuk kotak (tanpa diseret): tunjukkan isinya.
+			var it: String = S.cargo[int(d.item)]
+			var b: Node2D = box_nodes[int(d.item)]
+			_box_tag(b, D.FURN[it].n)
+			ui.toast("Kotak berisi %s. Tahan & seret ke kamar." % D.FURN[it].n)
+			return
 	if not d.active:
 		if d.kind == "guest":
 			ui.open_sheet("tenants")
@@ -2789,9 +3117,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	var p := get_global_mouse_position()
 	if D.PILL_CLOCK.has_point(p):
-		S.speed = [1, 2, 3, 0][int(S.speed)]
-		ui.toast("Kecepatan %dx" % int(S.speed) if int(S.speed) > 0 else "Waktu dijeda")
-		if ui.kind == "manage": ui.refresh_sheet()
+		set_speed([1, 2, 0][clampi(int(S.speed), 0, 2)])
 		return
 	if D.PILL_MONEY.has_point(p):
 		ui.open_sheet("manage")
@@ -2998,6 +3324,13 @@ func _handle_cli(args: PackedStringArray) -> void:
 			S.fac["cctv"] = true
 		elif a == "--guard":
 			S.staff["satpam"] = true
+		elif a == "--truck":
+			S.seen = true
+			S.tut = -1
+			ui.close_sheet()
+			S.cargo = ["lampu", "kasur"]
+		elif a == "--rich":
+			W.diamonds = 500
 		elif a == "--stats":
 			S.seen = true
 			S.tut = -1

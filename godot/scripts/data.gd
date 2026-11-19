@@ -372,7 +372,7 @@ static func furn_rect(rid: String, t: String, tex_size: Vector2) -> Rect2:
 
 
 static func room_name(id: String) -> String:
-	return id[0] + {"L": "A", "M": "B", "R": "C"}[id[1]]
+	return id[0] + {"L": "A", "R": "B"}[id[1]]
 
 
 ## Tangga di kolom tengah: lantai ganjil di sisi kiri, lantai genap di sisi kanan.

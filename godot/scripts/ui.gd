@@ -671,7 +671,7 @@ func update_hud() -> void:
 	clock1.text = "%02d:%02d WIB /" % [(mins / 60) % 24, mins % 60]
 	clock2.text = "Hari %d" % int(S.day)
 	var sp := int(S.speed)
-	spd_lbl.text = "%dx" % sp if sp > 0 else "Jeda"
+	spd_lbl.text = ("%dx" % sp if sp > 0 else "Jeda")
 	spd_sb.bg_color = D.C_YELLOW if sp > 0 else D.C_PINK
 	clock_icon.night = game.glow_level()
 	var h := mins / 60.0
@@ -752,6 +752,7 @@ func refresh_sheet(keep: bool = true) -> void:
 		"welcome": _sheet_welcome()
 		"rename": _sheet_rename()
 		"preman": _sheet_preman()
+		"toko": _sheet_toko()
 		"room": _sheet_room()
 		"tenants": _sheet_tenants()
 		"staff": _sheet_staff()
@@ -880,6 +881,28 @@ class _Bars extends Control:
 				draw_string(font, Vector2(i * w, size.y - 8), str(labels[i]), HORIZONTAL_ALIGNMENT_CENTER, w, 26, Color("8a7a68"))
 				var t := "%drb" % roundi(vv / 1000.0)
 				draw_string(font, Vector2(i * w, (base - hgt - 6) if vv >= 0 else (base + hgt + 26)), t, HORIZONTAL_ALIGNMENT_CENTER, w, 24, Color("5a3d2b"))
+
+
+func _sheet_toko() -> void:
+	var Wl: Dictionary = game.W
+	_header("Toko")
+	var top := _card()
+	_row(top, _label("Diamond kamu", 38), _label("%d" % int(Wl.diamonds), 44, Color("2f5d7c"), true))
+	_row(top, _label("Tiket Ngebut", 38), _label("%d" % int(Wl.tickets), 44, D.C_INK, true))
+	var tt: String = game.turbo_text()
+	if tt != "": top.add_child(_text("Mode 2x masih aktif: sisa %s di game." % tt, 30, Color("2f7a2a")))
+	for k in game.SHOP:
+		var it: Dictionary = game.SHOP[k]
+		var v := _card()
+		var desc: String = it.d
+		if it.has("money"): desc = "+%s ke kas kost" % D.rp(game.shop_money(k))
+		_row(v, _label(it.n, 38), _btn("%d Diamond" % int(it.cost), D.C_YELLOW, func(): _do("shop", k), int(Wl.diamonds) < int(it.cost)))
+		v.add_child(_text(desc, 30, D.C_MUTED))
+	var dv := _card()
+	dv.add_child(_label("Beli Diamond", 40))
+	for pk in game.DIAMOND_PACKS:
+		_row(dv, _label("%s Diamond" % pk[0], 34), _label(pk[1], 34, D.C_MUTED, true))
+	dv.add_child(_text("Pembelian Diamond lewat Google Play tersedia di aplikasi Android (segera hadir). Di versi web ini belum bisa membeli.", 30, D.C_MUTED))
 
 
 func _sheet_preman() -> void:
@@ -1367,9 +1390,12 @@ func _sheet_manage() -> void:
 	sv.add_child(_label("Kecepatan waktu", 42))
 	var sh := HBoxContainer.new()
 	sh.add_theme_constant_override("separation", 14)
-	for s in [[0, "Jeda"], [1, "1x"], [2, "2x"], [3, "3x"]]:
+	for s in [[0, "Jeda"], [1, "1x"], [2, "2x"]]:
 		sh.add_child(_btn(s[1], D.C_YELLOW if int(S.speed) == s[0] else Color.WHITE, func(): _do("speed", str(s[0])), false, true))
 	sv.add_child(sh)
+	var tt: String = game.turbo_text()
+	sv.add_child(_text(("Sisa 2x: %s · " % tt if tt != "" else "") + "Tiket Ngebut: %d (1 tiket = 2x selama 7 hari di game)" % int(game.W.tickets), 30, D.C_MUTED))
+	sv.add_child(_btn("Toko Diamond", D.C_CREAM, func(): open_sheet("toko")))
 	var lv := _card()
 	var L = S.get("last")
 	if L == null:

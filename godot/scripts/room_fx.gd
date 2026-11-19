@@ -102,7 +102,6 @@ func setup(p_game: Node, id: String, art: Texture2D, plan_mat: Material, font: F
 	cl.add_theme_color_override("font_color", Color("4a3626"))
 	_coin.add_child(cl)
 	_coin.visible = false
-	_coin.z_index = 5
 	add_child(_coin)
 	_badges = HBoxContainer.new()
 	_badges.add_theme_constant_override("separation", 6)
