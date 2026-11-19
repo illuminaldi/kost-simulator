@@ -7,12 +7,70 @@ const IH := 2576
 
 # Kolom & baris kamar pada ilustrasi (piksel gambar asli).
 const COLS := {"L": Vector2(131, 551), "M": Vector2(576, 970), "R": Vector2(996, 1405)}
-const ROWS := {8: Vector2(-1302, -935), 7: Vector2(-910, -543), 6: Vector2(-518, -151), 5: Vector2(-126, 241), 4: Vector2(242, 626), 3: Vector2(651, 1018), 2: Vector2(1043, 1410), 1: Vector2(1436, 1800)}
-const SLOTS := ["8L", "8S", "8R", "7L", "7S", "7R", "6L", "6S", "6R", "5L", "5S", "5R", "4L", "4S", "4R", "3L", "3S", "3R", "2L", "2S", "2R", "1L", "1S", "1R"]
-const ROOMS := ["8L", "8R", "7L", "7R", "6L", "6R", "5L", "5R", "4L", "4R", "3L", "3R", "2L", "2R", "1L", "1R"]
+# Data lantai dibuat otomatis (tanpa batas). Lantai 1-4 dari ilustrasi, 5+ salinan lantai 3/4.
+static var TOP_FLOOR := 8
+static var ROWS := {}
+static var FEET := {}
+static var ROOMS: Array = []
+static var EDGES: Array = []
+static var SPOT := {}
+static var LAMPS := {}
+static var FLOOR_LV := {}
+static var BUILDING_TOP := -1568
 
-# Garis lantai (posisi kaki NPC) & pusat kolom.
-const FEET := {8: -953.0, 7: -561.0, 6: -169.0, 5: 223.0, 4: 600.0, 3: 1000.0, 2: 1392.0, 1: 1778.0}
+
+static func setup_floors(top: int) -> void:
+	TOP_FLOOR = maxi(8, top)
+	ROWS = {4: Vector2(242, 626), 3: Vector2(651, 1018), 2: Vector2(1043, 1410), 1: Vector2(1436, 1800)}
+	FEET = {4: 600.0, 3: 1000.0, 2: 1392.0, 1: 1778.0}
+	SPOT = BASE_SPOT.duplicate(true)
+	LAMPS = BASE_LAMPS.duplicate(true)
+	for f in range(5, TOP_FLOOR + 1):
+		var y0 := 266.0 - (f - 4) * EXTRA_PITCH
+		ROWS[f] = Vector2(y0, y0 + 367)
+		FEET[f] = y0 + 349
+		SPOT["%dL" % f] = {"seat": Vector2(330, y0 + 337)}
+		SPOT["%dR" % f] = {"seat": Vector2(1170, y0 + 341), "bed": Vector2(1215, y0 + 287)}
+		LAMPS["%dL" % f] = BASE_LAMPS["3L"]
+		LAMPS["%dR" % f] = BASE_LAMPS["3R"]
+	ROOMS = []
+	for f in range(TOP_FLOOR, 0, -1):
+		ROOMS.append("%dL" % f)
+		ROOMS.append("%dR" % f)
+	EDGES = [["lobby", "S1"]]
+	for f in range(1, TOP_FLOOR + 1):
+		EDGES.append(["S%d" % f, "%dL" % f])
+		EDGES.append(["S%d" % f, "%dR" % f])
+		if f < TOP_FLOOR: EDGES.append(["S%d" % f, "S%d" % (f + 1)])
+	FLOOR_LV = {}
+	for f in range(1, TOP_FLOOR + 1): FLOOR_LV[f] = f
+	BUILDING_TOP = -(TOP_FLOOR - 4) * EXTRA_PITCH
+
+
+## Lantai dari id kamar/scene ("12L" -> 12, "S12" -> 12).
+static func fl(id: String) -> int:
+	return int(id.substr(1)) if id.begins_with("S") else int(id.left(id.length() - 1))
+
+
+static func col(id: String) -> String:
+	return "S" if id.begins_with("S") else id.right(1)
+
+
+## Biaya renovasi untuk membuka lantai f (lantai 9 ke atas).
+static func floor_cost(f: int) -> float:
+	return 5000000.0 * (1.0 + 0.3 * (f - 9))
+
+
+static func floor_rep(f: int) -> float:
+	return minf(4.0 + 0.05 * (f - 9), 4.6)
+
+
+## Warna penanda tiap 5 lantai (lantai 5+).
+static func floor_tint(f: int) -> Color:
+	var band := (f - 1) / 5
+	return [Color(1, 1, 1), Color(1, 1, 1), Color(1.0, 0.95, 0.9), Color(0.93, 0.98, 0.94), Color(0.95, 0.95, 1.02), Color(1.02, 0.94, 0.96), Color(1.0, 1.0, 0.9)][band % 7]
+
+
 const CX := {"L": 341.0, "M": 773.0, "R": 1200.0}
 const LOBBY_Y := 2335.0
 const LOBBY_X := 700.0
@@ -20,7 +78,7 @@ const OUT_X := -90.0
 const QUEUE_X := [600.0, 740.0, 880.0, 1030.0]
 
 # Titik aktivitas di tiap kamar (posisi kaki / alas sprite).
-const SPOT := {
+const BASE_SPOT := {
 	"4L": {"seat": Vector2(300, 582), "bed": Vector2(345, 538)},
 	"4M": {"seat": Vector2(790, 578), "bed": Vector2(795, 529)},
 	"4R": {"seat": Vector2(1150, 586), "bed": Vector2(1232, 522)},
@@ -42,7 +100,7 @@ const SPOT := {
 }
 
 # Lampu di tiap kamar (relatif terhadap kotak kamar: x, y, radius).
-const LAMPS := {
+const BASE_LAMPS := {
 	"4L": [[0.09, 0.72, 85]], "4M": [[0.53, 0.24, 120]], "4R": [[0.60, 0.33, 75], [0.89, 0.70, 70]],
 	"3L": [[0.35, 0.18, 85], [0.34, 0.38, 60], [0.10, 0.68, 60]], "3R": [[0.47, 0.17, 115]],
 	"2L": [[0.33, 0.22, 95]], "2M": [[0.22, 0.33, 85]], "2R": [[0.93, 0.73, 60]],
@@ -68,12 +126,6 @@ const NAV := [["upgrade", Rect2(22, 2405, 340, 145)], ["tenants", Rect2(392, 240
 	["staff", Rect2(733, 2405, 315, 145)], ["manage", Rect2(1074, 2405, 316, 145)]]
 const GROUND_RECT := Rect2(380, 1860, 980, 512)
 const CAT_RECT := Rect2(400, 2195, 155, 110)
-
-# Graf perpindahan antar "scene" (lobi, tangga, kamar).
-const EDGES := [["lobby", "S1"], ["S1", "S2"], ["S2", "S3"], ["S3", "S4"], ["S1", "1L"], ["S1", "1R"],
-	["S2", "2L"], ["S2", "2R"], ["S3", "3L"], ["S3", "3R"], ["S4", "4L"], ["S4", "4R"], ["S4", "S5"], ["S5", "5L"], ["S5", "5R"], ["S5", "S6"], ["S6", "6L"], ["S6", "6R"], ["S6", "S7"], ["S7", "7L"], ["S7", "7R"], ["S7", "S8"], ["S8", "8L"], ["S8", "8R"]]
-
-const FLOOR_LV := {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8}
 
 # ---------- Perabot ----------
 # Setiap kamar punya tempat perabotnya sendiri (diambil dari ilustrasi). Posisi = pojok kiri-atas sprite.
@@ -146,10 +198,12 @@ const FACIL := {
 		"d": "Tempat nongkrong & kerja. Harga sewa +5%; pemasukan harian kalau ada Barista."},
 	"gym": {"n": "Gym", "lv": 6, "cost": 3000000, "happy": 3, "inc": 0, "visit": [6, 17], "pose": "stand",
 		"d": "Penghuni olahraga pagi & sore. Kebahagiaan naik."},
+	"lift": {"n": "Lift", "lv": 6, "cost": 4000000, "happy": 0, "inc": 0, "visit": [], "pose": "stand",
+		"d": "Penghuni lantai atas tidak perlu naik tangga panjang: tidak cepat capek & tetap betah."},
 	"rooftop": {"n": "Taman Rooftop", "lv": 7, "cost": 3500000, "happy": 3, "inc": 0, "visit": [16, 20], "pose": "stand",
 		"d": "Taman hijau untuk santai sore. Rating kost naik setiap hari."},
 }
-const FACIL_ORDER := ["tunggu", "laundry", "mushola", "dapur", "kantin", "cafe", "gym", "rooftop"]
+const FACIL_ORDER := ["tunggu", "laundry", "mushola", "dapur", "kantin", "cafe", "lift", "gym", "rooftop"]
 
 
 ## Sisi kosong ruang tangga (lantai ganjil: kanan, genap: kiri).
@@ -313,19 +367,17 @@ const C_MUTED := Color("8a6f58")
 
 
 static func rect_of(id: String) -> Rect2:
-	var col: Vector2 = COLS["M" if id[1] == "S" else id[1]]
-	var row: Vector2 = ROWS[int(id[0])]
-	return Rect2(col.x, row.x, col.y - col.x, row.y - row.x)
+	var cc: Vector2 = COLS["M" if col(id) == "S" else col(id)]
+	var row: Vector2 = ROWS[fl(id)]
+	return Rect2(cc.x, row.x, cc.y - cc.x, row.y - row.x)
 
 
 const EXTRA_PITCH := 392
-const TOP_FLOOR := 8
-const BUILDING_TOP := -1568   # y atap lantai teratas (koordinat gedung)
 const LOBBY_TOP := 1800.0
 
 ## Kamar lantai 5+ meminjam gambar dari kamar lantai 3 (tata letak sama).
 static func tpl(rid: String) -> String:
-	return ("3" + rid.substr(1)) if int(rid[0]) > 4 else rid
+	return ("3" + col(rid)) if fl(rid) > 4 else rid
 
 
 static func src_rect(id: String) -> Rect2:
@@ -372,7 +424,7 @@ static func furn_rect(rid: String, t: String, tex_size: Vector2) -> Rect2:
 
 
 static func room_name(id: String) -> String:
-	return id[0] + {"L": "A", "R": "B"}[id[1]]
+	return str(fl(id)) + {"L": "A", "R": "B"}[col(id)]
 
 
 ## Tangga di kolom tengah: lantai ganjil di sisi kiri, lantai genap di sisi kanan.
@@ -387,9 +439,9 @@ static func stair_top(f: int) -> float:
 static func scene_pos(s: String) -> Vector2:
 	if s == "lobby":
 		return Vector2(LOBBY_X, LOBBY_Y)
-	if s[0] == "S":
-		return Vector2(773, FEET[int(s[1])])
-	return Vector2(CX[s[1]], FEET[int(s[0])])
+	if s.begins_with("S"):
+		return Vector2(773, FEET[fl(s)])
+	return Vector2(CX[col(s)], FEET[fl(s)])
 
 
 static func bfs(a: String, b: String) -> Array:

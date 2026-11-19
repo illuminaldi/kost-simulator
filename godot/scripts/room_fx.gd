@@ -13,6 +13,7 @@ var _empty: PanelContainer
 var _tag: Label
 var _badges: HBoxContainer
 var _coin: PanelContainer
+var _lock := ""
 var _coin_amt := 0.0
 var _ct := 0.0
 var _furn := {}          # tipe -> Sprite2D
@@ -160,10 +161,13 @@ func refresh(r: Dictionary, player_lv: int, cost: float, font: Font) -> void:
 		_empty.position = Vector2((rect.size.x - _empty.size.x) / 2.0, rect.size.y - _empty.size.y - 6)
 	_sign.visible = not _built
 	if not _built:
-		var need: int = D.FLOOR_LV[int(rid[0])]
+		var need: int = D.fl(rid)
 		if building:
 			_sign_lbl.text = "Sedang\nDibangun"
 			_sign_sb.bg_color = Color("e0a83a")
+		elif _lock != "":
+			_sign_lbl.text = _lock
+			_sign_sb.bg_color = Color("8f7a9c")
 		elif player_lv < need:
 			_sign_lbl.text = "Terkunci\nLevel %d" % need
 			_sign_sb.bg_color = Color("a69a8c")
@@ -357,3 +361,13 @@ class _Glow extends Node2D:
 func coin_hit(p: Vector2) -> bool:
 	return _coin != null and _coin.visible and _coin.get_rect().grow(30).has_point(p)
 
+
+
+func set_floor_lock(t: String) -> void:
+	if t != _lock:
+		_lock = t
+		if not _built and _sign.visible and t != "":
+			_sign_lbl.text = t
+			_sign_sb.bg_color = Color("8f7a9c")
+			_sign.reset_size()
+			_sign.position = (rect.size - _sign.size) / 2.0

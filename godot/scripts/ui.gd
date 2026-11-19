@@ -35,6 +35,7 @@ var _opened_at := 0
 var tray: PanelContainer
 var tray_row: HBoxContainer
 var tray_box: VBoxContainer
+var floor_btn: Button
 var tray_tab := "perabot"
 var ghost: Sprite2D
 var hints := {}
@@ -216,6 +217,11 @@ func setup(p_game: Node, art: Texture2D, p_font: Font, p_font_m: Font) -> void:
 		h2.visible = false
 		hint_root.add_child(h2)
 		hints["S%d" % f] = h2
+
+	floor_btn = _btn("Lantai", D.C_CREAM, func(): open_sheet("floors"))
+	floor_btn.add_theme_font_size_override("font_size", 30)
+	floor_btn.position = Vector2(1250, 215)
+	add_child(floor_btn)
 
 	tray = PanelContainer.new()
 	var tsb := _sb(D.C_PAPER, 6, 40, 22, 16)
@@ -621,7 +627,7 @@ func _build_tray() -> void:
 			at.region = D.rect_of("3R")
 			var empty := 0
 			for id in D.ROOMS:
-				if not S.rooms[id].built and int(S.lvl) >= int(D.FLOOR_LV[int(id[0])]): empty += 1
+				if not S.rooms[id].built and game.floor_open(D.fl(id)): empty += 1
 			tray_row.add_child(_tray_card(at, "Kamar Baru", D.short(game.build_cost()), "build", "", empty > 0, "Lahan siap dibangun: %d" % empty, "Seret"))
 			for k in D.FACIL_ORDER:
 				var fc: Dictionary = D.FACIL[k]
@@ -841,6 +847,7 @@ func refresh_sheet(keep: bool = true) -> void:
 		"rename": _sheet_rename()
 		"preman": _sheet_preman()
 		"toko": _sheet_toko()
+		"floors": _sheet_floors()
 		"room": _sheet_room()
 		"tenants": _sheet_tenants()
 		"staff": _sheet_staff()
@@ -969,6 +976,29 @@ class _Bars extends Control:
 				draw_string(font, Vector2(i * w, size.y - 8), str(labels[i]), HORIZONTAL_ALIGNMENT_CENTER, w, 26, Color("8a7a68"))
 				var t := "%drb" % roundi(vv / 1000.0)
 				draw_string(font, Vector2(i * w, (base - hgt - 6) if vv >= 0 else (base + hgt + 26)), t, HORIZONTAL_ALIGNMENT_CENTER, w, 24, Color("5a3d2b"))
+
+
+func _sheet_floors() -> void:
+	var S: Dictionary = game.S
+	_header("Pindah ke lantai")
+	box.add_child(_text("Gedung bisa terus ditinggikan. Lantai 9 ke atas dibuka dengan renovasi.", 30, D.C_MUTED))
+	var g := GridContainer.new()
+	g.columns = 4
+	g.add_theme_constant_override("h_separation", 12)
+	g.add_theme_constant_override("v_separation", 12)
+	box.add_child(g)
+	for f in range(D.TOP_FLOOR, 0, -1):
+		var occ := 0
+		for c in ["L", "R"]:
+			var r = S.rooms.get("%d%s" % [f, c])
+			if r and r.tenant != null: occ += 1
+		var lbl := "Lantai %d" % f + (" (%d)" % occ if occ > 0 else "")
+		var ff := f
+		var col := D.C_YELLOW if game.floor_open(f) else Color("e2d9cc")
+		var b := _btn(lbl, col, func(): game.jump_to_floor(ff))
+		b.custom_minimum_size = Vector2(300, 90)
+		g.add_child(b)
+	box.add_child(_btn("Ke lobi (bawah)", D.C_GREEN, func(): game.set_scroll(0.0); close_sheet()))
 
 
 func _sheet_toko() -> void:
@@ -1127,12 +1157,21 @@ func _sheet_room() -> void:
 	var id := arg
 	var r: Dictionary = S.rooms[id]
 	if not r.built:
-		var need: int = D.FLOOR_LV[int(id[0])]
+		var fln := D.fl(id)
 		_header("Lahan Kamar " + D.room_name(id))
 		_room_pic(box, id)
 		var v := _card()
-		if int(S.lvl) < need:
-			v.add_child(_text("Lantai %s terbuka di Level %d." % [id[0], need], 38))
+		if int(S.lvl) < fln:
+			v.add_child(_text("Lantai %d terbuka di Level %d." % [fln, fln], 38))
+		elif not game.floor_open(fln):
+			v.add_child(_label("Renovasi lantai %d" % fln, 40))
+			v.add_child(_text("Lantai di atas 8 perlu direnovasi sebelum kamarnya dibangun. Syarat: Level %d, rating minimal %.1f." % [fln, D.floor_rep(fln)], 32, D.C_MUTED))
+			v.add_child(_text("Kamar makin tinggi = sewa makin mahal (+3%%/lantai). Tanpa Lift, penghuni lantai atas cepat capek.", 30, D.C_MUTED))
+			var nxt: int = int(S.get("open_floor", 8)) + 1
+			if fln == nxt:
+				v.add_child(_btn("Renovasi " + D.short(D.floor_cost(fln)), D.C_YELLOW, func(): game.renovate_floor(fln), float(S.rep) < D.floor_rep(fln) or float(S.money) < D.floor_cost(fln)))
+			else:
+				v.add_child(_text("Renovasi lantai %d dulu." % nxt, 32, D.C_MUTED))
 		else:
 			var c: float = game.build_cost()
 			if game.job_for(id, "build") != {}:

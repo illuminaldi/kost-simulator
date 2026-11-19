@@ -77,6 +77,10 @@ func _ready() -> void:
 	var sh := Shader.new()
 	sh.code = PLAN_SHADER
 	plan_mat.shader = sh
+	var peek := _load_game_raw()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--floors="): peek = {"open_floor": int(a.substr(9)) - 1}
+	D.setup_floors(wanted_top(peek))
 	_build_world()
 	_setup_music()
 	ui = Ui.new()
@@ -249,7 +253,8 @@ func _build_world() -> void:
 	# Lantai tambahan (5-8): salinan lantai 3 yang ditumpuk ke atas, lalu atap.
 	for f in range(5, D.TOP_FLOOR + 1):
 		var fy := 242 - (f - 4) * D.EXTRA_PITCH
-		_sprite(bld, Rect2(0, 627, D.IW, D.EXTRA_PITCH), Vector2(0, fy))
+		var fs := _sprite(bld, Rect2(0, 627, D.IW, D.EXTRA_PITCH), Vector2(0, fy))
+		fs.modulate = D.floor_tint(f)
 		# Sisi kiri selang-seling: tanaman gantung / langit polos (bukan pohon berulang).
 		if f % 2 == 1:
 			_sprite(bld, Rect2(0, 235, 86, D.EXTRA_PITCH), Vector2(0, fy))
@@ -436,6 +441,7 @@ func _refresh_world() -> void:
 		var ev_id := event_at(id)
 		S.rooms[id]["_ev"] = "" if ev_id.is_empty() else str(ev_id.type)
 		room_fx[id].refresh(S.rooms[id], int(S.lvl), build_cost(), font)
+		room_fx[id].set_floor_lock(floor_lock_sign(D.fl(id)))
 	dirty = false
 
 
@@ -711,6 +717,12 @@ func save_game() -> void:
 		f.store_string(JSON.stringify(S))
 
 
+func _load_game_raw() -> Dictionary:
+	if OS.get_cmdline_user_args().has("--fresh") or not FileAccess.file_exists(SAVE_PATH): return {}
+	var d = JSON.parse_string(FileAccess.get_file_as_string(SAVE_PATH))
+	return d if typeof(d) == TYPE_DICTIONARY else {}
+
+
 func _load_game() -> Dictionary:
 	if not FileAccess.file_exists(SAVE_PATH):
 		return {}
@@ -729,7 +741,7 @@ func _load_game() -> Dictionary:
 				d.queue.push_front(t)
 			d.rooms.erase(id)
 	if d.has("jobs"):
-		d.jobs = d.jobs.filter(func(j): return D.ROOMS.has(j.room))
+		d.jobs = d.jobs.filter(func(j): return D.ROOMS.has(j.room) or str(j.room).begins_with("S"))
 	for id in D.ROOMS:
 		if not d.rooms.has(id):
 			d.rooms[id] = {"built": false, "lv": 1, "clean": 100.0, "broken": "", "tenant": null, "furn": {}}
@@ -778,8 +790,15 @@ func update_tier(r: Dictionary) -> void:
 	r.lv = 1 if c < 5.0 else (2 if c < 10.0 else 3)
 
 
+func _id_of(r: Dictionary) -> String:
+	for id in S.rooms:
+		if S.rooms[id] == r: return id
+	return "1L"
+
+
 func rent_of(r: Dictionary) -> float:
-	var v: float = (30000.0 + comfort(r) * 9000.0) * D.PRICE[int(S.price)].m * (1.0 + 0.04 * fac_count() + (0.05 if has_facil("cafe") else 0.0))
+	var fl := D.fl(_id_of(r))
+	var v: float = (30000.0 + comfort(r) * 9000.0) * D.PRICE[int(S.price)].m * (1.0 + 0.04 * fac_count() + (0.05 if has_facil("cafe") else 0.0)) * (1.0 + 0.03 * (fl - 1))
 	return round(v / 1000.0) * 1000.0
 
 
@@ -833,9 +852,9 @@ func add_xp(n: float) -> void:
 		var bonus := 300000.0 * int(S.lvl)
 		S.money = float(S.money) + bonus
 		ui.toast("Naik ke Level %d! Bonus %s" % [int(S.lvl), D.rp(bonus)], "gold")
-		for f in D.FLOOR_LV:
-			if D.FLOOR_LV[f] == int(S.lvl):
-				ui.toast("Lantai %d terbuka untuk dibangun" % f, "gold")
+		var lf := int(S.lvl)
+		if lf <= 8: ui.toast("Lantai %d terbuka untuk dibangun" % lf, "gold")
+		elif lf <= D.TOP_FLOOR and not floor_open(lf): ui.toast("Lantai %d bisa direnovasi sekarang!" % lf, "gold")
 		dirty = true
 
 
@@ -1409,7 +1428,7 @@ func _who(n: Npc) -> Dictionary:
 			w.name = t.name
 			w.job = str(t.job)
 			w.room = id
-			w.floor = int(id[0])
+			w.floor = D.fl(id)
 			w.stay = int(t.stay)
 			w.happy = float(t.happy)
 			w.clean = float(r.clean)
@@ -1431,10 +1450,10 @@ func _log_recent(type: String, room: String) -> void:
 
 func _recent(type: String, floor: int = 0, days: int = 1) -> bool:
 	for e in S.get("recent", []):
-		if e.type == type and int(S.day) - int(e.day) <= days and (floor == 0 or str(e.room) == "" or int(str(e.room)[0]) == floor):
+		if e.type == type and int(S.day) - int(e.day) <= days and (floor == 0 or str(e.room) == "" or D.fl(str(e.room)) == floor):
 			return true
 	for e in S.events:
-		if e.type == type and (floor == 0 or str(e.room) == "" or int(str(e.room)[0]) == floor):
+		if e.type == type and (floor == 0 or str(e.room) == "" or D.fl(str(e.room)) == floor):
 			return true
 	return false
 
@@ -1793,6 +1812,56 @@ func preman_answer(how: String) -> void:
 	dirty = true
 
 
+# ================= Lantai tanpa batas =================
+## Lantai 1-8 terbuka sesuai level. Lantai 9+ butuh level, rating & biaya renovasi.
+func floor_open(f: int) -> bool:
+	if f > D.TOP_FLOOR or int(S.lvl) < f: return false
+	return f <= 8 or f <= int(S.get("open_floor", 8))
+
+
+func floor_lock_text(f: int) -> String:
+	if int(S.lvl) < f: return "Lantai %d terbuka di Level %d" % [f, f]
+	return "Lantai %d perlu direnovasi dulu (%s, rating %.1f)" % [f, D.rp(D.floor_cost(f)), D.floor_rep(f)]
+
+
+## Teks papan untuk lahan kosong di lantai terkunci ("" = boleh dibangun).
+func floor_lock_sign(f: int) -> String:
+	if f <= 8 or floor_open(f): return ""
+	if int(S.lvl) < f: return ""      # papan "Terkunci Level X" bawaan
+	return "Renovasi\n%s" % D.short(D.floor_cost(f))
+
+
+func renovate_floor(f: int) -> void:
+	if f != int(S.get("open_floor", 8)) + 1: return
+	if int(S.lvl) < f:
+		ui.toast("Lantai %d terbuka di Level %d" % [f, f], "bad"); return
+	if float(S.rep) < D.floor_rep(f):
+		ui.toast("Rating kost harus minimal %.1f untuk renovasi lantai %d" % [D.floor_rep(f), f], "bad"); return
+	if float(S.money) < D.floor_cost(f):
+		ui.toast("Uang belum cukup (%s)" % D.rp(D.floor_cost(f)), "bad"); return
+	spend(D.floor_cost(f), "other")
+	S.open_floor = f
+	add_xp(50)
+	ui.toast("Lantai %d selesai direnovasi! Kamarnya siap dibangun." % f, "gold")
+	sfx("upgrade")
+	# Tambah satu lantai terkunci di atasnya lalu muat ulang gedung.
+	save_game()
+	save_wallet()
+	get_tree().reload_current_scene()
+
+
+## Lantai tertinggi yang ditampilkan: lantai terbuka + 1 lantai berikutnya (masih terkunci).
+func wanted_top(s: Dictionary) -> int:
+	return maxi(8, int(s.get("open_floor", 8)) + 1)
+
+
+func jump_to_floor(f: int) -> void:
+	var r := D.rect_of("%dS" % clampi(f, 1, D.TOP_FLOOR))
+	set_scroll(1200.0 - r.position.y)
+	scroll_v = 0.0
+	ui.close_sheet()
+
+
 # ================= Bang Ojol & Kang Galon =================
 var ojol: Npc = null
 var ojol_for := ""
@@ -1943,7 +2012,7 @@ func _refresh_facil() -> void:
 func facil_ok(f: int, k: String) -> String:
 	var fc: Dictionary = D.FACIL[k]
 	if int(S.lvl) < int(fc.lv): return "%s terbuka di Level %d" % [fc.n, int(fc.lv)]
-	if int(S.lvl) < int(D.FLOOR_LV[f]): return "Lantai %d terbuka di Level %d" % [f, int(D.FLOOR_LV[f])]
+	if not floor_open(f): return floor_lock_text(f)
 	if S.facil.has(str(f)) or job_for("S%d" % f, "fbuild") != {}: return "Sisi tangga lantai %d sudah terpakai" % f
 	if has_facil(k): return "%s sudah ada di kost" % fc.n
 	for j in S.jobs:
@@ -1955,7 +2024,7 @@ func facil_ok(f: int, k: String) -> String:
 ## Lantai terendah yang sisi tangganya masih kosong & sudah terbuka.
 func free_facil_floor() -> int:
 	for f in range(1, D.TOP_FLOOR + 1):
-		if int(S.lvl) < int(D.FLOOR_LV[f]): continue
+		if not floor_open(f): continue
 		if S.facil.has(str(f)) or job_for("S%d" % f, "fbuild") != {}: continue
 		return f
 	return 0
@@ -2139,6 +2208,8 @@ func _new_day() -> void:
 		var r: Dictionary = e[1]
 		var t: Dictionary = r.tenant
 		var d: float = 2 + int(D.PRICE[int(S.price)].h) + mini(fac_count(), 5) + (2 if S.staff.get("satpam", false) else 0) + facil_happy()
+		# Lantai tinggi tanpa lift: capek naik tangga.
+		if D.fl(id) > 5 and not has_facil("lift"): d -= 0.5 * (D.fl(id) - 5)
 		if float(r.clean) < 45: d -= 6
 		if float(r.clean) < 20: d -= 10
 		if str(r.broken) != "": d -= 10
@@ -2146,7 +2217,7 @@ func _new_day() -> void:
 		if int(r.lv) > int(t.pref): d += 1
 		# Tetangga satu lantai: berisik / ramah
 		for e2 in each_tenant():
-			if e2[0] != id and str(e2[0])[0] == id[0]:
+			if e2[0] != id and D.fl(str(e2[0])) == D.fl(id):
 				d += _trait_sum(e2[1].tenant, "neigh")
 		t.happy = clampf(float(t.happy) + d, 0, 100)
 		t.stay = int(t.stay) + 1
@@ -2740,7 +2811,7 @@ func _pick_room(self_n: Npc, filter: Callable, score: Callable) -> String:
 func _spot_in(R: String) -> Vector2:
 	if R.begins_with("S"):
 		return D.facil_spot(int(R.substr(1))) + Vector2(randf_range(-40, 40), 0)
-	return Vector2(float(D.CX[R[1]]) + randf_range(-80, 80), float(D.FEET[int(R[0])]))
+	return Vector2(float(D.CX[D.col(R)]) + randf_range(-80, 80), float(D.FEET[D.fl(R)]))
 
 
 func _finish_clean(n: Npc, R: String) -> void:
@@ -3072,7 +3143,7 @@ func _drop_ok(id: String) -> String:
 		"build":
 			if r.built: return "Kamar %s sudah dibangun" % D.room_name(id)
 			if job_for(id, "build") != {}: return "Kamar %s sedang dibangun" % D.room_name(id)
-			if int(S.lvl) < int(D.FLOOR_LV[int(id[0])]): return "Lantai %s terbuka di Level %d" % [id[0], int(D.FLOOR_LV[int(id[0])])]
+			if not floor_open(D.fl(id)): return floor_lock_text(D.fl(id))
 			return ""
 	return "?"
 
@@ -3170,7 +3241,7 @@ func _input(e: InputEvent) -> void:
 					ui.open_sheet("room", id)
 				else:
 					var sf := stair_at(pan.start)
-					if sf > 0 and int(S.lvl) >= int(D.FLOOR_LV[sf]):
+					if sf > 0 and floor_open(sf):
 						ui.open_sheet("facil", str(sf))
 			pan = {}
 			get_viewport().set_input_as_handled()
@@ -3455,6 +3526,19 @@ func _handle_cli(args: PackedStringArray) -> void:
 			S.tut = -1
 			ui.close_sheet()
 			spawn_galon.call_deferred()
+		elif a.begins_with("--floors="):
+			S.seen = true
+			S.tut = -1
+			ui.close_sheet()
+			S.open_floor = int(a.substr(9)) - 1
+			S.lvl = int(a.substr(9))
+			S.rep = 4.3
+			S.money = 30000000.0
+			for id in D.ROOMS:
+				if D.fl(id) <= int(S.open_floor) and D.fl(id) >= 8:
+					S.rooms[id].built = true
+					S.rooms[id].furn = {"kasur": 1, "lampu": 2}
+			dirty = true
 		elif a == "--truck":
 			S.seen = true
 			S.tut = -1
