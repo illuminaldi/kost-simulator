@@ -211,36 +211,36 @@ func _show_cafe_ext() -> void:
 
 
 # ---------------- Cafe Book: membaca ----------------
+# Buku = cerita rakyat & fabel domain publik, diceritakan ulang (bebas hak cipta).
 const BOOKS := [
-	{"t": "Rahasia Kost Nyaman", "p": [
-		"Penghuni betah bukan karena kamar mewah, tapi karena pemiliknya cepat tanggap.",
-		"Bersih itu nomor satu. Kamar kotor membuat sewa terasa mahal.",
-		"Sapa penghuni setiap pagi. Senyum itu gratis, efeknya mahal.",
-		"Perbaikan kecil hari ini mencegah keluhan besar minggu depan.",
-		"Fasilitas bersama membuat penghuni saling kenal dan jarang pindah.",
-		"Kamu sudah membaca satu buku! Ide baru siap dicoba di kost."]},
-	{"t": "Kopi & Ketenangan", "p": [
-		"Hirup aroma kopinya dulu. Tidak semua hal harus selesai hari ini.",
-		"Istirahat bukan berhenti; istirahat itu mengisi bensin.",
-		"Kerja keras itu bagus. Kerja sambil bahagia itu lebih awet.",
-		"Rumah yang hangat dimulai dari pemilik yang tidak kelelahan.",
-		"Nenek bilang: rawat dirimu, baru rawat orang lain.",
-		"Selesai! Maryam merasa jauh lebih segar."]},
-	{"t": "Catatan Pengusaha Muda", "p": [
-		"Catat semua pemasukan dan pengeluaran, sekecil apa pun.",
-		"Harga sewa yang adil membuat kamar jarang kosong.",
-		"Dengarkan keluhan: itu daftar perbaikan gratis.",
-		"Reputasi dibangun bertahun-tahun, rusak dalam sehari.",
-		"Investasi terbaik: kenyamanan penghuni.",
-		"Tamat. Saatnya mempraktikkan di kost!"]},
+	{"t": "Si Kancil dan Buaya", "src": "Cerita rakyat Nusantara (domain publik)", "p": [
+		["Si Kancil ingin makan mentimun di seberang sungai. Sayang, sungainya lebar dan penuh buaya yang lapar.", "Kancil berpikir sejenak, lalu tersenyum. \"Hai Buaya! Raja hutan mengundang kalian ke pesta. Aku ditugasi menghitung jumlah kalian.\""],
+		["Para buaya senang sekali. Mereka berbaris dari tepi sungai sampai ke seberang agar mudah dihitung.", "\"Satu, dua, tiga...\" Kancil melompat dari punggung buaya satu ke buaya berikutnya sambil berhitung."],
+		["Sampai di seberang, Kancil melompat ke darat dan tertawa. \"Terima kasih jembatannya, Buaya!\"", "Para buaya kesal karena tertipu. Sejak itu mereka belajar: jangan mudah percaya pada janji manis."],
+		["Pesan cerita: akal yang cerdik bisa menolong saat kekuatan tidak cukup.", "Tapi ingat, kecerdikan sebaiknya dipakai untuk kebaikan, bukan untuk merugikan orang lain. TAMAT"]]},
+	{"t": "Semut dan Belalang", "src": "Fabel Aesop (domain publik)", "p": [
+		["Musim panas tiba. Belalang bernyanyi dan menari sepanjang hari di padang rumput.", "Seekor semut lewat sambil memikul butir jagung yang berat, bolak-balik menuju sarangnya."],
+		["\"Kenapa kerja terus? Ayo bernyanyi bersamaku!\" ajak Belalang. Semut menjawab, \"Aku menyimpan makanan untuk musim dingin.\"", "Belalang tertawa. \"Musim dingin masih lama! Makanan masih banyak.\" Semut tetap bekerja tanpa mengeluh."],
+		["Musim dingin datang. Salju menutupi padang dan Belalang kelaparan, tidak punya apa-apa.", "Ia mengetuk rumah Semut. Semut yang baik hati membagi sedikit makanannya."],
+		["Belalang malu dan berjanji akan bersiap sejak awal tahun depan.", "Pesan cerita: bekerjalah selagi ada waktu, dan jangan lupa berbagi. TAMAT"]]},
+	{"t": "Malin Kundang", "src": "Legenda Sumatra Barat (domain publik)", "p": [
+		["Di pesisir Sumatra hiduplah Malin bersama ibunya yang miskin. Malin anak yang rajin dan disayang ibunya.", "Saat dewasa, Malin pamit merantau naik kapal saudagar. Ibunya melepas dengan doa dan air mata."],
+		["Bertahun-tahun kemudian Malin menjadi saudagar kaya dan menikah dengan gadis bangsawan.", "Suatu hari kapalnya singgah di kampung halaman. Ibunya berlari ke dermaga, rindu ingin memeluknya."],
+		["Malin malu melihat ibunya yang tua dan lusuh. \"Aku tidak kenal perempuan ini!\" katanya, lalu mengusir ibunya.", "Hati sang ibu hancur. Ia berdoa sambil menangis. Langit menjadi gelap dan badai datang."],
+		["Kapal Malin dihantam badai. Konon Malin berubah menjadi batu yang masih bisa dilihat di Pantai Air Manis.", "Pesan cerita: hormati orang tua, sesukses apa pun kita nanti. TAMAT"]]},
 ]
 var book := 0
 var page := 0
+var focus := 1.0
 var coffee := 1.0
-var _page_lbl: Label
-var _title_lbl: Label
-var _num_lbl: Label
+var _bk: _Book
+var _mug: _Mug
 var _coffee_bar: ColorRect
+var _cup_bar: ColorRect
+var _cafe_hint: PanelContainer
+var _cafe_hint_lbl: Label
+var _lt_dim: ColorRect
+var _rt_dim: ColorRect
 
 
 func _show_cafe_in() -> void:
@@ -248,77 +248,98 @@ func _show_cafe_in() -> void:
 	view = "cafe_in"
 	page = 0
 	_bg("res://assets/side/cafe_in.jpg")
-	# Halaman buku: kertas bersih di atas buku dalam ilustrasi.
-	var pg := _panel(Rect2(250, 1150, 940, 640), Color("fdf6e3"))
-	pg.rotation = -0.06
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 18)
-	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pg.add_child(v)
-	_title_lbl = _lbl("", 40, Color("8a5a3a"))
-	v.add_child(_title_lbl)
-	_page_lbl = _lbl("", 46, D.C_INK, true)
-	_page_lbl.custom_minimum_size = Vector2(880, 380)
-	v.add_child(_page_lbl)
-	_num_lbl = _lbl("", 30, D.C_MUTED)
-	v.add_child(_num_lbl)
-	# Meter santai (kopi)
-	var cp := _panel(Rect2(40, 1990, 520, 90), Color(1, 0.98, 0.94, 0.95))
-	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 14)
-	cp.add_child(hb)
-	hb.add_child(_lbl("Santai", 32))
-	var bg := ColorRect.new()
-	bg.color = Color("e6d8c2")
-	bg.custom_minimum_size = Vector2(320, 30)
-	bg.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	hb.add_child(bg)
-	_coffee_bar = ColorRect.new()
-	_coffee_bar.color = Color("b07a4a")
-	_coffee_bar.size = Vector2(320, 30)
-	bg.add_child(_coffee_bar)
-	# Tombol yang sudah tergambar di ilustrasi (posisi sudah digeser 90 px ke atas).
+	_bk = _Book.new()
+	_bk.font = font
+	_layer.add_child(_bk)
+	_mug = _Mug.new()
+	_layer.add_child(_mug)
+	# Meter fokus & isi gelas
+	var cp := _panel(Rect2(30, 1960, 560, 170), Color(1, 0.98, 0.94, 0.95))
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	cp.add_child(vb)
+	_coffee_bar = _meter(vb, "Fokus", Color("7aa86b"))
+	_cup_bar = _meter(vb, "Kopi", Color("8a5a3a"))
+	# Tombol panah & gelas (gambar di ilustrasi; area ketuk asli)
 	_hit(Rect2(70, 1125, 152, 150), func(): _flip(-1))
 	_hit(Rect2(1218, 1125, 152, 150), func(): _flip(1))
 	_hit(Rect2(1160, 2020, 230, 190), _sip)
+	_hit(Rect2(900, 1690, 330, 330), _sip)
+	_hit(Rect2(170, 1160, 1090, 680), func(): _flip(1))     # ketuk halaman = balik
+	_lt_dim = _dim(Rect2(70, 1125, 152, 150))
+	_rt_dim = _dim(Rect2(1218, 1125, 152, 150))
+	_cafe_hint = _panel(Rect2(360, 2150, 760, 96), Color("5a4434"))
+	_cafe_hint_lbl = _lbl("", 32, Color("fff6e6"))
+	_cafe_hint.add_child(_cafe_hint_lbl)
 	_bottom([["Keluar Cafe", D.C_GREEN, _show_cafe_ext], ["Order Minuman", D.C_PINK, _order],
 		["Baca Buku Lain", D.C_YELLOW, func():
 			book = (book + 1) % BOOKS.size()
 			page = 0
 			game.sfx("pop", -6.0)
+			game.ui.toast("Membuka \"%s\"" % BOOKS[book].t)
 			_render_book()]], 2262)
-	_cafe_hint = _panel(Rect2(360, 2150, 760, 96), Color("5a4434"))
-	_cafe_hint_lbl = _lbl("", 32, Color("fff6e6"))
-	_cafe_hint.add_child(_cafe_hint_lbl)
 	_render_book()
 
 
-var _cafe_hint: PanelContainer
-var _cafe_hint_lbl: Label
+func _meter(parent: Control, name: String, col: Color) -> ColorRect:
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 14)
+	parent.add_child(hb)
+	var l := _lbl(name, 32)
+	l.custom_minimum_size = Vector2(110, 0)
+	hb.add_child(l)
+	var bg := ColorRect.new()
+	bg.color = Color("e6d8c2")
+	bg.custom_minimum_size = Vector2(380, 30)
+	bg.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	hb.add_child(bg)
+	var f := ColorRect.new()
+	f.color = col
+	f.size = Vector2(380, 30)
+	bg.add_child(f)
+	return f
+
+
+func _dim(r: Rect2) -> ColorRect:
+	var c := ColorRect.new()
+	c.color = Color(0.95, 0.92, 0.86, 0.6)
+	c.position = r.position + Vector2(8, 8)
+	c.size = r.size - Vector2(16, 16)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_layer.add_child(c)
+	return c
 
 
 func _render_book() -> void:
 	var b: Dictionary = BOOKS[book]
-	_title_lbl.text = b.t
-	_page_lbl.text = b.p[page]
-	_num_lbl.text = "Halaman %d / %d" % [page + 1, b.p.size()]
-	_coffee_bar.size.x = 320.0 * clampf(coffee, 0, 1)
-	if _cafe_hint_lbl:
-		var n: int = BOOKS[book].p.size()
-		if coffee <= 0.05: _cafe_hint_lbl.text = "Ngantuk... ketuk Hirup Kopi"
-		elif page >= n - 1: _cafe_hint_lbl.text = "Tamat! Ganti buku di bawah"
-		else: _cafe_hint_lbl.text = "Ketuk panah > untuk halaman %d" % (page + 2)
+	var n: int = b.p.size()
+	_bk.set_pages(b.t, b.src, b.p[page][0], b.p[page][1], page, n)
+	_coffee_bar.size.x = 380.0 * clampf(focus, 0, 1)
+	_cup_bar.size.x = 380.0 * clampf(coffee, 0, 1)
+	_mug.level = coffee
+	_lt_dim.visible = page == 0
+	_rt_dim.visible = page >= n - 1
+	if focus <= 0.15:
+		_cafe_hint_lbl.text = "Maryam ngantuk... ketuk kopinya" if coffee > 0.01 else "Kopi habis! Order minuman dulu"
+	elif page >= n - 1:
+		_cafe_hint_lbl.text = "Tamat! Ketuk Baca Buku Lain"
+	else:
+		_cafe_hint_lbl.text = "Ketuk halaman / panah > (hal. %d dari %d)" % [page * 2 + 3, n * 2]
 
 
 func _flip(d: int) -> void:
-	if coffee <= 0.05 and d > 0:
-		game.ui.toast("Maryam mulai ngantuk... hirup kopi dulu atau pesan minuman!", "bad")
-		return
 	var n: int = BOOKS[book].p.size()
+	if d > 0 and focus <= 0.15:
+		game.ui.toast("Maryam mulai ngantuk... minum kopinya dulu!", "bad")
+		_mug.wiggle()
+		return
 	var np := clampi(page + d, 0, n - 1)
-	if np == page: return
+	if np == page:
+		if d > 0: game.ui.toast("Buku ini sudah tamat. Coba buku lain!")
+		return
 	page = np
-	if d > 0: coffee = maxf(0.0, coffee - 0.22)
+	if d > 0: focus = maxf(0.0, focus - 0.2)
+	_bk.turn(d)
 	game.sfx("pop", -8.0)
 	if page == n - 1 and _toast_once("baca%d" % book):
 		game.add_xp(15)
@@ -330,23 +351,185 @@ func _flip(d: int) -> void:
 
 
 func _sip() -> void:
-	if coffee >= 0.99:
-		game.ui.toast("Kopinya masih penuh, lanjut baca!")
+	if coffee <= 0.01:
+		game.ui.toast("Gelasnya sudah kosong. Ketuk Order Minuman!", "bad")
+		_mug.wiggle()
 		return
-	coffee = minf(1.0, coffee + 0.35)
-	game.ui.toast("Sruput~ Hangat dan wangi.")
+	coffee = maxf(0.0, coffee - 0.25)
+	focus = minf(1.0, focus + 0.45)
+	_mug.sip()
+	game.sfx("pop", -10.0)
+	game.ui.toast(["Sruput~ Hangat dan wangi.", "Hmm, kopi susunya pas.", "Ahh, segar lagi!"].pick_random())
 	_render_book()
 
 
 func _order() -> void:
 	var c := 25000.0
+	if coffee >= 0.99:
+		game.ui.toast("Kopinya masih penuh, diminum dulu!")
+		return
 	if float(game.S.money) < c:
 		game.ui.toast(game.ui.money_why(c), "bad"); return
 	game.spend(c, "other")
 	coffee = 1.0
+	_mug.refill()
 	game.sfx("buy", -6.0)
-	game.ui.toast("Es kopi gula aren datang! (%s)" % D.rp(c), "gold")
+	game.ui.toast("Kopi susu gula aren datang! (%s)" % D.rp(c), "gold")
 	_render_book()
+
+
+## Buku terbuka di ilustrasi: halaman ditimpa kertas bersih lalu diisi teks sungguhan,
+## mengikuti sudut miring halaman. Bisa dianimasikan saat dibalik.
+class _Book extends Node2D:
+	var font: Font
+	# Sudut halaman pada ilustrasi
+	const LP := [Vector2(192, 1196), Vector2(606, 1108), Vector2(792, 1682), Vector2(298, 1852)]
+	const RP := [Vector2(610, 1106), Vector2(978, 922), Vector2(1268, 1542), Vector2(798, 1682)]
+	var _lt: Label
+	var _rt: Label
+	var _lh: Node2D
+	var _rh: Node2D
+	var _flip := 0.0
+	var _dir := 1
+	var _ln: Label
+	var _rn: Label
+
+	func _ready() -> void:
+		_lh = _holder(LP, Vector2(420, 560))
+		_rh = _holder(RP, Vector2(410, 560))
+		_lt = _text(_lh, Vector2(420, 560), 27)
+		_rt = _text(_rh, Vector2(410, 560), 27)
+		_ln = _num(_lh, Vector2(420, 560))
+		_rn = _num(_rh, Vector2(410, 560))
+
+	func _holder(q: Array, sz: Vector2) -> Node2D:
+		var h := Node2D.new()
+		var xa: Vector2 = (q[1] - q[0]) / sz.x
+		var ya: Vector2 = (q[3] - q[0]) / sz.y
+		h.transform = Transform2D(xa, ya, q[0])
+		add_child(h)
+		return h
+
+	func _text(h: Node2D, sz: Vector2, fs: int) -> Label:
+		var l := Label.new()
+		l.position = Vector2(34, 46)
+		l.size = Vector2(sz.x - 68, sz.y - 100)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.add_theme_font_override("font", font)
+		l.add_theme_font_size_override("font_size", fs)
+		l.add_theme_color_override("font_color", Color("4a3626"))
+		l.add_theme_constant_override("line_spacing", 4)
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		h.add_child(l)
+		return l
+
+	func _num(h: Node2D, sz: Vector2) -> Label:
+		var l := Label.new()
+		l.position = Vector2(0, sz.y - 48)
+		l.size = Vector2(sz.x, 30)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.add_theme_font_override("font", font)
+		l.add_theme_font_size_override("font_size", 20)
+		l.add_theme_color_override("font_color", Color("9a8068"))
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		h.add_child(l)
+		return l
+
+	func set_pages(title: String, src: String, left: String, right: String, pg: int, n: int) -> void:
+		_lt.text = ("%s\n" % title.to_upper() if pg == 0 else "") + left
+		_rt.text = right + ("\n\n— %s" % src if pg == n - 1 else "")
+		_ln.text = str(pg * 2 + 1)
+		_rn.text = str(pg * 2 + 2)
+
+	func turn(d: int) -> void:
+		_dir = d
+		_flip = 1.0
+
+	func _process(dt: float) -> void:
+		if _flip > 0.0:
+			_flip = maxf(0.0, _flip - dt * 2.6)
+			var a := 1.0 - _flip
+			_lt.modulate.a = a
+			_rt.modulate.a = a
+			queue_redraw()
+
+	func _draw() -> void:
+		var paper := Color("fdf0d2")
+		for q in [LP, RP]:
+			var pts := PackedVector2Array()
+			for i in range(4):
+				var c: Vector2 = (q[0] + q[1] + q[2] + q[3]) / 4.0
+				pts.append(q[i].lerp(c, 0.035))
+			draw_colored_polygon(pts, paper)
+		# Lipatan tengah buku
+		draw_line(LP[1], LP[2], Color(0.6, 0.48, 0.35, 0.35), 10)
+		# Halaman yang sedang dibalik (lengkung melayang)
+		if _flip > 0.0:
+			var k := 1.0 - _flip
+			var spine0: Vector2 = LP[1]
+			var spine1: Vector2 = LP[2]
+			var src0: Vector2 = RP[1] if _dir > 0 else LP[0]
+			var src1: Vector2 = RP[2] if _dir > 0 else LP[3]
+			var dst0: Vector2 = LP[0] if _dir > 0 else RP[1]
+			var dst1: Vector2 = LP[3] if _dir > 0 else RP[2]
+			var lift := sin(k * PI) * 160.0
+			var e0 := src0.lerp(dst0, k) + Vector2(0, -lift)
+			var e1 := src1.lerp(dst1, k) + Vector2(0, -lift * 0.6)
+			draw_colored_polygon(PackedVector2Array([spine0, e0, e1, spine1]), Color("f6e6c0"))
+			draw_polyline(PackedVector2Array([spine0, e0, e1, spine1]), Color(0.45, 0.35, 0.25, 0.5), 3)
+
+
+## Kopi di gelas pada ilustrasi: isi gelas berkurang tiap diseruput, uap muncul saat masih hangat.
+class _Mug extends Node2D:
+	var level := 1.0
+	var _sip := 0.0
+	var _wig := 0.0
+	var t := 0.0
+	const C := Vector2(1060, 1768)
+	const RX := 138.0
+	const RY := 56.0
+
+	func sip() -> void: _sip = 1.0
+	func wiggle() -> void: _wig = 1.0
+	func refill() -> void: _sip = 0.6
+
+	func _process(dt: float) -> void:
+		t += dt
+		_sip = maxf(0.0, _sip - dt * 1.6)
+		_wig = maxf(0.0, _wig - dt * 2.5)
+		queue_redraw()
+
+	func _ell(c: Vector2, rx: float, ry: float, col: Color) -> void:
+		var pts := PackedVector2Array()
+		for i in range(36):
+			var a := TAU * i / 36.0
+			pts.append(c + Vector2(cos(a) * rx, sin(a) * ry))
+		draw_colored_polygon(pts, col)
+
+	func _draw() -> void:
+		var off := Vector2(sin(t * 40.0) * 8.0 * _wig, 0)
+		# Dinding dalam gelas
+		_ell(C + off, RX - 6, RY - 4, Color("d9c3a6"))
+		if level > 0.01:
+			# Permukaan kopi turun dan mengecil sesuai sisa
+			var drop := (1.0 - level) * 40.0
+			var s := 1.0 - (1.0 - level) * 0.18
+			_ell(C + off + Vector2(0, drop), (RX - 14) * s, (RY - 12) * s, Color("6e4632"))
+			_ell(C + off + Vector2(-20, drop - 6), (RX - 60) * s, (RY - 34) * s, Color(1, 1, 1, 0.12))
+			# riak saat diseruput
+			if _sip > 0.0:
+				draw_arc(C + off + Vector2(0, drop), (RX - 40) * (1.2 - _sip * 0.6), 0, TAU, 32, Color(1, 1, 1, 0.35 * _sip), 4)
+			# uap
+			for i in range(3):
+				var k := fmod(t * 0.35 + i * 0.33, 1.0)
+				var a := (1.0 - k) * (0.35 + 0.4 * _sip) * clampf(level * 2.0, 0.2, 1.0)
+				var pts := PackedVector2Array()
+				for j in range(10):
+					var yy := C.y - 40 - k * 260 - j * 18
+					pts.append(Vector2(C.x - 40 + i * 40 + sin(t * 2.0 + j * 0.7 + i) * 18, yy))
+				draw_polyline(pts, Color(1, 1, 1, a), 12)
+		else:
+			draw_arc(C + off + Vector2(0, 20), RX - 40, 0.3, PI - 0.3, 16, Color(0.43, 0.27, 0.2, 0.5), 6)
 
 
 # ---------------- Lapangan Padel ----------------
