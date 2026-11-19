@@ -297,13 +297,10 @@ func _build_world() -> void:
 	lobby_root.add_child(truck)
 	# Andi (kurir) jadi supir: kepala & bahu terlihat di jendela kabin.
 	driver = Sprite2D.new()
-	driver.texture = load("res://assets/chars/kurir/walk_L.png")
+	driver.texture = load("res://assets/chars/kurir/driver.png")   # tampak samping, menghadap depan pickup
 	driver.centered = false
-	driver.region_enabled = true
-	driver.region_rect = Rect2(0, 0, 206, 150)
-	driver.flip_h = true
-	driver.scale = Vector2(0.78, 0.78)
-	driver.position = Vector2(262, 108)
+	driver.scale = Vector2(1.0, 1.0)
+	driver.position = Vector2(268, 218 - 112)
 	driver.show_behind_parent = false
 	truck.add_child(driver)
 	npc_lobby = Node2D.new()
@@ -2471,10 +2468,7 @@ func _truck_tick(dt: float) -> void:
 					ui.toast("Pickup sudah sampai. Seret kotaknya ke kamar!", "gold")
 		"parked":
 			truck.position.y = D.LOBBY_Y + 45 - 470 * 0.72
-			var out := false
-			for n in npcs.values():
-				if n.char_id == "kurir": out = true
-			driver.visible = not out
+			driver.visible = false   # parkir: kabin kosong
 			if not need:
 				truck_state = "going"
 				driver.visible = true
