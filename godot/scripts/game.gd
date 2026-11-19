@@ -105,8 +105,10 @@ func _maybe_intro(args: PackedStringArray) -> void:
 		ui.tutorial.start(int(S.tut))
 
 
-func _tapat(p: Vector2) -> void:
-	await get_tree().create_timer(1.5).timeout
+func _tapat(p: Vector2, delay: float = 1.5) -> void:
+	if thief != null: print("THIEFPOS ", thief.global_position)
+	await get_tree().create_timer(delay).timeout
+	if thief != null: print("THIEFPOS ", thief.global_position)
 	Input.warp_mouse(p)
 	await get_tree().create_timer(0.1).timeout
 	for pr in [true, false]:
@@ -740,10 +742,11 @@ func _process(dt: float) -> void:
 				_step()
 	_separate_npcs()
 	_chat_tick(dt)
+	_thief_tick(dt)
 	if sp > 0:
 		for n in npcs.values().duplicate():
 			if is_instance_valid(n):
-				n.speed_mul = 1.0 + (sp - 1) * 0.5
+				n.speed_mul = (1.0 + (sp - 1) * 0.5) * float(n.get_meta("spd", 1.0))
 				n.tick(dt)
 		recep_art.visible = S.staff.get("resep", false) and not npcs.has("keeper")
 		_keeper_tick(dt)
@@ -824,6 +827,7 @@ func _spawn_cand() -> void:
 func _hourly() -> void:
 	_tick_events_hour()
 	var h := int(S.min) / 60
+	_maybe_thief(h)
 	for id in D.ROOMS:
 		var r: Dictionary = S.rooms[id]
 		if not r.built:
@@ -1261,6 +1265,112 @@ func _end_chat(c: Dictionary) -> void:
 			_chat_cd[m.id] = _clock + (45.0 if c.long else 14.0) + randf() * 20.0
 
 
+# ================= Maling =================
+# Malam hari maling mengendap-endap di lobi. Satpam mengejar, CCTV merekam,
+# dan pemain bisa mengetuk maling untuk meneriakinya.
+var thief: Npc = null
+var _thief_state := ""
+var _thief_t := 0.0
+var _thief_night := -1
+
+
+func _maybe_thief(h: int) -> void:
+	if thief != null or not (h >= 23 or h <= 3): return
+	if int(S.day) == _thief_night: return
+	var occ := each_tenant().size()
+	if occ < 3 or int(S.lvl) < 2: return
+	var p := 0.06 if S.staff.get("satpam", false) else 0.11
+	if randf() > p: return
+	_thief_night = int(S.day)
+	spawn_thief()
+
+
+func spawn_thief() -> void:
+	if thief != null: return
+	var n := Npc.new()
+	npc_lobby.add_child(n)
+	n.setup("thief", "thief", D.STAFF_LOOK.teknisi, Vector2(D.OUT_X, D.LOBBY_Y), font)
+	n.art = true
+	n.char_id = "maling"
+	n.art_map = {"walk": "walk", "stand": "idle", "run": "run"}
+	n.set_meta("spd", 0.55)
+	npcs["thief"] = n
+	thief = n
+	_thief_state = "sneak"
+	_thief_t = 0.0
+	n.plan("lobby", Vector2(1000, D.LOBBY_Y), "stand", func(m: Npc):
+		_thief_state = "grab"
+		_thief_t = 2.5
+		m.say("Hehehe...", 2.0))
+	sfx("pop", -14.0)
+
+
+func _thief_tick(dt: float) -> void:
+	if thief == null: return
+	if not is_instance_valid(thief):
+		thief = null
+		return
+	_thief_t -= dt
+	var guard: Npc = npcs.get("staff-satpam")
+	match _thief_state:
+		"sneak":
+			if guard != null and is_instance_valid(guard) and guard.scene == "lobby" and absf(guard.position.x - thief.position.x) < 700:
+				_thief_state = "chased"
+				guard.say("Hei! Maling! Berhenti!", 2.5)
+				guard.set_meta("spd", 1.5)
+				guard.work = {}
+				guard.plan("lobby", Vector2(thief.position.x, D.LOBBY_Y), "stand", func(m: Npc):
+					m.set_meta("spd", 1.0)
+					m.say("Jangan balik lagi, ya!", 2.5))
+				_thief_flee("Waduh, ada satpam!")
+				_thief_end("Aji mengusir maling! Kost aman.", 0.0)
+		"grab":
+			if _thief_t <= 0.0:
+				var loss := minf(maxf(float(S.money) * 0.05, 100000), 600000)
+				if S.fac.has("cctv"):
+					_thief_flee("Dapat!")
+					_thief_end("Maling mencuri, tapi CCTV merekam wajahnya. Barang berhasil kembali!", 0.0)
+				else:
+					_thief_flee("Kabur!")
+					_thief_end("Kemalingan! Hilang %s. Pasang CCTV atau rekrut Satpam (Aji)." % D.rp(loss), loss)
+
+
+func _thief_flee(line: String) -> void:
+	_thief_state = "flee"
+	thief.say(line, 2.0)
+	thief.set_meta("spd", 2.4)
+	thief.work = {}
+	thief.plan("lobby", Vector2(D.OUT_X - 200, D.LOBBY_Y), "stand", func(m: Npc):
+		_remove_npc(m)
+		thief = null)
+
+
+func _thief_end(msg: String, loss: float) -> void:
+	if OS.is_debug_build(): print("THIEF ", msg)
+	if loss > 0:
+		spend(loss, "other")
+		S.rep = clampf(float(S.rep) - 0.05, 1, 5)
+		ui.toast(msg, "bad")
+	else:
+		ui.toast(msg, "gold")
+		add_xp(10)
+
+
+## Pemain mengetuk maling: berteriak "MALING!", maling kabur tanpa hasil.
+func _thief_tap(p: Vector2) -> bool:
+	if thief == null or not is_instance_valid(thief) or _thief_state in ["flee", ""]: return false
+	var fp := thief.global_position
+	if absf(p.x - fp.x) > 130 or p.y > fp.y + 30 or p.y < fp.y - 400: return false
+	thief.react("angry", 1.0)
+	_thief_flee("Ampun! Ampun!")
+	for n in npcs.values():
+		if n.kind == "res" and n.scene == "lobby":
+			n.say("Maling! Maling!", 2.0)
+			break
+	_thief_end("Kamu berteriak \"MALING!\" dan maling kabur tanpa hasil!", 0.0)
+	return true
+
+
 # ================= Ruang fasilitas =================
 func has_facil(k: String) -> bool:
 	for f in S.facil:
@@ -1545,10 +1655,6 @@ func _new_day() -> void:
 		var target := 1.0 + 4.0 * (sum_h / n) / 100.0
 		var wt := 0.35 if has_app("kostterdekat") else 0.25
 		S.rep = clampf(float(S.rep) * (1.0 - wt) + target * wt, 1, 5)
-	if not S.staff.get("satpam", false) and occ >= 3 and randf() < (0.04 if S.fac.has("cctv") else 0.09):
-		var loss := minf(maxf(float(S.money) * 0.05, 100000), 600000)
-		spend(loss, "other")
-		ui.toast("Ada pencurian! Hilang %s. Pertimbangkan Satpam/CCTV." % D.rp(loss), "bad")
 	var td: Dictionary = S.today
 	var net := float(td.rent) - float(td.salary) - float(td.util) - float(td.other)
 	S.last = {"day": int(S.day), "rent": td.rent, "salary": td.salary, "util": td.util, "other": td.other, "net": net}
@@ -1695,7 +1801,7 @@ func _sync_npcs() -> void:
 		want[e[1].tenant.id] = {"kind": "res", "p": e[1].tenant, "room": e[0]}
 	for nid in npcs.keys():
 		var n: Npc = npcs[nid]
-		if n.kind == "staff" or n.kind == "worker" or n.kind == "keeper":
+		if n.kind == "staff" or n.kind == "worker" or n.kind == "keeper" or n.kind == "thief":
 			continue
 		if not want.has(nid):
 			n.set_bubble("")
@@ -2552,6 +2658,9 @@ func _unhandled_input(e: InputEvent) -> void:
 			else:
 				ui.open_sheet(nv[0])
 			return
+	if _thief_tap(p):
+		get_viewport().set_input_as_handled()
+		return
 	var bi := _box_at(p)
 	if bi >= 0:
 		begin_drag("cargo", str(bi), p, false)
@@ -2737,6 +2846,15 @@ func _handle_cli(args: PackedStringArray) -> void:
 			ui.close_sheet()
 			S.staff["resep"] = true
 			(func(): keeper_say("Istirahat dulu. Nanti saya bikinin teh hangat.", 30.0)).call_deferred()
+		elif a == "--cctv":
+			S.fac["cctv"] = true
+		elif a == "--guard":
+			S.staff["satpam"] = true
+		elif a == "--thief":
+			S.seen = true
+			S.tut = -1
+			ui.close_sheet()
+			spawn_thief.call_deferred()
 		elif a == "--sad":
 			S.seen = true
 			S.tut = -1
@@ -2752,7 +2870,7 @@ func _handle_cli(args: PackedStringArray) -> void:
 			dirty = true
 		elif a.begins_with("--tapat="):
 			var xy := a.substr(8).split(",")
-			_tapat.call_deferred(Vector2(float(xy[0]), float(xy[1])))
+			_tapat.call_deferred(Vector2(float(xy[0]), float(xy[1])), float(xy[2]) if xy.size() > 2 else 1.5)
 		elif a == "--clicktest":
 			_clicktest.call_deferred()
 		elif a == "--waitlist":
