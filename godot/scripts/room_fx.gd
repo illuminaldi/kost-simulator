@@ -272,3 +272,51 @@ func _set_item(sp: Sprite2D, t: String, lv: int) -> void:
 	sp.position = fr.position - rect.position
 	sp.scale = fr.size / tex.get_size()
 	sp.set_meta("lv", lv)
+
+
+## Animasi perabot baru/naik level: muncul memantul dari alasnya + kilauan bintang.
+func pop_item(t: String) -> void:
+	if not _furn.has(t): return
+	var sp: Sprite2D = _furn[t]
+	var base_s := sp.scale
+	var base_p := sp.position
+	var sz: Vector2 = sp.texture.get_size() * base_s
+	var setk := func(k: float):
+		sp.scale = base_s * k
+		sp.position = base_p + Vector2(sz.x * (1.0 - k) * 0.5, sz.y * (1.0 - k))
+	var tw := create_tween()
+	tw.tween_method(setk, 0.2, 1.18, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_method(setk, 1.18, 1.0, 0.18).set_trans(Tween.TRANS_SINE)
+	var center := base_p + sz * Vector2(0.5, 0.45)
+	var glow := _Glow.new()
+	glow.position = center
+	add_child(glow)
+	var gt := create_tween()
+	gt.tween_property(glow, "scale", Vector2(2.2, 2.2), 0.6).from(Vector2(0.3, 0.3))
+	gt.parallel().tween_property(glow, "modulate:a", 0.0, 0.6).from(0.9)
+	gt.tween_callback(glow.queue_free)
+	for i in range(9):
+		var st := _Star.new()
+		st.position = center
+		add_child(st)
+		var ang := TAU * i / 9.0 + randf() * 0.4
+		var dist := randf_range(70, 130)
+		var t2 := create_tween().set_parallel(true)
+		t2.tween_property(st, "position", center + Vector2(cos(ang), sin(ang)) * dist, 0.7).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+		t2.tween_property(st, "rotation", randf_range(-2, 2), 0.7)
+		t2.tween_property(st, "modulate:a", 0.0, 0.7).set_delay(0.25)
+		t2.chain().tween_callback(st.queue_free)
+
+
+class _Star extends Node2D:
+	func _draw() -> void:
+		var pts := PackedVector2Array()
+		for k in range(8):
+			var rr := 16.0 if k % 2 == 0 else 6.0
+			pts.append(Vector2(cos(k * PI / 4.0), sin(k * PI / 4.0)) * rr)
+		draw_colored_polygon(pts, Color("ffd76a"))
+
+
+class _Glow extends Node2D:
+	func _draw() -> void:
+		draw_circle(Vector2.ZERO, 60, Color(1, 0.93, 0.6, 0.55))

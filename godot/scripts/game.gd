@@ -175,6 +175,28 @@ func _setup_music() -> void:
 	add_child(music)
 
 
+var _sfx := {}
+var _sfx_players: Array = []
+
+
+func sfx(nm: String, vol: float = -4.0) -> void:
+	if not S.get("sfx", true):
+		return
+	if _sfx_players.is_empty():
+		for i in range(4):
+			var p := AudioStreamPlayer.new()
+			add_child(p)
+			_sfx_players.append(p)
+	if not _sfx.has(nm):
+		_sfx[nm] = load("res://assets/sfx/%s.wav" % nm)
+	for p in _sfx_players:
+		if not p.playing:
+			p.stream = _sfx[nm]
+			p.volume_db = vol
+			p.play()
+			return
+
+
 func set_music(on: bool) -> void:
 	S.music = on
 	if on and not music.playing:
@@ -1574,6 +1596,10 @@ func _finish_job(j: Dictionary) -> void:
 		"deliver":
 			r.furn[j.item] = int(j.lv)
 			update_tier(r)
+			sfx("place" if int(j.lv) == 1 else "upgrade")
+			var jr: String = j.room
+			var ji: String = j.item
+			(func(): _refresh_world(); room_fx[jr].pop_item(ji)).call_deferred()
 			if r.tenant != null:
 				r.tenant.happy = clampf(float(r.tenant.happy) + 4.0 * int(j.lv), 0, 100)
 			if int(j.lv) == 1:
@@ -1588,7 +1614,7 @@ func _finish_job(j: Dictionary) -> void:
 		n.work = {}
 		n.react("react", 1.6)
 		if n.char_id == "kurir":
-			n.art_map["walk"] = "idle"
+			n.art_map["walk"] = "walk"
 		n.target = ""
 		_leave_worker(n)
 	dirty = true
@@ -1659,6 +1685,8 @@ func _tick_orders(mins: float) -> void:
 			S.cargo.append(o.item)
 			ui.toast("%s sudah datang! Seret kotaknya dari pickup ke kamar." % D.FURN[o.item].n, "gold")
 			_refresh_cargo()
+			if truck_state == "parked":
+				_box_bounce(S.cargo.size() - 1)
 
 
 func _truck_tick(dt: float) -> void:
@@ -1676,6 +1704,8 @@ func _truck_tick(dt: float) -> void:
 			truck.position.y = D.LOBBY_Y + 45 - 470 * 0.72 + sin(Time.get_ticks_msec() / 60.0) * 1.5
 			if truck.position.x >= park - 0.5:
 				truck_state = "parked"
+				sfx("arrive", -8.0)
+				for bi in range(S.cargo.size()): _box_bounce(bi)
 				if not S.cargo.is_empty():
 					ui.toast("Pickup sudah sampai. Seret kotaknya ke kamar!", "gold")
 		"parked":
@@ -1864,6 +1894,8 @@ func act(a: String, arg: String = "") -> void:
 		"intro":
 			play_intro()
 			return
+		"sfx":
+			S.sfx = not S.get("sfx", true)
 		"start":
 			S.seen = true
 			save_game()
@@ -1922,6 +1954,7 @@ func act(a: String, arg: String = "") -> void:
 				ui.toast("Uang belum cukup (%s)" % D.rp(f.cost), "bad")
 				return
 			spend(f.cost, "other")
+			sfx("buy")
 			S.orders.append({"item": arg, "t": ORDER_MINS})
 			ui.toast("%s dipesan. Pickup datang sebentar lagi." % f.n)
 		"clean":
@@ -2049,8 +2082,19 @@ func begin_drag(kind: String, item: String, start: Vector2, active: bool) -> voi
 		_activate_drag()
 
 
+## Kotak yang baru tiba melompat kecil di bak pickup.
+func _box_bounce(i: int) -> void:
+	if i < 0 or i >= box_nodes.size(): return
+	var b: Node2D = box_nodes[i]
+	var y0 := b.position.y
+	var t := create_tween()
+	t.tween_property(b, "position:y", y0 - 60, 0.18).set_delay(0.08 * i).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+	t.tween_property(b, "position:y", y0, 0.3).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_BOUNCE)
+
+
 func _activate_drag() -> void:
 	drag.active = true
+	if drag.kind == "cargo": sfx("pop", -6.0)
 	var tex: Texture2D
 	var sc := 1.0
 	match drag.kind:
@@ -2454,6 +2498,11 @@ func _handle_cli(args: PackedStringArray) -> void:
 			S.tut = int(a.substr(6))
 		elif a.begins_with("--name="):
 			S.kost_name = a.substr(7)
+		elif a == "--poptest":
+			S.seen = true
+			ui.close_sheet()
+			add_job("deliver", "1L", "tanaman", 1)
+			_finish_job(S.jobs[S.jobs.size() - 1])
 		elif a == "--clicktest":
 			_clicktest.call_deferred()
 		elif a == "--waitlist":

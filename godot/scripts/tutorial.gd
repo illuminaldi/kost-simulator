@@ -11,6 +11,11 @@ var text_lbl: Label
 var next_btn: Button
 var arrow: _Arrow
 var ring: _Ring
+var arrow2: _Arrow
+var ring2: _Ring
+var tag1: PanelContainer
+var tag2: PanelContainer
+var dot: _Dot
 var step := 0
 var _base := {}
 var _t := 0.0
@@ -26,8 +31,16 @@ func setup(p_game: Node, p_ui: Node, p_font: Font) -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ring = _Ring.new()
 	add_child(ring)
+	ring2 = _Ring.new()
+	add_child(ring2)
+	dot = _Dot.new()
+	add_child(dot)
 	arrow = _Arrow.new()
 	add_child(arrow)
+	arrow2 = _Arrow.new()
+	add_child(arrow2)
+	tag1 = _tag()
+	tag2 = _tag()
 	bubble = PanelContainer.new()
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color("fffaf0")
@@ -88,6 +101,45 @@ func setup(p_game: Node, p_ui: Node, p_font: Font) -> void:
 	bubble.size = Vector2(D.IW - 80, 0)
 
 
+## Label aksi di atas panah: Tap / Hold / Drop.
+func _tag() -> PanelContainer:
+	var p := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color("6b4f3a")
+	sb.set_corner_radius_all(24)
+	sb.content_margin_left = 22
+	sb.content_margin_right = 22
+	sb.content_margin_top = 2
+	sb.content_margin_bottom = 6
+	p.add_theme_stylebox_override("panel", sb)
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var l := Label.new()
+	l.add_theme_font_override("font", font)
+	l.add_theme_font_size_override("font_size", 40)
+	l.add_theme_color_override("font_color", Color("fff2dc"))
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.add_child(l)
+	add_child(p)
+	return p
+
+
+func _place(a: _Arrow, r: _Ring, tg: PanelContainer, p: Vector2, label: String, force_down: int = 0) -> void:
+	var up: bool = p.y > 1300 if force_down == 0 else force_down > 0
+	var bob := sin(_t * 6.0) * 22.0
+	a.visible = true
+	r.visible = true
+	tg.visible = true
+	a.down = up
+	a.position = p + Vector2(0, (-150 - bob) if up else (150 + bob))
+	a.queue_redraw()
+	r.position = p
+	r.r = 90.0 + sin(_t * 4.0) * 10.0
+	r.queue_redraw()
+	(tg.get_child(0) as Label).text = label
+	tg.reset_size()
+	tg.position = a.position + Vector2(-tg.size.x / 2.0, (-150 - tg.size.y) if up else 90)
+
+
 func start(from: int = 0) -> void:
 	step = from
 	visible = true
@@ -103,9 +155,9 @@ func _steps() -> Array:
 		{"t": "Halo Juragan! Saya Mariam. Yuk saya tunjukkan cara mengelola %s, pelan-pelan saja." % _kost(), "manual": true},
 		{"t": "Ada calon penyewa datang ke lobi. Ketuk tombol Penyewa untuk melihat profilnya.", "at": "penyewa"},
 		{"t": "Sebelum menerima, cek dulu latar belakangnya: ketuk \"Cek KTP & slip gaji\". Penyewa yang sering telat bayar bikin rugi!", "top": true},
-		{"t": "Kalau aman, tutup panel ini, lalu tahan & seret calon penyewa ke kamar kosong yang ditandai.", "at": "room"},
+		{"t": "Kalau aman, tutup panel ini. Lalu Hold (tahan) calon penyewa di lobi, seret, dan Drop (lepas) di kamar kosong.", "at": "room", "from": "guest"},
 		{"t": "Kamar makin nyaman & sewanya makin mahal kalau perabotnya lengkap. Ketuk Beli, lalu pilih Lampu.", "at": "beli"},
-		{"t": "Pickup sedang datang membawa kotaknya. Begitu kotak muncul, tahan & seret kotaknya ke kamar.", "at": "truck"},
+		{"t": "Pickup sedang datang membawa kotaknya. Begitu kotak muncul, Hold (tahan) kotaknya, seret, lalu Drop (lepas) di kamar.", "at": "boxroom", "from": "box"},
 		{"t": "Andi si kurir akan mengantar ke kamar. Sekarang ketuk Karyawan dan rekrut Ryan, petugas kebersihan.", "at": "karyawan"},
 		{"t": "Terakhir: ketuk jam di kanan atas untuk mempercepat waktu.", "at": "jam"},
 		{"t": "Mantap, Juragan! %s siap berkembang. Kalau ada masalah, cek menu Kelola ya. Semangat!" % _kost(), "manual": true, "end": true},
@@ -163,6 +215,26 @@ func _has_job(t: String) -> bool:
 	return false
 
 
+func _room_center(id: String) -> Vector2:
+	var r := D.rect_of(id)
+	return game.bld.get_global_transform() * (r.position + Vector2(r.size.x / 2.0, r.size.y * 0.55))
+
+
+func _source() -> Variant:
+	var st: Dictionary = _steps()[step]
+	match st.get("from", ""):
+		"guest":
+			var S: Dictionary = game.S
+			if S.queue.is_empty() or not game.npcs.has(S.queue[0].id): return null
+			var n: Node2D = game.npcs[S.queue[0].id]
+			if n.scene != "lobby": return null
+			return n.global_position + Vector2(0, -95)
+		"box":
+			if game.S.cargo.size() > 0 and game.box_nodes.size() > 0:
+				return game.box_nodes[0].get_global_transform() * Vector2(0, -30)
+	return null
+
+
 func _target() -> Variant:
 	var st: Dictionary = _steps()[step]
 	var at: String = st.get("at", "")
@@ -174,6 +246,15 @@ func _target() -> Variant:
 			if er.is_empty(): return null
 			var r := D.rect_of(er[0])
 			return game.bld.get_global_transform() * (r.position + Vector2(r.size.x / 2.0, r.size.y * 0.35))
+		"boxroom":
+			# Kamar tujuan kotak lampu: kamar terbangun yang belum punya lampu.
+			if game.S.cargo.is_empty(): return null
+			for id in D.ROOMS:
+				var r: Dictionary = game.S.rooms[id]
+				if r.built and not r.furn.has("lampu"): return _room_center(id)
+			for id in D.ROOMS:
+				if game.S.rooms[id].built: return _room_center(id)
+			return null
 		"truck":
 			if game.S.cargo.size() > 0 and game.box_nodes.size() > 0:
 				return game.box_nodes[0].get_global_transform() * Vector2(0, -40)
@@ -189,22 +270,30 @@ func _process(dt: float) -> void:
 		_advance()
 		return
 	var tp = _target()
-	# Saat panel terbuka, panah ke dunia disembunyikan (kecuali tombol navigasi).
+	var sp = _source()
 	var st: Dictionary = _steps()[step]
-	var hide_world: bool = ui.kind != "" and st.get("at", "") in ["room", "truck"]
-	arrow.visible = tp != null and not hide_world
-	ring.visible = arrow.visible
-	if arrow.visible:
-		var p: Vector2 = tp
-		var up: bool = p.y > 1300     # target di bawah: panah menunjuk ke bawah dari atasnya
-		arrow.position = p + Vector2(0, (-150 if up else 150) - sin(_t * 6.0) * 22.0 * (1 if up else -1))
-		arrow.down = up
-		arrow.queue_redraw()
-		ring.position = p
-		ring.r = 90.0 + sin(_t * 4.0) * 10.0
-		ring.queue_redraw()
+	# Saat panel terbuka, panah ke dunia disembunyikan (kecuali tombol navigasi).
+	var hide_world: bool = ui.kind != "" and st.get("at", "") in ["room", "boxroom", "truck"]
+	for c in [arrow, ring, arrow2, ring2, tag1, tag2, dot]:
+		c.visible = false
+	if hide_world:
+		return
+	if st.has("from"):
+		# Hold di sumber, Drop di tujuan, titik bergerak menunjukkan arah seret.
+		if sp != null:
+			_place(arrow2, ring2, tag2, sp, "Hold")
+		elif st.from == "box":
+			_place(arrow2, ring2, tag2, Vector2(D.TRUCK_X + 140, 2150), "Tunggu pickup")
+		if tp != null:
+			_place(arrow, ring, tag1, tp, "Drop", 1)
+		if sp != null and tp != null:
+			dot.visible = true
+			var k := fmod(_t * 0.6, 1.0)
+			dot.position = (sp as Vector2).lerp(tp, k)
+			dot.modulate.a = sin(k * PI)
+	elif tp != null:
+		_place(arrow, ring, tag1, tp, "Tap")
 	# Gelembung tutorial jangan menutupi panel yang sedang dipakai.
-	bubble.position.y = 220 if (ui.kind == "" or step == 2) else 220
 
 
 class _Arrow extends Control:
@@ -217,6 +306,14 @@ class _Arrow extends Control:
 		draw_colored_polygon(pts, Color("f7d36e"))
 		pts.append(pts[0])
 		draw_polyline(pts, Color("6b4f3a"), 8.0, true)
+
+
+class _Dot extends Control:
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+	func _draw() -> void:
+		draw_circle(Vector2.ZERO, 30, Color(1, 0.85, 0.35, 0.95))
+		draw_arc(Vector2.ZERO, 30, 0, TAU, 32, Color("6b4f3a"), 6.0, true)
 
 
 class _Ring extends Control:

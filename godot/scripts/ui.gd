@@ -1252,6 +1252,8 @@ func _sheet_manage() -> void:
 	var mv := _card()
 	var mon: bool = S.get("music", true)
 	_row(mv, _label("Musik lofi", 42), _btn("Nyala" if mon else "Mati", D.C_GREEN if mon else Color.WHITE, func(): game.set_music(not mon); refresh_sheet()))
+	var son: bool = S.get("sfx", true)
+	_row(mv, _label("Efek suara", 42), _btn("Nyala" if son else "Mati", D.C_GREEN if son else Color.WHITE, func(): _do("sfx")))
 	var sv := _card()
 	sv.add_child(_label("Kecepatan waktu", 42))
 	var sh := HBoxContainer.new()
