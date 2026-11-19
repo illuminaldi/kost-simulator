@@ -751,6 +751,7 @@ func refresh_sheet(keep: bool = true) -> void:
 	match kind:
 		"welcome": _sheet_welcome()
 		"rename": _sheet_rename()
+		"preman": _sheet_preman()
 		"room": _sheet_room()
 		"tenants": _sheet_tenants()
 		"staff": _sheet_staff()
@@ -806,6 +807,102 @@ func ask_rename() -> void:
 			_do("rename", str(r))
 		return
 	open_sheet("rename")
+
+
+## Laporan lengkap: hanya dengan aplikasi KelolaPro.
+func _kelolapro_stats(occ: int, tot: int) -> void:
+	var S: Dictionary = game.S
+	var v := _card()
+	if not game.has_app("kelolapro"):
+		v.add_child(_label("Laporan KelolaPro", 40))
+		v.add_child(_text("Grafik untung-rugi 7 hari, rincian biaya, proyeksi bulanan & kondisi tiap kamar tersedia dengan aplikasi KelolaPro (Rp 99rb/bulan).", 32, D.C_MUTED))
+		v.add_child(_btn("Lihat KelolaPro", D.C_GREEN, func(): open_sheet("upgrade")))
+		return
+	v.add_child(_label("Laporan KelolaPro", 40))
+	var hist: Array = S.get("hist", [])
+	var last7: Array = hist.slice(maxi(0, hist.size() - 7))
+	if last7.is_empty():
+		v.add_child(_text("Grafik muncul setelah hari pertama selesai.", 30, D.C_MUTED))
+	else:
+		v.add_child(_label("Untung bersih 7 hari terakhir", 32, D.C_MUTED, true))
+		var ch := _Bars.new()
+		ch.font = font
+		ch.vals = last7.map(func(h): return float(h.net))
+		ch.labels = last7.map(func(h): return "H%d" % int(h.day))
+		ch.custom_minimum_size = Vector2(0, 300)
+		v.add_child(ch)
+		var avg := 0.0
+		for h in last7: avg += float(h.net)
+		avg /= last7.size()
+		_row(v, _label("Rata-rata per hari", 34, D.C_INK, true), _label(D.rp(avg), 36, Color("2f7a2a") if avg >= 0 else Color("9b2f1c")))
+		_row(v, _label("Proyeksi 30 hari", 34, D.C_INK, true), _label(D.rp(avg * 30.0), 36, Color("2f7a2a") if avg >= 0 else Color("9b2f1c")))
+	var td: Dictionary = S.today
+	v.add_child(_label("Hari ini", 32, D.C_MUTED, true))
+	_row(v, _label("Sewa & pemasukan", 32, D.C_INK, true), _label(D.rp(td.rent), 34, Color("2f7a2a")))
+	_row(v, _label("Gaji & aplikasi", 32, D.C_INK, true), _label("- " + D.rp(td.salary), 34, Color("9b2f1c")))
+	_row(v, _label("Listrik & air", 32, D.C_INK, true), _label("- " + D.rp(td.util), 34, Color("9b2f1c")))
+	_row(v, _label("Lain-lain", 32, D.C_INK, true), _label("- " + D.rp(td.other), 34, Color("9b2f1c")))
+	var hs := 0.0
+	for e in game.each_tenant(): hs += float(e[1].tenant.happy)
+	_row(v, _label("Tingkat hunian", 32, D.C_INK, true), _label("%d%%" % roundi(100.0 * occ / maxf(1, tot)), 34))
+	_row(v, _label("Rata-rata kebahagiaan", 32, D.C_INK, true), _label("%d%%" % roundi(hs / maxf(1, occ)), 34))
+	v.add_child(_label("Kondisi kamar", 32, D.C_MUTED, true))
+	for id in D.ROOMS:
+		var r: Dictionary = S.rooms[id]
+		if not r.built: continue
+		var t = r.tenant
+		var info := "%s · %s/hari · bersih %d%%" % [t.name if t != null else "Kosong", D.short(game.rent_of(r)), roundi(float(r.clean))]
+		if t != null: info += " · senang %d%%" % roundi(float(t.happy))
+		var col := D.C_INK
+		if t != null and float(t.happy) < 35: col = Color("9b2f1c")
+		_row(v, _label(D.room_name(id), 32, D.C_INK), _label(info, 28, col, true))
+
+
+class _Bars extends Control:
+	var vals: Array = []
+	var labels: Array = []
+	var font: Font
+	func _draw() -> void:
+		if vals.is_empty(): return
+		var mx := 1.0
+		for x in vals: mx = maxf(mx, absf(float(x)))
+		var n := vals.size()
+		var w := size.x / n
+		var base := size.y * 0.5 if vals.any(func(x): return float(x) < 0) else size.y - 46
+		var top := 30.0
+		draw_line(Vector2(0, base), Vector2(size.x, base), Color("c9b49a"), 3)
+		for i in range(n):
+			var vv := float(vals[i])
+			var hgt := (base - top) * absf(vv) / mx
+			var r := Rect2(i * w + w * 0.18, base - hgt if vv >= 0 else base, w * 0.64, hgt)
+			draw_rect(r, Color("8fc77a") if vv >= 0 else Color("e9a08f"))
+			if font:
+				draw_string(font, Vector2(i * w, size.y - 8), str(labels[i]), HORIZONTAL_ALIGNMENT_CENTER, w, 26, Color("8a7a68"))
+				var t := "%drb" % roundi(vv / 1000.0)
+				draw_string(font, Vector2(i * w, (base - hgt - 6) if vv >= 0 else (base + hgt + 26)), t, HORIZONTAL_ALIGNMENT_CENTER, w, 24, Color("5a3d2b"))
+
+
+func _sheet_preman() -> void:
+	var amt: float = game.preman_amount()
+	_header("Preman minta pungli")
+	var tr := TextureRect.new()
+	tr.texture = load("res://assets/chars/preman/demand_L.png")
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.custom_minimum_size = Vector2(0, 300)
+	box.add_child(tr)
+	box.add_child(_text("\"Bos, uang keamanan bulan ini %s. Biar kost-nya aman, ngerti kan?\"" % D.rp(amt), 36, D.C_INK))
+	var on: bool = game.S.staff.get("satpam", false)
+	var opts := [
+		["Bayar " + D.short(amt), D.C_YELLOW, "pay", "Aman untuk sekarang, tapi preman akan datang lagi lebih sering & minta lebih banyak."],
+		["Tolak", D.C_CREAM, "refuse", "Aji (Satpam) akan mengusirnya." if on else "Tanpa Satpam, preman marah & menakuti penghuni."],
+		["Lapor polisi · Rp 50rb", D.C_GREEN, "police", "Preman ditangkap & tidak datang lama. Rating naik."],
+	]
+	for o in opts:
+		var v := _card()
+		var arg: String = o[2]
+		v.add_child(_btn(o[0], o[1], func(): _do("preman", arg)))
+		v.add_child(_text(o[3], 30, D.C_MUTED))
 
 
 func _sheet_rename() -> void:
@@ -1251,6 +1348,7 @@ func _sheet_manage() -> void:
 		fl.append(D.FAC[k].n)
 	if fl.size() > 0:
 		v.add_child(_text("Fasilitas: " + ", ".join(fl), 34, D.C_MUTED))
+	_kelolapro_stats(occ, tot)
 	var pv := _card()
 	pv.add_child(_label("Harga sewa", 42))
 	pv.add_child(_text("Murah: penghuni lebih senang & tamu lebih sering. Mahal: untung besar, tapi kurang disukai.", 32, D.C_MUTED))

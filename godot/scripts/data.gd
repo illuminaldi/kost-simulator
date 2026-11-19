@@ -259,7 +259,7 @@ const APPS := {
 const APP_ORDER := ["kostterdekat", "kelolapro"]
 const ISSUES := {"AC rusak": 250000, "Keran bocor": 120000, "Lampu mati": 60000, "Kasur jebol": 300000}
 # Karakter penghuni (folder di assets/chars) -> jenis kelamin untuk nama.
-const CHARS := {"kutu": "l", "kakek": "l", "siswi": "p", "flanel": "p", "nenek": "p"}
+const CHARS := {"kutu": "l", "kakek": "l", "siswi": "p", "flanel": "p", "nenek": "p", "kupluk": "l"}
 # Pekerja: pose -> file (Array = bergantian tiap 3.5 detik).
 const WORKER := {
 	"build": {"nama": "Pak Joko", "role": "Tukang", "char": "tukang", "map": {"walk": "walk", "stand": "hold", "job": ["repair", "repair", "carry"], "react": "hold"}, "mins": 240},

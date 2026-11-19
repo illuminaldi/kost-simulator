@@ -90,6 +90,7 @@ const TINTS := [[0.0, 1.0, 1.0], [0.3, 0.8, 1.0], [0.55, 0.75, 1.0], [0.72, 0.7,
 const GARMENT := {
 	"kutu": [0.40, 0.15, 0.1, 0.1, 1.0, 1.9], "kakek": [0.22, 0.09, 0.15, 0.3], "siswi": [0.055, 0.035, 0.55, 0.42],
 	"flanel": [0.0, 0.05, 0.5, 0.22, 0.86, 1.0], "nenek": [0.985, 0.05, 0.35, 0.18],
+	"kupluk": [0.58, 0.07, 0.1, 0.15],
 }
 
 
@@ -117,7 +118,7 @@ static func tint_material(i: int, ch: String = "") -> Material:
 
 func set_tint(i: int) -> void:
 	_sp.material = tint_material(i, char_id)
-const ART_POSES := ["stand", "walk", "climb", "sit", "work", "lie", "react", "mood", "sweep", "fix", "counter", "job", "place"]
+const ART_POSES := ["stand", "walk", "climb", "sit", "work", "lie", "react", "mood", "sweep", "fix", "counter", "job", "place", "steal", "caught", "demand", "count", "happy", "angry", "carry"]
 
 var _sp: Sprite2D
 var _bub: PanelContainer

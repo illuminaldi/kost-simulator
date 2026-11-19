@@ -743,6 +743,7 @@ func _process(dt: float) -> void:
 	_separate_npcs()
 	_chat_tick(dt)
 	_thief_tick(dt)
+	_preman_tick(dt)
 	if sp > 0:
 		for n in npcs.values().duplicate():
 			if is_instance_valid(n):
@@ -828,6 +829,7 @@ func _hourly() -> void:
 	_tick_events_hour()
 	var h := int(S.min) / 60
 	_maybe_thief(h)
+	_maybe_preman(h)
 	for id in D.ROOMS:
 		var r: Dictionary = S.rooms[id]
 		if not r.built:
@@ -1292,7 +1294,7 @@ func spawn_thief() -> void:
 	n.setup("thief", "thief", D.STAFF_LOOK.teknisi, Vector2(D.OUT_X, D.LOBBY_Y), font)
 	n.art = true
 	n.char_id = "maling"
-	n.art_map = {"walk": "walk", "stand": "idle", "run": "run"}
+	n.art_map = {"walk": "walk", "stand": "idle", "steal": "steal", "caught": "caught"}
 	n.set_meta("spd", 0.55)
 	npcs["thief"] = n
 	thief = n
@@ -1300,7 +1302,8 @@ func spawn_thief() -> void:
 	_thief_t = 0.0
 	n.plan("lobby", Vector2(1000, D.LOBBY_Y), "stand", func(m: Npc):
 		_thief_state = "grab"
-		_thief_t = 2.5
+		_thief_t = 3.0
+		m.work = {"t": 3.0, "pose": "steal"}
 		m.say("Hehehe...", 2.0))
 	sfx("pop", -14.0)
 
@@ -1327,6 +1330,7 @@ func _thief_tick(dt: float) -> void:
 		"grab":
 			if _thief_t <= 0.0:
 				var loss := minf(maxf(float(S.money) * 0.05, 100000), 600000)
+				thief.art_map["walk"] = "carry"
 				if S.fac.has("cctv"):
 					_thief_flee("Dapat!")
 					_thief_end("Maling mencuri, tapi CCTV merekam wajahnya. Barang berhasil kembali!", 0.0)
@@ -1338,6 +1342,8 @@ func _thief_tick(dt: float) -> void:
 func _thief_flee(line: String) -> void:
 	_thief_state = "flee"
 	thief.say(line, 2.0)
+	if thief.art_map.get("walk", "") != "carry":
+		thief.art_map["walk"] = "run"
 	thief.set_meta("spd", 2.4)
 	thief.work = {}
 	thief.plan("lobby", Vector2(D.OUT_X - 200, D.LOBBY_Y), "stand", func(m: Npc):
@@ -1361,14 +1367,133 @@ func _thief_tap(p: Vector2) -> bool:
 	if thief == null or not is_instance_valid(thief) or _thief_state in ["flee", ""]: return false
 	var fp := thief.global_position
 	if absf(p.x - fp.x) > 130 or p.y > fp.y + 30 or p.y < fp.y - 400: return false
-	thief.react("angry", 1.0)
-	_thief_flee("Ampun! Ampun!")
+	# Kaget, angkat tangan sebentar, lalu kabur.
+	_thief_state = "flee"
+	thief.work = {"t": 1.2, "pose": "caught"}
+	thief.route = []
+	thief.say("Ampun! Ampun!", 1.6)
+	var th := thief
+	get_tree().create_timer(1.2).timeout.connect(func():
+		if is_instance_valid(th) and thief == th: _thief_flee("Kabur!"))
 	for n in npcs.values():
 		if n.kind == "res" and n.scene == "lobby":
 			n.say("Maling! Maling!", 2.0)
 			break
 	_thief_end("Kamu berteriak \"MALING!\" dan maling kabur tanpa hasil!", 0.0)
 	return true
+
+
+# ================= Preman pungli =================
+# Siang hari (mulai Level 3) preman datang ke lobi minta "uang keamanan".
+var preman: Npc = null
+var _preman_wait := 0.0
+
+
+func preman_amount() -> float:
+	return roundf(100000.0 * (1.0 + 0.25 * int(S.lvl)) * pow(1.3, mini(int(S.get("preman_paid", 0)), 4)) / 5000.0) * 5000.0
+
+
+func _maybe_preman(h: int) -> void:
+	if preman != null or h < 10 or h > 16 or int(S.lvl) < 3: return
+	if int(S.day) < int(S.get("preman_next", 0)): return
+	if randf() > 0.12: return
+	spawn_preman()
+
+
+func spawn_preman() -> void:
+	if preman != null: return
+	var n := Npc.new()
+	npc_lobby.add_child(n)
+	n.setup("preman", "preman", D.STAFF_LOOK.teknisi, Vector2(D.OUT_X, D.LOBBY_Y), font)
+	n.art = true
+	n.char_id = "preman"
+	n.art_map = {"walk": "walk", "stand": "idle", "demand": "demand", "count": "count", "happy": "happy", "caught": "caught"}
+	npcs["preman"] = n
+	preman = n
+	_preman_wait = 0.0
+	n.plan("lobby", Vector2(880, D.LOBBY_Y), "stand", func(m: Npc):
+		m.work = {"t": 9999.0, "pose": "demand"}
+		m.say("Bos! Uang keamanan dulu dong, %s!" % D.short(preman_amount()), 4.0)
+		keeper_say("Juragan... ada preman minta jatah.", 4.0)
+		ui.toast("Preman minta pungli %s! Ketuk premannya untuk menanggapi." % D.rp(preman_amount()), "bad"))
+
+
+func _preman_tick(dt: float) -> void:
+	if preman == null: return
+	if not is_instance_valid(preman):
+		preman = null
+		return
+	if preman.work.get("pose", "") != "demand": return
+	_preman_wait += dt * maxf(1.0, float(int(S.speed)))
+	if fmod(_preman_wait, 9.0) < dt * maxf(1.0, float(int(S.speed))):
+		preman.say(["Mana, Bos? Saya nunggu nih.", "Biar aman, Bos. Ngerti kan?", "Cepetan, Bos!"].pick_random(), 3.0)
+	if _preman_wait > 60.0:
+		preman_answer("ignore")
+
+
+func _preman_tap(p: Vector2) -> bool:
+	if preman == null or not is_instance_valid(preman) or preman.work.get("pose", "") != "demand": return false
+	var fp := preman.global_position
+	if absf(p.x - fp.x) > 140 or p.y > fp.y + 30 or p.y < fp.y - 400: return false
+	ui.open_sheet("preman")
+	return true
+
+
+func _preman_leave(pose: String, secs: float, run: bool = false) -> void:
+	var n := preman
+	n.work = {"t": secs, "pose": pose, "fn": func(m: Npc):
+		if run: m.art_map["walk"] = "run"
+		m.set_meta("spd", 2.0 if run else 1.0)
+		m.plan("lobby", Vector2(D.OUT_X - 200, D.LOBBY_Y), "stand", func(z: Npc):
+			_remove_npc(z)
+			preman = null)}
+
+
+func preman_answer(how: String) -> void:
+	if preman == null or not is_instance_valid(preman): return
+	ui.close_sheet()
+	var amt := preman_amount()
+	match how:
+		"pay":
+			if float(S.money) < amt:
+				ui.toast("Uang belum cukup", "bad"); return
+			spend(amt, "other")
+			S.preman_paid = int(S.get("preman_paid", 0)) + 1
+			S.preman_next = int(S.day) + 2
+			preman.say("Mantap, Bos! Aman deh kost-nya.", 3.0)
+			ui.toast("Kamu membayar %s. Preman akan datang lagi, makin sering & makin mahal." % D.rp(amt), "bad")
+			_preman_leave("count", 3.0)
+		"police":
+			if float(S.money) < 50000:
+				ui.toast("Uang belum cukup", "bad"); return
+			spend(50000, "other")
+			S.preman_next = int(S.day) + 10
+			S.preman_paid = 0
+			preman.say("Ampun, Pak! Saya cuma bercanda!", 3.0)
+			S.rep = clampf(float(S.rep) + 0.05, 1, 5)
+			add_xp(15)
+			ui.toast("Polisi datang menangkap preman. Lingkungan kost aman lagi!", "gold")
+			_preman_leave("caught", 3.5, true)
+		_:
+			var guard: Npc = npcs.get("staff-satpam")
+			if guard != null and is_instance_valid(guard) and guard.scene == "lobby":
+				guard.work = {}
+				guard.plan("lobby", Vector2(preman.position.x - 120, D.LOBBY_Y), "stand", func(m: Npc):
+					m.say("Pergi! Di sini nggak ada pungli!", 3.0))
+				preman.say("Iya, iya... saya pergi.", 2.5)
+				S.preman_next = int(S.day) + 5
+				add_xp(10)
+				ui.toast("Aji mengusir preman. Kost aman!", "gold")
+				_preman_leave("angry", 2.5, true)
+			else:
+				preman.say("Awas ya, Bos! Nyesel nanti!", 3.0)
+				for e in each_tenant():
+					e[1].tenant.happy = clampf(float(e[1].tenant.happy) - 6.0, 0, 100)
+				S.rep = clampf(float(S.rep) - 0.05, 1, 5)
+				S.preman_next = int(S.day) + 3
+				ui.toast("Preman marah & mengancam. Penghuni jadi takut (kebahagiaan turun). Rekrut Aji (Satpam) atau lapor polisi." if how == "refuse" else "Preman dicuekin, marah-marah & menakuti penghuni.", "bad")
+				_preman_leave("angry", 2.5)
+	dirty = true
 
 
 # ================= Ruang fasilitas =================
@@ -1658,6 +1783,15 @@ func _new_day() -> void:
 	var td: Dictionary = S.today
 	var net := float(td.rent) - float(td.salary) - float(td.util) - float(td.other)
 	S.last = {"day": int(S.day), "rent": td.rent, "salary": td.salary, "util": td.util, "other": td.other, "net": net}
+	# Riwayat harian (untuk laporan KelolaPro)
+	var hs := 0.0
+	var hn := 0
+	for e in each_tenant():
+		hs += float(e[1].tenant.happy)
+		hn += 1
+	if not S.has("hist"): S.hist = []
+	S.hist.append({"day": int(S.day), "net": net, "rent": td.rent, "cost": float(td.salary) + float(td.util) + float(td.other), "occ": hn, "happy": hs / maxf(1, hn), "rep": float(S.rep)})
+	while S.hist.size() > 14: S.hist.pop_front()
 	S.today = {"rent": 0.0, "salary": 0.0, "util": 0.0, "other": 0.0}
 	S.day = int(S.day) + 1
 	S.min = 0
@@ -1801,7 +1935,7 @@ func _sync_npcs() -> void:
 		want[e[1].tenant.id] = {"kind": "res", "p": e[1].tenant, "room": e[0]}
 	for nid in npcs.keys():
 		var n: Npc = npcs[nid]
-		if n.kind == "staff" or n.kind == "worker" or n.kind == "keeper" or n.kind == "thief":
+		if n.kind == "staff" or n.kind == "worker" or n.kind == "keeper" or n.kind == "thief" or n.kind == "preman":
 			continue
 		if not want.has(nid):
 			n.set_bubble("")
@@ -2222,6 +2356,8 @@ func act(a: String, arg: String = "") -> void:
 		"intro":
 			play_intro()
 			return
+		"preman":
+			preman_answer(arg)
 		"collect":
 			collect_due(arg)
 		"collect_all":
@@ -2658,7 +2794,7 @@ func _unhandled_input(e: InputEvent) -> void:
 			else:
 				ui.open_sheet(nv[0])
 			return
-	if _thief_tap(p):
+	if _preman_tap(p) or _thief_tap(p):
 		get_viewport().set_input_as_handled()
 		return
 	var bi := _box_at(p)
@@ -2812,7 +2948,7 @@ func _handle_cli(args: PackedStringArray) -> void:
 			S.seen = true
 			ui.close_sheet()
 			S.speed = 0
-			var chars := ["kutu", "kakek", "siswi", "flanel", "nenek"]
+			var chars := ["kutu", "kakek", "siswi", "flanel", "nenek", "kupluk"]
 			for ci in range(chars.size()):
 				for ti in range(Npc.TINTS.size()):
 					var n := Npc.new()
@@ -2850,6 +2986,18 @@ func _handle_cli(args: PackedStringArray) -> void:
 			S.fac["cctv"] = true
 		elif a == "--guard":
 			S.staff["satpam"] = true
+		elif a == "--stats":
+			S.seen = true
+			S.tut = -1
+			S.apps = {"kelolapro": true}
+			S.hist = []
+			for i in range(7):
+				S.hist.append({"day": i + 1, "net": [120000, 80000, -40000, 150000, 210000, 90000, 260000][i], "rent": 0, "cost": 0, "occ": 3, "happy": 70, "rep": 3.5})
+		elif a == "--preman":
+			S.seen = true
+			S.tut = -1
+			ui.close_sheet()
+			spawn_preman.call_deferred()
 		elif a == "--thief":
 			S.seen = true
 			S.tut = -1
