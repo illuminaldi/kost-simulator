@@ -75,6 +75,7 @@ func _next() -> void:
 				finished.emit()
 				queue_free())
 			return
+	_no_mouse(cur)   # semua isi adegan tembus sentuhan, ketukan sampai ke root
 	cur.modulate.a = 0.0 if scene_i > 0 else 1.0
 	root.add_child(cur)
 	if scene_i == 1: _play("brand_kostterdekat")
@@ -103,6 +104,11 @@ func _next() -> void:
 
 
 # ---------- helpers ----------
+func _no_mouse(n: Node) -> void:
+	if n is Control: (n as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for ch in n.get_children(): _no_mouse(ch)
+
+
 func _lbl(t: String, size: int, col: Color, center := true) -> Label:
 	var l := Label.new()
 	l.text = t

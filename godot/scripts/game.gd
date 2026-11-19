@@ -99,12 +99,12 @@ func _maybe_intro(args: PackedStringArray) -> void:
 	# Pembuka brand (KelolaPro → KostTerdekat → Cozy Kost) setiap game dibuka; dilewati saat uji CLI.
 	var dev := false
 	for a in args:
-		if a.begins_with("--") and a != "--brand": dev = true
-	if args.has("--brand") or not dev:
+		if a.begins_with("--") and a != "--brand" and a != "--brandtap": dev = true
+	if args.has("--brand") or args.has("--brandtap") or not dev:
 		cutscene_on = true
 		var bi := BrandIntro.new()
 		add_child(bi)
-		bi.setup(font, S.get("sfx", true), args.has("--brand"))
+		bi.setup(font, S.get("sfx", true), args.has("--brand") and not args.has("--brandtap"))
 		await bi.finished
 		cutscene_on = false
 	if args.has("--intro") or not S.get("seen", false):
@@ -131,7 +131,8 @@ func _tapat(p: Vector2, delay: float = 1.5) -> void:
 		Input.parse_input_event(e)
 		await get_tree().create_timer(0.1).timeout
 	await get_tree().create_timer(0.5).timeout
-	print("TAP money=", S.money, " due=", due_total(), " sheet=", ui.kind)
+	await get_tree().create_timer(1.5).timeout
+	print("TAP money=", S.money, " due=", due_total(), " sheet=", ui.kind, " brand=", get_children().any(func(c): return c is BrandIntro), " cut=", get_children().any(func(c): return c is Cutscene))
 
 
 func _clicktest() -> void:
