@@ -1562,7 +1562,7 @@ func _sheet_tenants() -> void:
 
 
 const STAFF_PIC := {"cleaner": "kebersihan/happy", "resep": "penjaga/happy", "teknisi": "teknisi/idle", "satpam": "satpam/idle",
-	"laundry": "laundry/happy", "kantin": "kantin/idle", "barista": "barista/idle", "kasir": "kasir/idle"}
+	"laundry": "laundry/happy", "kantin": "kantin/happy", "barista": "barista/happy", "kasir": "kasir/happy"}
 
 
 func _sheet_staff() -> void:
