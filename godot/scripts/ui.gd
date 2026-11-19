@@ -609,9 +609,13 @@ func _build_tray() -> void:
 	# Tab
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 10)
-	for t in [["perabot", "Perabot"], ["ruang", "Kamar & Ruang"], ["layanan", "Layanan"]]:
+	for t in [["perabot", "Perabot"], ["ruang", "Ruang"], ["layanan", "Layanan"], ["diamond", "Diamond"]]:
 		var key: String = t[0]
-		tabs.add_child(_btn(t[1], D.C_YELLOW if tray_tab == key else Color.WHITE, func(): tray_tab = key; _build_tray(), false, true))
+		tabs.add_child(_btn(t[1], D.C_YELLOW if tray_tab == key else Color.WHITE, func():
+			if key == "diamond": open_sheet("toko")
+			else:
+				tray_tab = key
+				_build_tray(), false, true))
 	tray_box.add_child(tabs)
 	# Petunjuk + status pengiriman
 	var info := ""
@@ -1059,7 +1063,7 @@ func _sheet_beli() -> void:
 	box.add_child(top)
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 10)
-	for t in [["perabot", "Perabot"], ["ruang", "Kamar & Ruang"], ["layanan", "Layanan"]]:
+	for t in [["perabot", "Perabot"], ["ruang", "Ruang"], ["layanan", "Layanan"], ["diamond", "Diamond"]]:
 		var key: String = t[0]
 		tabs.add_child(_btn(t[1], D.C_YELLOW if tray_tab == key else Color.WHITE, func(): tray_tab = key; buy_confirm = ""; refresh_sheet(), false, true))
 	box.add_child(tabs)
@@ -1110,8 +1114,8 @@ func _sheet_beli() -> void:
 				var ap: Dictionary = D.APPS[k]
 				var on: bool = game.has_app(k)
 				_buy_row("app:" + k, load("res://assets/fac/%s.svg" % k), ap.n, ap.tag + " · " + D.short(ap.month) + "/bulan", "Aktif" if on else ("" if int(S.lvl) >= int(ap.lv) else "Terbuka di Level %d" % int(ap.lv)), float(ap.fee), int(S.lvl) >= int(ap.lv) and not on, "Pasang", func(): game.act("app_on", k), true, "/hari")
-			var dv := _card()
-			_row(dv, _label("Toko Diamond · %d Diamond" % int(game.W.diamonds), 38), _btn("Buka", D.C_CREAM, func(): open_sheet("toko")))
+		"diamond":
+			_shop_view()
 
 
 func _buy_row(key: String, tex: Texture2D, title: String, desc: String, sub: String, price: float, ok: bool, verb: String, fn: Callable, money_now := true, unit := "") -> void:
@@ -1184,25 +1188,100 @@ func _sheet_floors() -> void:
 
 
 func _sheet_toko() -> void:
+	_header("Toko Diamond")
+	_shop_view()
+
+
+const SHOP_PIC := {"tiket1": "ticket_1", "tiket5": "ticket_5", "uang1": "money_bag", "uang2": "money_chest"}
+const SHOP_BADGE := {"tiket5": "Hemat 20%", "uang2": "Paling untung"}
+const PACK_PIC := ["gem_s", "gem_m", "gem_l"]
+const PACK_BADGE := ["", "Populer", "Terbaik"]
+
+
+## Toko Diamond yang visual: dompet di atas, kartu bergambar untuk tiap barang, lalu paket Diamond.
+func _shop_view() -> void:
 	var Wl: Dictionary = game.W
-	_header("Toko")
-	var top := _card()
-	_row(top, _label("Diamond kamu", 38), _label("%d" % int(Wl.diamonds), 44, Color("2f5d7c"), true))
-	_row(top, _label("Tiket Ngebut", 38), _label("%d" % int(Wl.tickets), 44, D.C_INK, true))
+	# Dompet
+	var wp := PanelContainer.new()
+	var wsb := _sb(Color("2f5d7c"), 5, 36, 34, 26)
+	wp.add_theme_stylebox_override("panel", wsb)
+	var wh := HBoxContainer.new()
+	wh.add_theme_constant_override("separation", 26)
+	wh.alignment = BoxContainer.ALIGNMENT_CENTER
+	for it in [["res://assets/shop/gem_s.png", "%d" % int(Wl.diamonds), "Diamond"], ["res://assets/shop/ticket_1.png", "%d" % int(Wl.tickets), "Tiket Ngebut"]]:
+		var tr := TextureRect.new()
+		tr.texture = load(it[0])
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tr.custom_minimum_size = Vector2(120, 120)
+		wh.add_child(tr)
+		var vv := VBoxContainer.new()
+		vv.add_theme_constant_override("separation", 0)
+		vv.add_child(_label(it[1], 60, Color("fff6e6")))
+		vv.add_child(_label(it[2], 28, Color("cfe6f5"), true))
+		vv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		wh.add_child(vv)
+	wp.add_child(wh)
+	box.add_child(wp)
 	var tt: String = game.turbo_text()
-	if tt != "": top.add_child(_text("Mode 2x masih aktif: sisa %s di game." % tt, 30, Color("2f7a2a")))
+	if tt != "": box.add_child(_text("Mode 2x masih aktif: sisa %s di game." % tt, 30, Color("2f7a2a")))
+	box.add_child(_label("Tukar Diamond", 42))
+	var g := GridContainer.new()
+	g.columns = 2
+	g.add_theme_constant_override("h_separation", 22)
+	g.add_theme_constant_override("v_separation", 22)
+	box.add_child(g)
 	for k in game.SHOP:
 		var it: Dictionary = game.SHOP[k]
-		var v := _card()
 		var desc: String = it.d
-		if it.has("money"): desc = "+%s ke kas kost" % D.rp(game.shop_money(k))
-		_row(v, _label(it.n, 38), _btn("%d Diamond" % int(it.cost), D.C_YELLOW, func(): _do("shop", k), int(Wl.diamonds) < int(it.cost)))
-		v.add_child(_text(desc, 30, D.C_MUTED))
-	var dv := _card()
-	dv.add_child(_label("Beli Diamond", 40))
+		if it.has("money"): desc = "+%s ke kas kost" % D.short(game.shop_money(k))
+		var cost := int(it.cost)
+		g.add_child(_shop_card(SHOP_PIC.get(k, "gem_s"), it.n, desc, SHOP_BADGE.get(k, ""),
+			_btn("%d Diamond" % cost, D.C_YELLOW, func(): _do("shop", k), int(Wl.diamonds) < cost, true, "Diamond belum cukup (punya %d, butuh %d)." % [int(Wl.diamonds), cost])))
+	box.add_child(_label("Isi Diamond", 42))
+	var g2 := GridContainer.new()
+	g2.columns = 3
+	g2.add_theme_constant_override("h_separation", 18)
+	g2.add_theme_constant_override("v_separation", 18)
+	box.add_child(g2)
+	var i := 0
 	for pk in game.DIAMOND_PACKS:
-		_row(dv, _label("%s Diamond" % pk[0], 34), _label(pk[1], 34, D.C_MUTED, true))
-	dv.add_child(_text("Pembelian Diamond lewat Google Play tersedia di aplikasi Android (segera hadir). Di versi web ini belum bisa membeli.", 30, D.C_MUTED))
+		g2.add_child(_shop_card(PACK_PIC[i], "%s Diamond" % pk[0], "", PACK_BADGE[i],
+			_btn(pk[1], D.C_GREEN, func(): pass, true, true, "Pembelian Diamond tersedia di aplikasi Android (segera hadir)."), 170.0))
+		i += 1
+	box.add_child(_text("Pembelian Diamond lewat Google Play tersedia di aplikasi Android (segera hadir). Di versi web, Diamond didapat dari hadiah awal.", 28, D.C_MUTED))
+
+
+func _shop_card(pic: String, title: String, desc: String, badge: String, btn: Button, img := 220.0) -> Control:
+	var p := PanelContainer.new()
+	p.add_theme_stylebox_override("panel", _sb(Color("fffaf2"), 5, 34, 18, 18, Color("e2d3bd")))
+	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	p.add_child(v)
+	if badge != "":
+		var bp := PanelContainer.new()
+		bp.add_theme_stylebox_override("panel", _sb(Color("e98b7a"), 3, 20, 16, 4))
+		bp.add_child(_label(badge, 26, Color("fff6e6")))
+		bp.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		v.add_child(bp)
+	var tr := TextureRect.new()
+	tr.texture = load("res://assets/shop/%s.png" % pic)
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.custom_minimum_size = Vector2(img, img)
+	v.add_child(tr)
+	var tl := _label(title, 34)
+	tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(tl)
+	if desc != "":
+		var dl := _text(desc, 26, D.C_MUTED)
+		dl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(dl)
+	v.add_child(btn)
+	return p
 
 
 func _sheet_preman() -> void:

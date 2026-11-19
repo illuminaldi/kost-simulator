@@ -212,49 +212,11 @@ func _build(kind: String) -> Control:
 			c.add_child(paper)
 			_ken(paper, 0.94, 1.0, Vector2(189, 330), Vector2(189, 280), 7.0)
 		"office", "resign":
-			var sky := ColorRect.new()
-			sky.color = Color("1f2340")
-			sky.size = c.size
-			c.add_child(sky)
-			var city := _City.new()
-			c.add_child(city)
-			# Bingkai jendela kantor
-			for x in [0.0, 470.0, 950.0, 1418.0]:
-				var fr := ColorRect.new()
-				fr.color = Color("2b2f4f")
-				fr.position = Vector2(x, 0)
-				fr.size = Vector2(20, 1500)
-				c.add_child(fr)
-			var m := TextureRect.new()
-			m.texture = load("res://assets/story/maryam_kantor_%s.png" % ("tired_L" if kind == "office" else "idle_L"))
-			m.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			m.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
-			m.size = Vector2(640, 1080)
-			m.position = Vector2(130, 760)
-			c.add_child(m)
-			var desk := ColorRect.new()
-			desk.color = Color("5b4636")
-			desk.position = Vector2(0, 1500)
-			desk.size = Vector2(D.IW, 1100)
-			c.add_child(desk)
-			var top := ColorRect.new()
-			top.color = Color("7a5d46")
-			top.position = Vector2(0, 1480)
-			top.size = Vector2(D.IW, 40)
-			c.add_child(top)
-			var lap := _Laptop.new()
-			lap.resign = kind == "resign"
-			lap.position = Vector2(780, 1046)
-			c.add_child(lap)
-			if kind == "office":
-				for i in range(3):
-					var paper := ColorRect.new()
-					paper.color = Color("eee6d6")
-					paper.position = Vector2(60 + i * 20, 1440 - i * 18)
-					paper.size = Vector2(300, 40)
-					paper.rotation = -0.05 + i * 0.04
-					c.add_child(paper)
-			_ken(c, 1.06, 1.0, Vector2(-30, -20), Vector2(0, 0), 9.0)
+			# Ilustrasi kantor utuh (malam lembur / pagi resign), kamera pelan mendekat.
+			var tex: Texture2D = load("res://assets/story/office_%s.jpg" % kind)
+			var b := _tex_rect(tex, Rect2(Vector2.ZERO, tex.get_size()), Vector2.ZERO, Vector2(D.IW, D.IH))
+			c.add_child(b)
+			_ken(b, 1.0, 1.06, Vector2.ZERO, Vector2(0, -30), 9.0)
 		"old":
 			var bg := ColorRect.new()
 			bg.color = Color("efe3cf")
@@ -371,71 +333,3 @@ class _Windows extends Control:
 		for i in range(pts.size()):
 			var a := clampf(t * 0.8 - i * 0.6, 0.0, 1.0)
 			draw_circle(pts[i], 150, Color(1, 0.85, 0.5, 0.18 * a))
-
-
-## Gedung-gedung kota di luar jendela kantor, jendelanya berkelip.
-class _City extends Control:
-	var t := 0.0
-	var _b := []
-	func _ready() -> void:
-		size = Vector2(D.IW, 1500)
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var rng := RandomNumberGenerator.new()
-		rng.seed = 7
-		var x := -40.0
-		while x < D.IW:
-			var w := rng.randf_range(160, 300)
-			var h := rng.randf_range(500, 1250)
-			_b.append([x, w, h, rng.randi()])
-			x += w + rng.randf_range(10, 40)
-	func _process(dt: float) -> void:
-		t += dt
-		queue_redraw()
-	func _draw() -> void:
-		draw_circle(Vector2(880, 250), 80, Color("f6dd9a"))
-		for b in _b:
-			var r := Rect2(b[0], 1500 - b[2], b[1], b[2])
-			draw_rect(r, Color("343a63"))
-			var rng := RandomNumberGenerator.new()
-			rng.seed = b[3]
-			var yy := r.position.y + 40
-			while yy < 1460:
-				var xx := r.position.x + 24
-				while xx < r.end.x - 40:
-					var on := rng.randf() < 0.45
-					var blink := sin(t * 1.3 + xx * 0.07 + yy * 0.03) > 0.92
-					if on and not blink:
-						draw_rect(Rect2(xx, yy, 26, 34), Color("f7d98a"))
-					else:
-						draw_rect(Rect2(xx, yy, 26, 34), Color("2a2f52"))
-					xx += 52
-				yy += 70
-
-
-## Laptop di meja; adegan "resign" menampilkan surat pengunduran diri.
-class _Laptop extends Control:
-	var resign := false
-	var t := 0.0
-	func _ready() -> void:
-		size = Vector2(640, 440)
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
-	func _process(dt: float) -> void:
-		t += dt
-		queue_redraw()
-	func _draw() -> void:
-		draw_rect(Rect2(0, 0, 600, 400), Color("3d3a44"))
-		draw_rect(Rect2(22, 22, 556, 356), Color("e9f1fb") if resign else Color("9cc3e6"))
-		draw_rect(Rect2(-40, 400, 680, 34), Color("57535e"))
-		var f := ThemeDB.fallback_font
-		if resign:
-			var lines := ["Kepada Yth. Direksi,", "", "Dengan ini saya", "mengundurkan diri", "dari jabatan saya.", "", "Hormat saya,", "Maryam"]
-			var n := mini(lines.size(), int(t * 3.0))
-			for i in range(n):
-				draw_string(f, Vector2(50, 70 + i * 40), lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color("2b2b38"))
-		else:
-			for i in range(5):
-				var w := 120.0 + 60.0 * float((i * 37) % 5)
-				draw_rect(Rect2(60, 70 + i * 60, w, 26), Color("eaf3ff"))
-			for i in range(4):
-				var bh := 40.0 + 30.0 * float((i * 13) % 4)
-				draw_rect(Rect2(380 + i * 40, 330 - bh, 26, bh), Color("f2a65a"))
