@@ -2,7 +2,7 @@ class_name BrandIntro
 extends CanvasLayer
 ## Pembuka sebelum game: animasi KelolaPro → KostTerdekat → splash Cozy Kost.
 ## Diambil dari splash di aplikasi KelolaPro (logo + tagline) dan KostTerdekat (Mpus cari kost).
-## Layar KelolaPro sama dengan layar loading; menunggu ketukan (supaya suara boleh diputar di browser).
+## Layar KelolaPro sama dengan layar loading. Splash Cozy Kost menunggu ketukan "Ketuk untuk mulai".
 ## Ketuk layar untuk lompat ke adegan berikutnya.
 
 signal finished
@@ -51,13 +51,12 @@ var _tap_lbl: Label
 
 
 func _start() -> void:
+	if not _waiting: return
 	_waiting = false
-	_play("brand_kelolapro")
+	_play("upgrade")
 	if _tap_lbl:
-		_tap_lbl.create_tween().tween_property(_tap_lbl, "modulate:a", 0.0, 0.3)
-	var my := scene_i
-	get_tree().create_timer(1.8).timeout.connect(func():
-		if scene_i == my: _next())
+		_tap_lbl.create_tween().tween_property(_tap_lbl, "modulate:a", 0.0, 0.25)
+	get_tree().create_timer(0.6).timeout.connect(_next)
 
 
 func _next() -> void:
@@ -85,11 +84,19 @@ func _next() -> void:
 	if old:
 		tw.parallel().tween_property(old, "modulate:a", 0.0, 0.35)
 		tw.tween_callback(old.queue_free)
-	if scene_i == 0:
+	if scene_i == 0: _play("brand_kelolapro")
+	if scene_i == 2:
+		# Splash Cozy Kost: tunggu ketukan pemain untuk mulai.
 		_waiting = true
-		if auto_tap: get_tree().create_timer(0.6).timeout.connect(_start)
+		get_tree().create_timer(3.2).timeout.connect(func():
+			if _tap_lbl and scene_i == 2:
+				_tap_lbl.visible = true
+				var tw2 := _tap_lbl.create_tween().set_loops()
+				tw2.tween_property(_tap_lbl, "modulate:a", 0.35, 0.8).set_trans(Tween.TRANS_SINE)
+				tw2.tween_property(_tap_lbl, "modulate:a", 1.0, 0.8).set_trans(Tween.TRANS_SINE))
+		if auto_tap: get_tree().create_timer(6.5).timeout.connect(_start)
 		return
-	var dur: float = [0.0, 4.4, 6.5][scene_i]
+	var dur: float = [2.2, 4.4, 0.0][scene_i]
 	var my := scene_i
 	get_tree().create_timer(dur).timeout.connect(func():
 		if scene_i == my: _next())
@@ -161,12 +168,6 @@ func _kelolapro() -> Control:
 	bg.size = Vector2(W, H)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	c.add_child(bg)
-	_tap_lbl = _lbl("Ketuk untuk mulai", 50, Color("285a9c"))
-	_tap_lbl.position = Vector2(0, 2150)
-	c.add_child(_tap_lbl)
-	var tw := c.create_tween().set_loops()
-	tw.tween_property(_tap_lbl, "modulate:a", 0.35, 0.8).set_trans(Tween.TRANS_SINE)
-	tw.tween_property(_tap_lbl, "modulate:a", 1.0, 0.8).set_trans(Tween.TRANS_SINE)
 	return c
 
 
@@ -220,10 +221,15 @@ func _cozy() -> Control:
 	edge.position = Vector2(0, H - 616)
 	edge.size = Vector2(W, 16)
 	c.add_child(edge)
+	_tap_lbl = _lbl("Ketuk untuk mulai", 56, Color("5a3d2b"))
+	_tap_lbl.position = Vector2(0, H - 300)
+	_tap_lbl.visible = false
+	_tap_lbl.z_index = 5
 	var board := _img("res://assets/brand/cozy_board.png", 1172)
 	board.pivot_offset = Vector2(586, 0)
 	board.position = Vector2(133, -1100)
 	c.add_child(board)
+	c.add_child(_tap_lbl)
 	var plate := _img("res://assets/brand/cozy_plate.png", 1103)
 	plate.position = Vector2((W - 1103) / 2.0, 1030)
 	plate.scale = Vector2.ZERO
