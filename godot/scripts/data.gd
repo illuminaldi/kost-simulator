@@ -195,13 +195,13 @@ const JOBS := {
 	"Manajer": {"away": [8, 18], "pref": 3, "min": 3},
 }
 const STAFF := {
-	"cleaner": {"n": "Petugas Kebersihan", "sal": 50000, "min": 1, "d": "Membersihkan kamar kotor; menangani sampah, area bersama kotor & hama."},
-	"resep": {"n": "Penjaga Kost", "sal": 60000, "min": 1, "d": "Berjaga di meja depan. Tamu lebih sering & sabar; menagih sewa, urus kunci hilang & tegur penghuni berisik."},
-	"teknisi": {"n": "Teknisi", "sal": 80000, "min": 3, "d": "Memperbaiki kerusakan gratis; menangani air mati, WiFi lemot, listrik jeglek & atap bocor."},
-	"laundry": {"n": "Petugas Laundry", "sal": 45000, "min": 2, "need": "laundry", "d": "Mengurus mesin cuci. Pemasukan Laundry jadi 2x."},
-	"kantin": {"n": "Ibu Kantin", "sal": 55000, "min": 4, "need": "kantin", "d": "Memasak di Kantin. Membuka pemasukan harian Kantin."},
-	"barista": {"n": "Barista", "sal": 60000, "min": 5, "need": "cafe", "d": "Meracik kopi di Cafe. Membuka pemasukan harian Cafe."},
-	"satpam": {"n": "Satpam", "sal": 70000, "min": 3, "d": "Patroli di depan kost. Mencegah pencurian; urus tamu menginap & paket hilang."},
+	"cleaner": {"nama": "Ryan", "n": "Petugas Kebersihan", "sal": 50000, "min": 1, "d": "Membersihkan kamar kotor; menangani sampah, area bersama kotor & hama."},
+	"resep": {"nama": "Mariam", "n": "Penjaga Kost", "sal": 60000, "min": 1, "d": "Berjaga di meja depan. Tamu lebih sering & sabar; menagih sewa, urus kunci hilang & tegur penghuni berisik."},
+	"teknisi": {"nama": "Dimas", "n": "Teknisi", "sal": 80000, "min": 3, "d": "Memperbaiki kerusakan gratis; menangani air mati, WiFi lemot, listrik jeglek & atap bocor."},
+	"laundry": {"nama": "Budi", "n": "Petugas Laundry", "sal": 45000, "min": 2, "need": "laundry", "d": "Mengurus mesin cuci. Pemasukan Laundry jadi 2x."},
+	"kantin": {"nama": "Bu Sari", "n": "Ibu Kantin", "sal": 55000, "min": 4, "need": "kantin", "d": "Memasak di Kantin. Membuka pemasukan harian Kantin."},
+	"barista": {"nama": "Nadia", "n": "Barista", "sal": 60000, "min": 5, "need": "cafe", "d": "Meracik kopi di Cafe. Membuka pemasukan harian Cafe."},
+	"satpam": {"nama": "Aji", "n": "Satpam", "sal": 70000, "min": 3, "d": "Patroli di depan kost. Mencegah pencurian; urus tamu menginap & paket hilang."},
 }
 const FAC := {
 	"wifi": {"n": "WiFi Kencang", "cost": 800000, "min": 1, "d": ""},
@@ -214,10 +214,19 @@ const ISSUES := {"AC rusak": 250000, "Keran bocor": 120000, "Lampu mati": 60000,
 const CHARS := {"kutu": "l", "kakek": "l", "siswi": "p", "flanel": "p", "nenek": "p"}
 # Pekerja: pose -> file (Array = bergantian tiap 3.5 detik).
 const WORKER := {
-	"build": {"char": "tukang", "map": {"walk": "walk", "stand": "hold", "job": ["repair", "repair", "carry"], "react": "hold"}, "mins": 240},
-	"fix": {"char": "teknisi", "map": {"walk": "walk", "stand": "idle", "job": ["idle", "fix", "fix"], "react": "happy"}, "mins": 90},
-	"deliver": {"char": "kurir", "map": {"walk": "carry", "stand": "idle", "job": "back", "react": "idle"}, "mins": 40},
+	"build": {"nama": "Pak Joko", "role": "Tukang", "char": "tukang", "map": {"walk": "walk", "stand": "hold", "job": ["repair", "repair", "carry"], "react": "hold"}, "mins": 240},
+	"fix": {"nama": "Dimas", "role": "Teknisi", "char": "teknisi", "map": {"walk": "walk", "stand": "idle", "job": ["idle", "fix", "fix"], "react": "happy"}, "mins": 90},
+	"deliver": {"nama": "Andi", "role": "Kurir", "char": "kurir", "map": {"walk": "carry", "stand": "idle", "job": "back", "react": "idle"}, "mins": 40},
 }
+## "Ryan (Petugas Kebersihan)"
+static func staff_label(k: String) -> String:
+	return "%s (%s)" % [STAFF[k].nama, STAFF[k].n]
+
+
+static func worker_label(t: String) -> String:
+	return "%s (%s)" % [WORKER[t].nama, WORKER[t].role]
+
+
 const TRUCK_X := 330.0
 const NAMES_P := ["Sari", "Dewi", "Putri", "Nadia", "Intan", "Citra", "Laras", "Ayu", "Tiara", "Wulan", "Mega", "Rina",
 	"Fitri", "Lina", "Salsa", "Anisa", "Dinda", "Maya"]

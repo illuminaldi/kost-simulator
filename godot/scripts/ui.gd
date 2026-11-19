@@ -494,9 +494,9 @@ func _event_card(e: Dictionary) -> void:
 	if ev.has("auto"):
 		var st: Dictionary = D.STAFF[ev.auto[0]]
 		if game.S.staff.get(ev.auto[0], false):
-			v.add_child(_text("%s sedang menangani (±%d jam)." % [st.n, maxi(1, int(e.auto))], 32, Color("3f6f96")))
+			v.add_child(_text("%s sedang menangani (±%d jam)." % [st.nama, maxi(1, int(e.auto))], 32, Color("3f6f96")))
 		else:
-			v.add_child(_text("Bisa ditangani otomatis oleh %s." % st.n, 30, D.C_MUTED))
+			v.add_child(_text("Bisa ditangani otomatis oleh %s (%s)." % [st.nama, st.n], 30, D.C_MUTED))
 	var f := _flow(v)
 	for i in range(ev.opts.size()):
 		var o: Array = ev.opts[i]
@@ -513,7 +513,7 @@ func _furn_card(id: String) -> void:
 	if not r.furn.has("kasur"):
 		v.add_child(_text("Kamar ini belum punya kasur, jadi belum bisa disewakan.", 32, Color("c0392b")))
 	if game.job_for(id, "fix") != {}:
-		v.add_child(_text("Teknisi sedang memperbaiki kamar ini.", 32, Color("3f6f96")))
+		v.add_child(_text("%s sedang memperbaiki kamar ini." % D.worker_label("fix"), 32, Color("3f6f96")))
 	for t in D.FURN_ORDER:
 		if not D.furn_has(id, t):
 			continue
@@ -857,7 +857,7 @@ func _sheet_room() -> void:
 		else:
 			var c: float = game.build_cost()
 			if game.job_for(id, "build") != {}:
-				v.add_child(_text("Tukang sedang membangun kamar ini.", 38))
+				v.add_child(_text("%s sedang membangun kamar ini." % D.worker_label("build"), 38))
 				return
 			v.add_child(_text("Bangun kamar Standar baru di sini.", 38))
 			_row(v, _label(D.rp(c), 42), _btn("Bangun", D.C_GREEN, func(): _do("build", id), float(S.money) < c))
@@ -873,7 +873,7 @@ func _sheet_room() -> void:
 	_bar(v, float(r.clean))
 	if str(r.broken) != "":
 		var cost: int = D.ISSUES[r.broken]
-		_row(v, _label("Kerusakan: " + str(r.broken), 38), (_label("Teknisi datang...", 34, Color("3f6f96"), true) if game.job_for(id, "fix") != {} else _btn("Panggil Teknisi " + D.short(cost), D.C_YELLOW, func(): _do("fix", id), float(S.money) < cost)))
+		_row(v, _label("Kerusakan: " + str(r.broken), 38), (_label("%s datang..." % D.WORKER.fix.nama, 34, Color("3f6f96"), true) if game.job_for(id, "fix") != {} else _btn("Panggil Teknisi " + D.short(cost), D.C_YELLOW, func(): _do("fix", id), float(S.money) < cost)))
 	else:
 		v.add_child(_label("Semua fasilitas berfungsi", 34, D.C_MUTED, true))
 	var f := _flow(v)
@@ -954,7 +954,8 @@ func _sheet_staff() -> void:
 		var st: Dictionary = D.STAFF[k]
 		var on: bool = S.staff.get(k, false)
 		var v := _card()
-		_row(v, _label(st.n, 42), _label(D.rp(st.sal) + "/hari", 34, D.C_MUTED, true))
+		_row(v, _label(st.nama, 42), _label(D.rp(st.sal) + "/hari", 34, D.C_MUTED, true))
+		v.add_child(_label(st.n, 32, Color("8a5a3a"), true))
 		v.add_child(_text(st.d, 34, D.C_MUTED))
 		var f := _flow(v)
 		if int(S.lvl) < int(st.min):
@@ -983,12 +984,12 @@ func _sheet_facil() -> void:
 		if fc.has("staff"):
 			var st: Dictionary = D.STAFF[fc.staff]
 			var on: bool = S.staff.get(fc.staff, false)
-			_row(v, _label(st.n, 36), _label("Sedang bekerja", 32, Color("2f7a2a"), true) if on else _btn("Rekrut " + D.short(st.sal) + "/hari", D.C_YELLOW, func(): _do("hire", fc.staff)))
+			_row(v, _label("%s · %s" % [st.nama, st.n], 36), _label("Sedang bekerja", 32, Color("2f7a2a"), true) if on else _btn("Rekrut " + D.short(st.sal) + "/hari", D.C_YELLOW, func(): _do("hire", fc.staff)))
 		return
 	if not j.is_empty():
 		_header("Lantai %d · sedang dibangun" % f)
 		_fac_pic(box, str(j.item), 520)
-		box.add_child(_text("Tukang sedang membangun %s." % D.FACIL[j.item].n, 36, D.C_MUTED))
+		box.add_child(_text("%s sedang membangun %s." % [D.worker_label("build"), D.FACIL[j.item].n], 36, D.C_MUTED))
 		return
 	_header("Sisi tangga lantai %d" % f)
 	box.add_child(_text("Bangun satu ruang fasilitas di sini. Bisa juga diseret dari menu Beli.", 34, D.C_MUTED))
@@ -1095,7 +1096,7 @@ func _sheet_upgrade() -> void:
 				sr = _label("Level %d" % int(st.min), 30, D.C_MUTED, true)
 			else:
 				sr = _btn("Rekrut", D.C_YELLOW, func(): _do("hire", fc.staff))
-			_row(col, _label("%s · %s/hari" % [st.n, D.short(st.sal)], 30, D.C_INK), sr)
+			_row(col, _label("%s (%s) · %s/hari" % [st.nama, st.n, D.short(st.sal)], 30, D.C_INK), sr)
 
 
 func _sheet_manage() -> void:

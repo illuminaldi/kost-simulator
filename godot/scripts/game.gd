@@ -50,6 +50,7 @@ var fixed_lights: Array = []
 var npcs := {}
 var recep: Npc
 var recep_art: Sprite2D
+var desk_tag: PanelContainer
 
 var dirty := true
 var _acc := 0.0
@@ -218,6 +219,26 @@ func _build_world() -> void:
 	recep_art.scale = Vector2(0.9, 0.9)
 	recep_art.z_index = 0
 	npc_lobby.add_child(recep_art)
+	desk_tag = PanelContainer.new()
+	var dsb := StyleBoxFlat.new()
+	dsb.bg_color = Color.WHITE
+	dsb.border_color = D.C_LINE
+	dsb.set_border_width_all(5)
+	dsb.set_corner_radius_all(26)
+	dsb.content_margin_left = 18
+	dsb.content_margin_right = 18
+	dsb.content_margin_top = 6
+	dsb.content_margin_bottom = 8
+	desk_tag.add_theme_stylebox_override("panel", dsb)
+	var dl := Label.new()
+	dl.text = D.STAFF.resep.nama
+	dl.add_theme_font_override("font", font)
+	dl.add_theme_font_size_override("font_size", 28)
+	dl.add_theme_color_override("font_color", D.C_INK)
+	desk_tag.add_child(dl)
+	desk_tag.z_index = 50
+	npc_lobby.add_child(desk_tag)
+	desk_tag.position = Vector2(1140, 1905)
 
 
 var _keeper_pose := ""
@@ -694,12 +715,12 @@ const CHAT_LONG := {
 		["Antrenya lumayan ya.", "Kost bagus memang rame.", "Katanya kamarnya bersih-bersih."],
 		["Udah lihat kamarnya?", "Belum, nunggu dipanggil.", "Semoga dapat yang ada jendelanya."],
 	],
-	"barista": [["Kopi susu satu ya, Kak!", "Siap, ditunggu sebentar.", "Wangi banget kopinya.", "Gula arennya asli lho."]],
-	"kantin": [["Bu, nasi goreng satu.", "Pedas atau nggak, Nak?", "Pedas dong, Bu!", "Siap, sebentar ya."]],
-	"laundry": [["Mas, titip cucian ya.", "Oke, besok sore beres.", "Sekalian disetrika ya, Mas.", "Beres!"]],
+	"barista": [["Kopi susu satu ya, Kak Nadia!", "Siap, ditunggu sebentar.", "Wangi banget kopinya.", "Gula arennya asli lho."]],
+	"kantin": [["Bu Sari, nasi goreng satu.", "Pedas atau nggak, Nak?", "Pedas dong, Bu!", "Siap, sebentar ya."]],
+	"laundry": [["Mas Budi, titip cucian ya.", "Oke, besok sore beres.", "Sekalian disetrika ya, Mas.", "Beres!"]],
 	"keeper": [
-		["Mbak, paketku udah datang?", "Sudah, ada di meja depan.", "Makasih, Mbak!"],
-		["Mbak, airnya lancar kan?", "Aman, baru dicek tadi pagi.", "Sip, makasih!"],
+		["Mbak Mariam, paketku udah datang?", "Sudah, ada di meja depan.", "Makasih, Mbak!"],
+		["Mbak Mariam, airnya lancar kan?", "Aman, baru dicek tadi pagi.", "Sip, makasih!"],
 	],
 }
 const CHAT_HI := ["Hai!", "Halo!", "Permisi~", "Mau ke mana?", "Duluan ya!", "Eh, hai!"]
@@ -732,6 +753,10 @@ func _chat_tick(dt: float) -> void:
 	_clock += dt
 	for n in npcs.values():
 		n.chat_tick(dt)
+		if n.has_meta("nama"):
+			n.set_bubble(str(n.get_meta("nama")) if n.scene == "lobby" and n.fade_state == "" else "")
+	if desk_tag:
+		desk_tag.visible = recep_art.visible
 	for c in _convos.duplicate():
 		var a: Npc = c.n[0]
 		var b: Npc = c.n[1]
@@ -1451,6 +1476,7 @@ func _keeper_tick(dt: float) -> void:
 	var n := Npc.new()
 	npc_lobby.add_child(n)
 	n.setup("keeper", "keeper", D.STAFF_LOOK.resep, Vector2(1150, D.LOBBY_Y), font)
+	n.set_meta("nama", D.STAFF.resep.nama)
 	n.art = true
 	n.char_id = "penjaga"
 	n.art_map = {"walk": "walk", "stand": "idle"}
@@ -1475,6 +1501,7 @@ func _jobs_brain() -> void:
 		npc_lobby.add_child(n)
 		var start := Vector2(D.TRUCK_X + 120, D.LOBBY_Y) if j.type == "deliver" else Vector2(D.OUT_X, D.LOBBY_Y)
 		n.setup(nid, "worker", D.STAFF_LOOK.teknisi, start, font)
+		n.set_meta("nama", D.WORKER["build" if j.type == "fbuild" else j.type].nama)
 		n.art = true
 		n.char_id = cfg.char
 		n.art_map = cfg.map.duplicate()
@@ -1515,6 +1542,7 @@ func _staff_brain() -> void:
 				n.art_map = D.WORKER.fix.map.duplicate()
 				n.art_map["fix"] = ["fix", "idle"]
 			n.role = role
+			n.set_meta("nama", D.STAFF[role].nama)
 			npcs[nid] = n
 		elif not on and npcs.has(nid) and npcs[nid].goal_key != "out":
 			_leave(npcs[nid])
@@ -1606,7 +1634,7 @@ func act(a: String, arg: String = "") -> void:
 			if S.rooms[arg].built or job_for(arg, "build") != {}: return
 			spend(c, "other")
 			add_job("build", arg)
-			ui.toast("Tukang menuju lahan %s untuk mulai membangun" % D.room_name(arg))
+			ui.toast("%s menuju lahan %s untuk mulai membangun" % [D.worker_label("build"), D.room_name(arg)])
 		"place_furn", "upgrade_furn":
 			var parts := arg.split("|")
 			var rid: String = parts[0]
@@ -1634,7 +1662,7 @@ func act(a: String, arg: String = "") -> void:
 				ui.toast(why, "bad"); return
 			spend(float(D.FACIL[parts2[1]].cost), "other")
 			add_job("fbuild", "S%d" % ff, parts2[1])
-			ui.toast("Tukang mulai membangun %s di lantai %d" % [D.FACIL[parts2[1]].n, ff])
+			ui.toast("%s mulai membangun %s di lantai %d" % [D.worker_label("build"), D.FACIL[parts2[1]].n, ff])
 			if ui.kind == "facil": ui.close_sheet()
 		"event":
 			var parts := arg.split("|")
@@ -1667,7 +1695,7 @@ func act(a: String, arg: String = "") -> void:
 			if float(S.money) < c or job_for(arg, "fix") != {}: return
 			spend(c, "other")
 			add_job("fix", arg)
-			ui.toast("Teknisi dipanggil ke Kamar %s" % D.room_name(arg))
+			ui.toast("%s dipanggil ke Kamar %s" % [D.worker_label("fix"), D.room_name(arg)])
 		"evict":
 			if S.rooms[arg].tenant == null: return
 			var t: Dictionary = S.rooms[arg].tenant
@@ -1706,10 +1734,10 @@ func act(a: String, arg: String = "") -> void:
 					break
 		"hire":
 			S.staff[arg] = true
-			ui.toast("%s mulai bekerja!" % D.STAFF[arg].n, "gold")
+			ui.toast("%s mulai bekerja!" % D.staff_label(arg), "gold")
 		"fire":
 			S.staff.erase(arg)
-			ui.toast("%s diberhentikan" % D.STAFF[arg].n)
+			ui.toast("%s diberhentikan" % D.staff_label(arg))
 		"buy_fac":
 			var fc: Dictionary = D.FAC[arg]
 			if float(S.money) < float(fc.cost) or S.fac.has(arg): return
@@ -1880,7 +1908,7 @@ func _end_drag(p: Vector2) -> void:
 			var t: String = S.cargo.pop_at(int(d.item))
 			var r: Dictionary = S.rooms[id]
 			add_job("deliver", id, t, int(r.furn.get(t, 0)) + 1)
-			ui.toast("Supir mengangkut %s ke Kamar %s" % [D.FURN[t].n, D.room_name(id)])
+			ui.toast("%s mengangkut %s ke Kamar %s" % [D.worker_label("deliver"), D.FURN[t].n, D.room_name(id)])
 			_refresh_cargo()
 			save_game()
 
