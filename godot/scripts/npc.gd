@@ -377,7 +377,7 @@ func _refresh() -> void:
 		frame = int(anim * 6.0) % 2
 	elif pose == "sweep" or pose == "fix":
 		frame = int(anim * 3.0) % 2
-	var use_art := art and pose in ART_POSES
+	var use_art := art   # karakter ilustrasi selalu pakai gambar; pose tak dikenal -> idle
 	var key := "%s|%d|%.1f|%s|%s|%s|%s|%s|%d|%d" % [pose, frame, k, use_art, char_id, mood, react_pose, speed_mul > 1.6, int(anim * 4.0) % 2, int(anim / 3.5) % 6]
 	if key != _tex_key:
 		_tex_key = key
