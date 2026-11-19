@@ -342,6 +342,7 @@ func _build_world() -> void:
 	cat_at.region = D.CAT_RECT
 	cat_spr = Sprite2D.new()
 	cat_spr.texture = cat_at
+	cat_spr.centered = false
 	cat_spr.offset = Vector2(-D.CAT_RECT.size.x / 2.0, -D.CAT_RECT.size.y)
 	cat_spr.position = D.CAT_RECT.position + Vector2(D.CAT_RECT.size.x / 2.0, D.CAT_RECT.size.y)
 	lobby_root.add_child(cat_spr)
@@ -487,7 +488,62 @@ func _mk_light(p: Vector2, radius: float, parent: Node) -> PointLight2D:
 	return pl
 
 
+# ---------- Lift kaca di luar gedung (sisi kiri) ----------
+var lift_node: Node2D
+
+
+func _refresh_lift() -> void:
+	var on: bool = S.fac.has("lift")
+	if not on:
+		if lift_node: lift_node.visible = false
+		return
+	if lift_node == null:
+		lift_node = _Lift.new()
+		lift_node.font = font
+		bld.add_child(lift_node)
+		lobby_root.add_child(lift_node.base)
+	lift_node.top_y = D.rect_of("%dS" % D.TOP_FLOOR).position.y - 20
+	lift_node.visible = true
+	lift_node.base.visible = true
+
+
+class _Lift extends Node2D:
+	var top_y := -1500.0
+	var font: Font
+	var t := 0.0
+	var base := Node2D.new()
+	const X0 := 14.0
+	const X1 := 124.0
+	func _process(dt: float) -> void:
+		t += dt
+		queue_redraw()
+	func _draw() -> void:
+		var bottom := 1800.0
+		var ink := Color("5a3d2b")
+		draw_rect(Rect2(X0, top_y, X1 - X0, bottom - top_y), Color(0.74, 0.88, 0.96, 0.92))
+		draw_line(Vector2(X0, top_y), Vector2(X0, bottom), ink, 6.0)
+		draw_line(Vector2(X1, top_y), Vector2(X1, bottom), ink, 6.0)
+		draw_line(Vector2(X0, top_y), Vector2(X1, top_y), ink, 6.0)
+		draw_line(Vector2(X0 + 14, top_y), Vector2(X0 + 14, bottom), Color(1, 1, 1, 0.6), 4.0)
+		var y := top_y + 30.0
+		while y < bottom:
+			draw_line(Vector2(X0, y), Vector2(X1, y), Color(0.35, 0.24, 0.17, 0.35), 2.0)
+			y += 392.0
+		# kabin naik turun pelan
+		var span := bottom - top_y - 160.0
+		var k := (sin(t * 0.5 - PI / 2.0) * 0.5 + 0.5)
+		var cy := bottom - 150.0 - span * k
+		draw_line(Vector2((X0 + X1) / 2.0, top_y), Vector2((X0 + X1) / 2.0, cy), ink, 3.0)
+		draw_rect(Rect2(X0 + 8, cy, X1 - X0 - 16, 140), Color("f2d27a"))
+		draw_rect(Rect2(X0 + 8, cy, X1 - X0 - 16, 140), ink, false, 4.0)
+		draw_rect(Rect2(X0 + 18, cy + 16, 34, 110), Color("fff6e0"))
+		draw_rect(Rect2(X0 + 58, cy + 16, 34, 110), Color("fff6e0"))
+		if font:
+			draw_string(font, Vector2(X0, top_y - 12), "LIFT", HORIZONTAL_ALIGNMENT_CENTER, X1 - X0, 34, ink)
+
+
 func _refresh_world() -> void:
+	_refresh_lift()
 	for id in D.ROOMS:
 		room_fx[id].dekor = dekor
 		room_fx[id].building = job_for(id, "build") != {}
@@ -825,8 +881,11 @@ func _load_game() -> Dictionary:
 	for rid0 in d.rooms:
 		var t1 = d.rooms[rid0].get("tenant")
 		if t1 != null and t1.get("char", "") in D.CHAR_TUA and not D.JOBS.get(t1.get("job", ""), {}).get("tua", false): t1.job = "Pensiunan"
-	for fk in d.facil:
+	for fk in d.facil.keys():
 		if d.facil[fk] == "rooftop": d.facil[fk] = "minimart"
+		if d.facil[fk] == "lift":
+			d.facil.erase(fk)
+			d.fac["lift"] = true
 	if not d.has("cargo"): d.cargo = []
 	for o in d.orders: o.t = float(o.t)
 	for j in d.jobs:
@@ -1106,6 +1165,8 @@ func _collect_rent() -> void:
 		S.total.rent = float(S.total.rent) + tot
 		add_xp(round(tot / 2500.0))
 		ui.toast("KelolaPro menagih sewa otomatis: %s" % D.rp(tot), "gold")
+	if has_app("kelolapro"):
+		for id in D.ROOMS: collect_due(id)
 	elif due_total() > 0:
 		ui.toast("Sewa sudah jatuh tempo! Ketuk koin di kamar untuk menagih.", "gold")
 
@@ -1226,11 +1287,88 @@ func has_app(k: String) -> bool:
 	return S.get("apps", {}).has(k)
 
 
+# ================= Level & kelelahan karyawan =================
+## Berapa kamar yang sanggup diurus satu karyawan per level.
+const STAFF_CAP := [0, 6, 12, 20, 32, 50, 75, 110]
+
+
+func staff_lv(k: String) -> int:
+	return int(S.get("slv", {}).get(k, 1))
+
+
+func staff_cap(k: String) -> int:
+	return STAFF_CAP[clampi(staff_lv(k), 1, STAFF_CAP.size() - 1)]
+
+
+func staff_sal(k: String) -> float:
+	return roundf(float(D.STAFF[k].sal) * (1.0 + 0.4 * (staff_lv(k) - 1)) / 1000.0) * 1000.0
+
+
+func staff_up_cost(k: String) -> float:
+	return float(D.STAFF[k].sal) * 12.0 * staff_lv(k)
+
+
+func staff_tired(k: String) -> float:
+	return float(S.get("tired", {}).get(k, 0.0))
+
+
+func staff_strike(k: String) -> bool:
+	return S.get("strike", {}).has(k)
+
+
+func built_rooms() -> int:
+	var n := 0
+	for id in D.ROOMS:
+		if S.rooms[id].built: n += 1
+	return n
+
+
+## Tiap pagi: beban kerja di atas kapasitas menambah capek; 100% = mogok sehari.
+func _staff_daily() -> void:
+	if not S.has("tired"): S.tired = {}
+	if not S.has("strike"): S.strike = {}
+	for k in S.strike.keys():
+		if int(S.day) >= int(S.strike[k]):
+			S.strike.erase(k)
+			S.staff[k] = true
+			S.tired[k] = 30.0
+			ui.toast("%s kembali bekerja setelah istirahat." % D.staff_label(k), "gold")
+	var rooms := built_rooms()
+	for k in S.staff.keys():
+		if not S.staff[k]: continue
+		var over := rooms - staff_cap(k)
+		var t := staff_tired(k)
+		t = t + over * 9.0 if over > 0 else t - 20.0
+		t = clampf(t, 0.0, 100.0)
+		S.tired[k] = t
+		if t >= 100.0:
+			S.staff[k] = false
+			S.strike[k] = int(S.day) + 1
+			S.tired[k] = 100.0
+			ui.toast("%s kecapekan & MOGOK sehari! Upgrade level-nya di menu Karyawan." % D.staff_label(k), "bad")
+			keeper_say("Juragan, %s mogok kerja..." % D.STAFF[k].nama, 4.0)
+		elif t >= 70.0 and over > 0:
+			ui.toast("%s mulai kecapekan (%d%%). Kamar terlalu banyak untuk Level %d." % [D.STAFF[k].nama, roundi(t), staff_lv(k)], "bad")
+
+
+func staff_upgrade(k: String) -> void:
+	if staff_lv(k) >= STAFF_CAP.size() - 1: return
+	var c := staff_up_cost(k)
+	if float(S.money) < c:
+		ui.toast("Uang tidak cukup (%s)" % D.rp(c), "bad"); return
+	spend(c, "other")
+	if not S.has("slv"): S.slv = {}
+	S.slv[k] = staff_lv(k) + 1
+	if S.has("tired"): S.tired[k] = maxf(0.0, staff_tired(k) - 50.0)
+	ui.toast("%s naik ke Level %d! Sanggup mengurus %d kamar." % [D.staff_label(k), staff_lv(k), staff_cap(k)], "gold")
+	sfx("upgrade")
+
+
 func _pay_salary() -> void:
 	var s := 0.0
 	for k in S.staff:
 		if S.staff[k]:
-			s += D.STAFF[k].sal
+			s += staff_sal(k)
 	for k in S.apps:
 		s += roundf(float(D.APPS[k].fee))
 	if s > 0:
@@ -2116,6 +2254,51 @@ func _refresh_facil() -> void:
 		sp.scale = fr.size / tex.get_size()
 		sp.visible = true
 		sp.modulate = Color(1, 1, 1, 1) if k != "" else Color(1, 1, 1, 0.35)
+		var need := ""
+		if k != "" and D.FACIL[k].has("staff"):
+			var stk: String = D.FACIL[k].staff
+			if not S.staff.get(stk, false):
+				need = "Mogok" if staff_strike(stk) else "Butuh\n" + D.STAFF[stk].n
+		_facil_sign(int(f), need)
+
+
+var facil_signs := {}
+
+
+## Plang di ruang fasilitas, mis. "Butuh Petugas Laundry".
+func _facil_sign(f: int, text: String) -> void:
+	var pc: PanelContainer = facil_signs.get(f)
+	if text == "":
+		if pc: pc.visible = false
+		return
+	if pc == null:
+		pc = PanelContainer.new()
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color("e0533a")
+		sb.border_color = Color("5a3d2b")
+		sb.set_border_width_all(5)
+		sb.set_corner_radius_all(14)
+		sb.content_margin_left = 14
+		sb.content_margin_right = 14
+		sb.content_margin_top = 4
+		sb.content_margin_bottom = 6
+		pc.add_theme_stylebox_override("panel", sb)
+		var l := Label.new()
+		l.add_theme_font_override("font", font)
+		l.add_theme_font_size_override("font_size", 28)
+		l.add_theme_color_override("font_color", Color.WHITE)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		pc.add_child(l)
+		pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		pc.z_index = 20
+		bld.add_child(pc)
+		facil_signs[f] = pc
+	(pc.get_child(0) as Label).text = text
+	pc.visible = true
+	pc.reset_size()
+	var r := D.facil_draw_rect(f)
+	pc.position = Vector2(r.position.x + r.size.x / 2.0 - pc.size.x / 2.0, r.position.y + 40)
+	pc.rotation = -0.05
 
 
 func facil_ok(f: int, k: String) -> String:
@@ -2161,11 +2344,41 @@ func _facil_daily() -> void:
 				mult = 0.0
 				ui.toast("Kantin tutup: stok air galon habis. Kang Galon datang besok pagi.", "bad")
 		inc += float(fc.inc) * mult * occ
+		if float(fc.inc) * mult * occ > 0:
+			_float_world(D.facil_spot(int(f)) + Vector2(0, -260), "+" + D.short(float(fc.inc) * mult * occ), Color("2f7a2a"))
 	if has_facil("mushola"): S.rep = clampf(float(S.rep) + 0.01, 1, 5)
 	if inc > 0:
 		S.money = float(S.money) + inc
 		S.today.rent = float(S.today.rent) + inc
 		ui.toast("Pemasukan fasilitas: %s" % D.rp(inc), "gold")
+
+
+func _float_world(p: Vector2, text: String, col: Color) -> void:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_override("font", font)
+	l.add_theme_font_size_override("font_size", 46)
+	l.add_theme_color_override("font_color", col)
+	l.add_theme_color_override("font_outline_color", Color.WHITE)
+	l.add_theme_constant_override("outline_size", 12)
+	l.position = p - Vector2(80, 0)
+	l.z_index = 30
+	bld.add_child(l)
+	var t := l.create_tween()
+	t.tween_property(l, "position:y", p.y - 120, 2.0)
+	t.parallel().tween_property(l, "modulate:a", 0.0, 2.0).set_delay(1.0)
+	t.tween_callback(l.queue_free)
+
+
+## Perkiraan pemasukan harian satu fasilitas.
+func facil_income(k: String) -> float:
+	var fc: Dictionary = D.FACIL[k]
+	if float(fc.inc) <= 0: return 0.0
+	var mult := 1.0
+	if fc.has("staff"):
+		var on: bool = S.staff.get(fc.staff, false)
+		mult = (2.0 if on else 1.0) if k == "laundry" else (1.0 if on else 0.0)
+	return float(fc.inc) * mult * each_tenant().size()
 
 
 func facil_happy() -> int:
@@ -2306,6 +2519,7 @@ func _resolve_event(e: Dictionary, action: String, cost: float, by_staff: bool =
 
 
 func _new_day() -> void:
+	_staff_daily()
 	_events_daily_penalty()
 	_roll_events()
 	_facil_daily()
@@ -2320,7 +2534,7 @@ func _new_day() -> void:
 		var t: Dictionary = r.tenant
 		var d: float = 2 + int(D.PRICE[int(S.price)].h) + mini(fac_count(), 5) + (2 if S.staff.get("satpam", false) else 0) + facil_happy()
 		# Lantai tinggi tanpa lift: capek naik tangga.
-		if D.fl(id) > 5 and not has_facil("lift"): d -= 0.5 * (D.fl(id) - 5)
+		if D.fl(id) > 5 and not S.fac.has("lift"): d -= 0.5 * (D.fl(id) - 5)
 		if float(r.clean) < 45: d -= 6
 		if float(r.clean) < 20: d -= 10
 		if str(r.broken) != "": d -= 10
@@ -3083,8 +3297,11 @@ func act(a: String, arg: String = "") -> void:
 		"hire":
 			S.staff[arg] = true
 			ui.toast("%s mulai bekerja!" % D.staff_label(arg), "gold")
+		"staff_up":
+			staff_upgrade(arg)
 		"fire":
 			S.staff.erase(arg)
+			if S.has("strike"): S.strike.erase(arg)
 			ui.toast("%s diberhentikan" % D.staff_label(arg))
 		"app_on":
 			var ap: Dictionary = D.APPS[arg]
@@ -3772,6 +3989,18 @@ func _handle_cli(args: PackedStringArray) -> void:
 			(func():
 				begin_drag("cargo", "0", Vector2(600, 2200), true)
 				ui.move_ghost(Vector2(700, 1500))).call_deferred()
+		elif a == "--lift":
+			S.seen = true
+			S.tut = -1
+			ui.close_sheet()
+			S.fac["lift"] = true
+			S.lvl = 5
+			S.facil = {"2": "laundry", "3": "kantin"}
+			S.slv = {"cleaner": 1}
+			S.tired = {"cleaner": 78.0}
+			S.staff["cleaner"] = true
+			S.apps = {"kelolapro": true}
+			dirty = true
 		elif a == "--apps":
 			S.seen = true
 			S.tut = -1

@@ -1362,7 +1362,10 @@ func _sheet_room() -> void:
 	else:
 		v.add_child(_label("Semua fasilitas berfungsi", 34, D.C_MUTED, true))
 	var f := _flow(v)
-	f.add_child(_btn("Bersihkan (Rp 15rb)", D.C_GREEN, func(): _do("clean", id), float(r.clean) >= 99 or float(S.money) < 15000, false, "Kamar sudah bersih (%d%%)." % roundi(float(r.clean)) if float(r.clean) >= 99 else money_why(15000)))
+	if not S.staff.get("cleaner", false):
+		f.add_child(_btn("Bersihkan (Rp 15rb)", D.C_GREEN, func(): _do("clean", id), float(r.clean) >= 99 or float(S.money) < 15000, false, "Kamar sudah bersih (%d%%)." % roundi(float(r.clean)) if float(r.clean) >= 99 else money_why(15000)))
+	else:
+		f.add_child(_label("Ryan membersihkan otomatis", 30, Color("2f7a2a"), true))
 	_furn_card(id)
 	if r.tenant != null:
 		var t: Dictionary = r.tenant
@@ -1407,7 +1410,7 @@ func _sheet_tenants() -> void:
 		if S.rooms[rid].tenant != null:
 			ten.append(rid)
 	var due: float = game.due_total()
-	if due > 0:
+	if due > 0 and not game.has_app("kelolapro"):
 		var dv := _card()
 		_row(dv, _label("Sewa belum ditagih: " + D.rp(due), 36, Color("8a5a10"), true), _btn("Tagih semua", D.C_YELLOW, func(): _do("collect_all")))
 		if not game.has_app("kelolapro"):
@@ -1456,7 +1459,7 @@ func _sheet_staff() -> void:
 	var tot := 0
 	for k in S.staff:
 		if S.staff[k]:
-			tot += int(D.STAFF[k].sal)
+			tot += int(game.staff_sal(k))
 	var appfee := 0
 	for k in S.get("apps", {}):
 		appfee += roundi(D.APPS[k].fee)
@@ -1478,7 +1481,7 @@ func _sheet_staff() -> void:
 		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		hb.add_child(col)
 		v.add_child(hb)
-		_row(col, _label(st.nama, 42), _label(D.rp(st.sal) + "/hari", 32, D.C_MUTED, true))
+		_row(col, _label(st.nama, 42), _label(D.rp(game.staff_sal(k)) + "/hari", 32, D.C_MUTED, true))
 		col.add_child(_label(st.n, 32, Color("8a5a3a"), true))
 		col.add_child(_text(st.d, 30, D.C_MUTED))
 		var f := _flow(col)
@@ -1486,9 +1489,18 @@ func _sheet_staff() -> void:
 			f.add_child(_label("Terbuka di Level %d" % int(st.min), 34, D.C_MUTED, true))
 		elif st.has("need") and not game.has_facil(st.need) and not on:
 			f.add_child(_label("Butuh ruang %s dulu" % D.FACIL[st.need].n, 34, D.C_MUTED, true))
-		elif on:
+		elif on or game.staff_strike(k):
+			var lvk: int = game.staff_lv(k)
+			var cap: int = game.staff_cap(k)
+			var nb: int = game.built_rooms()
+			col.add_child(_label("Level %d · beban %d/%d kamar · gaji %s/hari" % [lvk, nb, cap, D.short(game.staff_sal(k))], 30, Color("9b2f1c") if nb > cap else D.C_INK, true))
+			var tr2: float = game.staff_tired(k)
+			col.add_child(_label("Kelelahan %d%%%s" % [roundi(tr2), "  · MOGOK sampai besok" if game.staff_strike(k) else ""], 30, Color("9b2f1c") if tr2 >= 70 else D.C_MUTED, true))
+			_bar(col, 100.0 - tr2, Color("e98b7a") if tr2 >= 70 else Color("8fc77a"))
+			if lvk < game.STAFF_CAP.size() - 1:
+				var uc: float = game.staff_up_cost(k)
+				f.add_child(_btn("Upgrade ke Lv %d · %s" % [lvk + 1, D.short(uc)], D.C_YELLOW, func(): _do("staff_up", k), float(S.money) < uc, false, money_why(uc)))
 			f.add_child(_btn("Berhentikan", D.C_RED, func(): _do("fire", k)))
-			f.add_child(_label("  Sedang bekerja", 34, Color("2f7a2a"), true))
 		else:
 			f.add_child(_btn("Rekrut", D.C_YELLOW, func(): _do("hire", k)))
 

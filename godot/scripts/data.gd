@@ -209,7 +209,7 @@ const FACIL := {
 	"rooftop_old": {"n": "Taman Rooftop", "lv": 99, "cost": 3500000, "happy": 3, "inc": 0, "visit": [], "pose": "stand",
 		"d": "Taman hijau untuk santai sore. Rating kost naik setiap hari."},
 }
-const FACIL_ORDER := ["tunggu", "laundry", "mushola", "dapur", "kantin", "cafe", "lift", "gym", "minimart"]
+const FACIL_ORDER := ["tunggu", "laundry", "mushola", "dapur", "kantin", "cafe", "gym", "minimart"]
 
 
 ## Sisi kosong ruang tangga (lantai ganjil: kanan, genap: kiri).
@@ -308,6 +308,7 @@ const FAC := {
 	"jemur": {"n": "Area Jemuran", "cost": 900000, "min": 2, "d": "Kamar lebih lambat kotor."},
 	"cctv": {"n": "CCTV", "cost": 1000000, "min": 3, "d": "Peluang pencurian turun separuh."},
 	"parkir": {"n": "Parkir Motor", "cost": 1500000, "min": 4, "d": ""},
+	"lift": {"n": "Lift Kaca", "cost": 4000000, "min": 6, "d": "Lift lurus di luar gedung (sisi taman), tidak memakai ruang samping tangga. Penghuni lantai atas tidak cepat capek."},
 }
 # ---------- Aplikasi (langganan bulanan, ditagih per hari = bulanan/30 bersama gaji pukul 17:00) ----------
 const APPS := {
