@@ -12,6 +12,9 @@ var _sign_sb: StyleBoxFlat
 var _empty: PanelContainer
 var _tag: Label
 var _badges: HBoxContainer
+var _coin: PanelContainer
+var _coin_amt := 0.0
+var _ct := 0.0
 var _furn := {}          # tipe -> Sprite2D
 var _furn_lv := {}
 var _stars: Node2D
@@ -81,6 +84,26 @@ func setup(p_game: Node, id: String, art: Texture2D, plan_mat: Material, font: F
 	_stars.draw.connect(_draw_stars)
 	add_child(_stars)
 
+	_coin = PanelContainer.new()
+	var csb := StyleBoxFlat.new()
+	csb.bg_color = Color("f7d36e")
+	csb.border_color = Color("6b4f3a")
+	csb.set_border_width_all(5)
+	csb.set_corner_radius_all(30)
+	csb.content_margin_left = 22
+	csb.content_margin_right = 22
+	csb.content_margin_top = 4
+	csb.content_margin_bottom = 8
+	_coin.add_theme_stylebox_override("panel", csb)
+	_coin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var cl := Label.new()
+	cl.add_theme_font_override("font", font)
+	cl.add_theme_font_size_override("font_size", 34)
+	cl.add_theme_color_override("font_color", Color("4a3626"))
+	_coin.add_child(cl)
+	_coin.visible = false
+	_coin.z_index = 5
+	add_child(_coin)
 	_badges = HBoxContainer.new()
 	_badges.add_theme_constant_override("separation", 6)
 	_badges.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -161,6 +184,12 @@ func refresh(r: Dictionary, player_lv: int, cost: float, font: Font) -> void:
 			_badges.add_child(_badge(font, "Kotor", Color("f2e2c4")))
 		if has_tenant and float(r.tenant.happy) < 35.0:
 			_badges.add_child(_badge(font, "Kesal", Color("f4a7a8")))
+	_coin_amt = float(r.get("due", 0.0)) if _built else 0.0
+	_coin.visible = _coin_amt > 0.0
+	if _coin.visible:
+		(_coin.get_child(0) as Label).text = "Tagih " + D.short(_coin_amt)
+		_coin.reset_size()
+		_coin.position = Vector2((rect.size.x - _coin.size.x) / 2.0, 14)
 	_badges.reset_size()
 	_badges.position = Vector2(rect.size.x - _badges.size.x - 10, 10)
 	queue_redraw()
@@ -225,6 +254,9 @@ func _process(_dt: float) -> void:
 	# Lencana sedikit memantul agar menarik perhatian.
 	if _badges.get_child_count() > 0:
 		_badges.position.y = 10 + sin(Time.get_ticks_msec() / 220.0) * 4.0
+	if _coin and _coin.visible:
+		_coin.position.y = 14 + sin(Time.get_ticks_msec() / 160.0) * 6.0
+		_coin.rotation = sin(Time.get_ticks_msec() / 300.0) * 0.04
 
 
 func _draw() -> void:
@@ -320,3 +352,9 @@ class _Star extends Node2D:
 class _Glow extends Node2D:
 	func _draw() -> void:
 		draw_circle(Vector2.ZERO, 60, Color(1, 0.93, 0.6, 0.55))
+
+
+## Ketukan di tombol koin "Tagih" (koordinat lokal kamar, area diperbesar untuk jari).
+func coin_hit(p: Vector2) -> bool:
+	return _coin != null and _coin.visible and _coin.get_rect().grow(30).has_point(p)
+

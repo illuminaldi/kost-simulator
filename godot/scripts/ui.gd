@@ -974,7 +974,12 @@ func _sheet_room() -> void:
 			ff.add_child(_btn("Usir penyewa", D.C_CREAM, func(): confirm = "evict" + id; refresh_sheet()))
 	else:
 		box.add_child(_text("Kamar kosong. Pilih dari antrean:", 36, D.C_MUTED))
-		if S.queue.is_empty():
+		if S.queue.is_empty() and game.is_sepi():
+			var sv := _card()
+			sv.add_child(_label("Kost sedang sepi", 40, Color("9b2f1c")))
+			sv.add_child(_text("Sejak Level %d, calon penyewa jauh lebih jarang datang. Promosikan kost di aplikasi KostTerdekat supaya ramai lagi." % game.SEPI_LV, 32, D.C_MUTED))
+			sv.add_child(_btn("Buka Fasilitas Kost", D.C_GREEN, func(): open_sheet("upgrade")))
+		elif S.queue.is_empty():
 			_card().add_child(_text("Belum ada calon penyewa. Tunggu sebentar, atau naikkan rating kost.", 36, D.C_MUTED))
 		for p in S.queue:
 			_cand_card(p, id)
@@ -987,6 +992,12 @@ func _sheet_tenants() -> void:
 	for rid in D.ROOMS:
 		if S.rooms[rid].tenant != null:
 			ten.append(rid)
+	var due: float = game.due_total()
+	if due > 0:
+		var dv := _card()
+		_row(dv, _label("Sewa belum ditagih: " + D.rp(due), 36, Color("8a5a10"), true), _btn("Tagih semua", D.C_YELLOW, func(): _do("collect_all")))
+		if not game.has_app("kelolapro"):
+			dv.add_child(_text("Pasang KelolaPro supaya sewa ditagih otomatis setiap pagi.", 28, D.C_MUTED))
 	_tabs([["antre", "Antrean (%d)" % S.queue.size()], ["huni", "Penghuni (%d)" % ten.size()]])
 	if tab == "antre":
 		if S.queue.is_empty():

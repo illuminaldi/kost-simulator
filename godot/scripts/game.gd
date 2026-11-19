@@ -105,6 +105,22 @@ func _maybe_intro(args: PackedStringArray) -> void:
 		ui.tutorial.start(int(S.tut))
 
 
+func _tapat(p: Vector2) -> void:
+	await get_tree().create_timer(1.5).timeout
+	Input.warp_mouse(p)
+	await get_tree().create_timer(0.1).timeout
+	for pr in [true, false]:
+		var e := InputEventMouseButton.new()
+		e.button_index = MOUSE_BUTTON_LEFT
+		e.position = p
+		e.global_position = p
+		e.pressed = pr
+		Input.parse_input_event(e)
+		await get_tree().create_timer(0.1).timeout
+	await get_tree().create_timer(0.5).timeout
+	print("TAP money=", S.money, " due=", due_total(), " sheet=", ui.kind)
+
+
 func _clicktest() -> void:
 	await get_tree().create_timer(2.5).timeout
 	for i in range(4):
@@ -339,7 +355,7 @@ func _build_world() -> void:
 	desk_tag.add_child(dl)
 	desk_tag.z_index = 50
 	npc_lobby.add_child(desk_tag)
-	desk_tag.position = Vector2(1140, 1905)
+	_desk_text.call_deferred(D.STAFF.resep.nama, false)
 
 
 var _keeper_pose := ""
@@ -791,7 +807,7 @@ func _next_guest_soon() -> void:
 func _spawn_cand() -> void:
 	var base := 330.0 * (1.4 - float(S.rep) * 0.15) * (0.7 if S.staff.get("resep", false) else 1.0) \
 		* float(D.PRICE[int(S.price)].c) * pow(0.96, fac_count()) * (0.8 if has_facil("tunggu") else 1.0)
-	S.next_cand = base * randf_range(0.7, 1.3) * (0.6 if has_app("kostterdekat") else 1.0)
+	S.next_cand = base * randf_range(0.7, 1.3) * (0.6 if has_app("kostterdekat") else (2.4 if is_sepi() else 1.0))
 	if S.queue.size() >= queue_cap():
 		return
 	var p := gen_person(["p", "l"].pick_random())
@@ -825,6 +841,8 @@ func _hourly() -> void:
 		else:
 			keep.append(p)
 	S.queue = keep
+	if h == 8:
+		_check_sepi()
 	if h == 9:
 		_collect_rent()
 	if h == 17:
@@ -846,15 +864,60 @@ func _collect_rent() -> void:
 			float_at(id, "Telat bayar", Color("b5543c"))
 			continue
 		var a := rent_of(r)
-		tot += a
 		if npcs.has(t.id) and float(t.happy) > 80 and presence(t) != "away" and randf() < 0.5:
 			npcs[t.id].react("happy", 1.8)
+		if not has_app("kelolapro"):
+			# Tanpa KelolaPro: sewa menunggu ditagih manual (ketuk koin di kamar).
+			r.due = float(r.get("due", 0.0)) + a
+			continue
+		tot += a
 		float_at(id, "+" + D.short(a), Color("2f7a2a"))
 	if tot > 0:
 		S.money = float(S.money) + tot
 		S.today.rent = float(S.today.rent) + tot
 		S.total.rent = float(S.total.rent) + tot
 		add_xp(round(tot / 2500.0))
+		ui.toast("KelolaPro menagih sewa otomatis: %s" % D.rp(tot), "gold")
+	elif due_total() > 0:
+		ui.toast("Sewa sudah jatuh tempo! Ketuk koin di kamar untuk menagih.", "gold")
+
+
+## Mulai Level 4 kost mulai sepi: tanpa promosi di KostTerdekat calon penyewa jauh lebih jarang.
+const SEPI_LV := 4
+
+
+func is_sepi() -> bool:
+	return int(S.lvl) >= SEPI_LV and not has_app("kostterdekat")
+
+
+func _check_sepi() -> void:
+	if not is_sepi() or S.get("sepi_told", false): return
+	S.sepi_told = true
+	keeper_say("Juragan, kost lagi sepi nih...", 4.0)
+	ui.toast("Kost mulai sepi! Calon penyewa jarang datang. Promosikan kost lewat KostTerdekat (Kelola › Fasilitas Kost).", "bad")
+
+
+func due_total() -> float:
+	var s := 0.0
+	for id in D.ROOMS:
+		s += float(S.rooms[id].get("due", 0.0))
+	return s
+
+
+func collect_due(id: String) -> void:
+	var r: Dictionary = S.rooms[id]
+	var a := float(r.get("due", 0.0))
+	if a <= 0.0: return
+	r.due = 0.0
+	S.money = float(S.money) + a
+	S.today.rent = float(S.today.rent) + a
+	S.total.rent = float(S.total.rent) + a
+	add_xp(round(a / 2500.0))
+	float_at(id, "+" + D.short(a), Color("2f7a2a"))
+	sfx("buy", -6.0)
+	if r.tenant != null and npcs.has(r.tenant.id) and randf() < 0.5:
+		npcs[r.tenant.id].say(["Ini sewanya, Juragan!", "Lunas ya~", "Makasih, Juragan!"].pick_random(), 2.2)
+	dirty = true
 
 
 ## Waiting list: Penjaga Kost mengarahkan tamu ke Ruang Tunggu.
@@ -873,8 +936,27 @@ func keeper_say(text: String, dur: float = 3.5) -> void:
 	if npcs.has("keeper"):
 		npcs.keeper.say(text, dur)
 	elif desk_tag:
-		(desk_tag.get_child(0) as Label).text = text
+		_desk_text(text, true)
 		_desk_say_t = dur
+
+
+## Label di atas meja depan: nama Mariam, atau kalimatnya (dibungkus, tetap di dalam layar).
+func _desk_text(text: String, talk: bool) -> void:
+	var l := desk_tag.get_child(0) as Label
+	# Bungkus manual per ±24 huruf (autowrap di PanelContainer membuat tinggi kotak keliru).
+	var lines: Array = []
+	var cur := ""
+	for wd in text.split(" "):
+		if talk and cur != "" and (cur + " " + wd).length() > 24:
+			lines.append(cur)
+			cur = wd
+		else:
+			cur = wd if cur == "" else cur + " " + wd
+	lines.append(cur)
+	l.text = "\n".join(lines)
+	desk_tag.size = Vector2.ZERO
+	desk_tag.reset_size()
+	desk_tag.position = Vector2(minf(1140.0, 1418.0 - desk_tag.size.x), 1960.0 - desk_tag.size.y)
 
 
 func has_app(k: String) -> bool:
@@ -923,6 +1005,112 @@ const CHAT_LONG := {
 		["Mbak Mariam, airnya lancar kan?", "Aman, baru dicek tadi pagi.", "Sip, makasih!"],
 	],
 }
+# Dialog saat penghuni sedang punya perasaan/masalah: [kalimat penghuni & lawan bicara bergantian]
+const MOOD_KEEPER := {
+	"marah": [["Mbak Mariam, aku kesel banget! Kamarku bikin nggak nyaman!", "Aduh, maaf ya. Ceritain pelan-pelan, apa yang bikin kesel?", "Pokoknya kotor, sumpek, bikin bete!", "Siap, saya laporkan ke Juragan hari ini juga. Sabar ya~", "...Oke deh, makasih Mbak."]],
+	"pusing": [["Mbak, kepalaku pusing banget...", "Aduh, udah makan belum? Minum air putih dulu, ya.", "Belum sempat, tugasnya numpuk.", "Istirahat dulu. Nanti saya bikinin teh hangat.", "Mbak Mariam baik banget, makasih!"]],
+	"lelah": [["Hoaam... capek banget hari ini, Mbak.", "Kerja keras ya? Langsung mandi air hangat terus tidur.", "Iya, besok masuk pagi lagi.", "Semangat! Kost ini rumahmu, istirahat yang cukup ya."]],
+	"air_mati": [["Mbak, air di kamarku mati! Aku belum mandi!", "Waduh! Saya cek pompanya sekarang, ya.", "Cepetan ya Mbak, mau berangkat kerja..."]],
+	"wifi_lemot": [["Mbak, WiFi-nya lemot banget, aku lagi meeting online!", "Aduh, coba saya restart router-nya dulu, ya."]],
+	"berisik": [["Mbak, kamar sebelah berisik terus, aku nggak bisa tidur...", "Duh, nanti saya tegur baik-baik, ya. Maaf banget."]],
+	"kunci_hilang": [["Mbak, kunci kamarku hilang!", "Tenang, ada kunci cadangan di meja depan. Nanti saya ambilkan."]],
+	"mcb": [["Listrik kamarku jeglek, Mbak!", "Coba saya naikkan MCB-nya dulu, ya."]],
+	"atap_bocor": [["Mbak, atap kamarku bocor, kasurku basah!", "Waduh! Taruh ember dulu ya, saya panggilkan teknisi."]],
+	"hama": [["Mbak, ada kecoak di kamarku! Ihh!", "Tenang, tenang! Saya ambil semprotan dulu!"]],
+	"paket_hilang": [["Mbak, paketku kok nggak ada ya?", "Hmm, coba saya cek CCTV dan buku tamu dulu."]],
+}
+const MOOD_FRIEND := {
+	"marah": [["Lagi bete ya? Mukamu kusut banget.", "Iya, kamarku bikin kesel.", "Lapor aja ke Mbak Mariam, dia cepat tanggap kok.", "Oke, nanti aku bilang."]],
+	"pusing": [["Kamu pucat, lagi sakit?", "Pusing dikit...", "Nih, aku punya minyak angin. Istirahat ya!", "Makasih banget!"]],
+	"lelah": [["Capek ya? Mau kubikinin mie?", "Boleh banget... laper.", "Yuk ke dapur bareng!"]],
+}
+const MOOD_STAFF := {
+	"cleaner": [["Mas Ryan, kamarku tolong dibersihin dong.", "Siap, habis ini langsung saya ke sana!"]],
+	"teknisi": [["Mas Dimas, ada yang rusak di kamarku...", "Oke, saya bawa perkakas dulu, ya."]],
+	"satpam": [["Pak Aji, tadi ada orang asing di depan.", "Tenang, saya patroli lebih sering malam ini."]],
+}
+
+
+## Perasaan/masalah penghuni yang bisa jadi bahan obrolan ("" = biasa saja).
+func _talk_mood(n: Npc) -> String:
+	if n.kind != "res": return ""
+	for e in each_tenant():
+		var t: Dictionary = e[1].tenant
+		if t.id != n.id: continue
+		var ev := event_at(e[0])
+		if not ev.is_empty() and MOOD_KEEPER.has(ev.type): return ev.type
+		var hp := float(t.happy)
+		if hp < 32: return "marah"
+		if hp < 48: return "pusing"
+		var hr := int(S.min) / 60
+		if hr >= 20 or hr < 2: return "lelah"
+		return ""
+	return ""
+
+
+func _room_of_npc(n: Npc) -> String:
+	for e in each_tenant():
+		if e[1].tenant.id == n.id: return e[0]
+	return ""
+
+
+## Penghuni yang sedang kesal/pusing lewat lobi → curhat ke Mariam di meja depan.
+var _desk_convo := {}
+
+
+func _desk_chat_tick(dt: float) -> void:
+	if not _desk_convo.is_empty():
+		var n: Npc = _desk_convo.n
+		if not is_instance_valid(n) or n.scene != "lobby" or not recep_art.visible:
+			if is_instance_valid(n): n.blocked = false
+			_desk_convo = {}
+			return
+		n.blocked = true
+		n.dir = 1
+		_desk_convo.t -= dt
+		if _desk_convo.t > 0.0: return
+		var lines: Array = _desk_convo.lines
+		var i: int = _desk_convo.i
+		if i >= lines.size():
+			n.blocked = false
+			_mood_relief(n, _desk_convo.mood)
+			_chat_cd[n.id] = _clock + 90.0
+			_desk_convo = {}
+			return
+		var line: String = lines[i]
+		var dur := clampf(1.3 + line.length() * 0.06, 2.0, 4.2)
+		if i % 2 == 0: n.say(line, dur)
+		else: keeper_say(line, dur)
+		_desk_convo.t = dur * 0.95
+		_desk_convo.i = i + 1
+		return
+	if not S.staff.get("resep", false) or not recep_art.visible: return
+	for n in npcs.values():
+		if n.kind != "res" or n.scene != "lobby" or n.chat_with != null or n.fade_state != "": continue
+		if float(_chat_cd.get(n.id, 0.0)) > _clock: continue
+		if absf(n.position.x - 1150.0) > 520.0: continue
+		var m := _talk_mood(n)
+		if m == "" or m == "lelah" and randf() < 0.6: continue
+		_chat_cd[n.id] = _clock + 30.0
+		if randf() > 0.7: continue
+		var sets: Array = MOOD_KEEPER[m]
+		_desk_convo = {"n": n, "lines": sets.pick_random(), "i": 0, "t": 0.0, "mood": m}
+		if OS.is_debug_build(): print("DESKCHAT ", m)
+		if m == "marah": n.react("angry", 2.5)
+		elif m == "pusing": n.react("sad", 2.5)
+		elif m == "lelah": n.react("tired", 2.5)
+		return
+
+
+## Setelah curhat ditanggapi, penghuni sedikit lega.
+func _mood_relief(n: Npc, mood: String) -> void:
+	var id := _room_of_npc(n)
+	if id == "": return
+	var t: Dictionary = S.rooms[id].tenant
+	t.happy = clampf(float(t.happy) + (5.0 if mood in ["marah", "pusing"] else 2.0), 0, 100)
+	if is_instance_valid(n): n.react("happy", 1.6)
+
+
 const CHAT_HI := ["Hai!", "Halo!", "Permisi~", "Mau ke mana?", "Duluan ya!", "Eh, hai!"]
 const CHAT_REPLY := ["Hai juga!", "Mari~", "Hati-hati!", "Iya, silakan.", "Dadah!", "Halo!"]
 
@@ -960,17 +1148,21 @@ func _chat_tick(dt: float) -> void:
 		if _desk_say_t > 0.0:
 			_desk_say_t -= dt
 			if _desk_say_t <= 0.0:
-				(desk_tag.get_child(0) as Label).text = D.STAFF.resep.nama
+				_desk_text(D.STAFF.resep.nama, false)
 	for c in _convos.duplicate():
 		var a: Npc = c.n[0]
 		var b: Npc = c.n[1]
+		if c.get("hold", false) and is_instance_valid(a) and is_instance_valid(b):
+			a.blocked = true
+			b.blocked = true
 		if not is_instance_valid(a) or not is_instance_valid(b) or a.leaving or b.leaving or a.scene != b.scene \
-				or (c.long and (a.route.size() > 0 or b.route.size() > 0)):
+				or (c.long and not c.get("hold", false) and (a.route.size() > 0 or b.route.size() > 0)):
 			_end_chat(c)
 			continue
 		c.t -= dt
 		if c.t > 0.0: continue
 		if c.i >= c.lines.size():
+			if c.get("mood", "") != "": _mood_relief(c.moody, c.mood)
 			_end_chat(c)
 			continue
 		var sp: Npc = c.n[c.i % 2]
@@ -987,6 +1179,7 @@ func _chat_tick(dt: float) -> void:
 		sp.say(line, dur)
 		c.t = dur * 0.92
 		c.i += 1
+	_desk_chat_tick(dt)
 	_chat_acc += dt
 	if _chat_acc < 1.2: return
 	_chat_acc = 0.0
@@ -1001,6 +1194,34 @@ func _chat_tick(dt: float) -> void:
 			var near: float = 300.0 if a.scene == "lobby" else 150.0
 			var dist: float = a.position.distance_to(b.position)
 			if dist > near: continue
+			var ma := _talk_mood(a)
+			var mb := _talk_mood(b)
+			if ma == "" and mb != "":
+				var tmp: Npc = a
+				a = b
+				b = tmp
+				ma = mb
+			if ma != "" and dist < near * 0.8 and randf() < 0.6:
+				var lines: Array = []
+				if b.kind == "keeper" and MOOD_KEEPER.has(ma): lines = MOOD_KEEPER[ma].pick_random()
+				elif b.kind == "staff" and MOOD_STAFF.has(b.role) and ma in ["marah", "pusing", "atap_bocor", "mcb", "air_mati", "hama", "paket_hilang"]:
+					lines = MOOD_STAFF[b.role].pick_random()
+				elif b.kind == "res" and MOOD_FRIEND.has(ma):
+					var fl: Array = MOOD_FRIEND[ma].pick_random()
+					lines = fl
+					# yang menyapa duluan adalah teman yang perhatian
+					var tmp2: Npc = a
+					a = b
+					b = tmp2
+				if not lines.is_empty():
+					_start_chat(a, b, lines, true)
+					_convos[_convos.size() - 1].hold = true
+					_convos[_convos.size() - 1].mood = ma
+					var moody: Npc = a if _talk_mood(a) != "" else b
+					_convos[_convos.size() - 1].moody = moody
+					if OS.is_debug_build(): print("MOODCHAT ", ma, " ", b.kind)
+					moody.react({"marah": "angry", "pusing": "sad", "lelah": "tired"}.get(ma, "annoyed"), 2.5)
+					break
 			var both_idle: bool = _idle(a) and _idle(b)
 			if both_idle and randf() < 0.35 and _convos.filter(func(c): return c.long).size() < 3:
 				_start_long(a, b)
@@ -1036,6 +1257,7 @@ func _end_chat(c: Dictionary) -> void:
 	for m in c.n:
 		if is_instance_valid(m):
 			m.chat_with = null
+			if c.get("hold", false): m.blocked = false
 			_chat_cd[m.id] = _clock + (45.0 if c.long else 14.0) + randf() * 20.0
 
 
@@ -1894,6 +2116,10 @@ func act(a: String, arg: String = "") -> void:
 		"intro":
 			play_intro()
 			return
+		"collect":
+			collect_due(arg)
+		"collect_all":
+			for id in D.ROOMS: collect_due(id)
 		"sfx":
 			S.sfx = not S.get("sfx", true)
 		"start":
@@ -2241,7 +2467,9 @@ func _input(e: InputEvent) -> void:
 			if not pan.moved:
 				scroll_v = 0.0
 				var id := room_at(pan.start)
-				if id != "":
+				if id != "" and room_fx[id].coin_hit(room_fx[id].get_global_transform().affine_inverse() * pan.start):
+					collect_due(id)
+				elif id != "":
 					ui.open_sheet("room", id)
 				else:
 					var sf := stair_at(pan.start)
@@ -2503,6 +2731,28 @@ func _handle_cli(args: PackedStringArray) -> void:
 			ui.close_sheet()
 			add_job("deliver", "1L", "tanaman", 1)
 			_finish_job(S.jobs[S.jobs.size() - 1])
+		elif a == "--desksay":
+			S.seen = true
+			S.tut = -1
+			ui.close_sheet()
+			S.staff["resep"] = true
+			(func(): keeper_say("Istirahat dulu. Nanti saya bikinin teh hangat.", 30.0)).call_deferred()
+		elif a == "--sad":
+			S.seen = true
+			S.tut = -1
+			ui.close_sheet()
+			S.staff["resep"] = true
+			for e in each_tenant(): e[1].tenant.happy = 25.0
+			dirty = true
+		elif a == "--due":
+			S.seen = true
+			ui.close_sheet()
+			S.tut = -1
+			for id in ["1L", "2R"]: S.rooms[id].due = 150000.0
+			dirty = true
+		elif a.begins_with("--tapat="):
+			var xy := a.substr(8).split(",")
+			_tapat.call_deferred(Vector2(float(xy[0]), float(xy[1])))
 		elif a == "--clicktest":
 			_clicktest.call_deferred()
 		elif a == "--waitlist":
