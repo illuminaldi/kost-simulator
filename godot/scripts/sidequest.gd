@@ -148,21 +148,41 @@ func _lbl(t: String, sz: int, col := D.C_INK, wrap := false) -> Label:
 	return l
 
 
-func _bottom(btns: Array) -> void:
+## Tombol bawah bergaya sama dengan navigasi kost (pil besar, bayangan bawah, teks tebal).
+func _bottom(btns: Array, band_y: float = D.NAV_Y - 22) -> void:
 	var band := ColorRect.new()
 	band.color = Color("b98a5e")
-	band.position = Vector2(0, D.NAV_Y - 22)
-	band.size = Vector2(D.IW, D.IH - D.NAV_Y + 22)
+	band.position = Vector2(0, band_y)
+	band.size = Vector2(D.IW, D.IH - band_y)
 	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_layer.add_child(band)
+	var edge := ColorRect.new()
+	edge.color = Color("6b4f3a")
+	edge.position = band.position
+	edge.size = Vector2(D.IW, 8)
+	edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_layer.add_child(edge)
 	var n := btns.size()
 	var gap := 26.0
-	var w := (D.IW - 40.0 - gap * (n - 1)) / n
+	var w := (D.IW - 52.0 - gap * (n - 1)) / n
 	for i in range(n):
 		var b: Array = btns[i]
-		var r := Rect2(20 + i * (w + gap), D.NAV_Y, w, 170)
-		var p := _panel(r, b[1])
-		p.add_child(_lbl(b[0], 46))
+		var r := Rect2(26 + i * (w + gap), D.NAV_Y, w, 170)
+		var pc := PanelContainer.new()
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = b[1]
+		sb.border_color = D.C_LINE
+		sb.set_border_width_all(6)
+		sb.set_corner_radius_all(46)
+		sb.shadow_color = D.C_LINE
+		sb.shadow_offset = Vector2(0, 9)
+		sb.shadow_size = 1
+		pc.add_theme_stylebox_override("panel", sb)
+		pc.position = r.position
+		pc.size = r.size - Vector2(0, 10)
+		pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		pc.add_child(_lbl(b[0], 50 if n <= 3 else 44))
+		_layer.add_child(pc)
 		_hit(r, b[2])
 
 
@@ -261,14 +281,20 @@ func _show_cafe_in() -> void:
 	_hit(Rect2(70, 1125, 152, 150), func(): _flip(-1))
 	_hit(Rect2(1218, 1125, 152, 150), func(): _flip(1))
 	_hit(Rect2(1160, 2020, 230, 190), _sip)
-	_hit(Rect2(20, 2275, 445, 180), func(): _walk(1))
-	_hit(Rect2(495, 2275, 445, 180), _order)
-	_hit(Rect2(970, 2275, 448, 180), func():
-		book = (book + 1) % BOOKS.size()
-		page = 0
-		game.sfx("pop", -6.0)
-		_render_book())
+	_bottom([["Keluar Cafe", D.C_GREEN, _show_cafe_ext], ["Order Minuman", D.C_PINK, _order],
+		["Baca Buku Lain", D.C_YELLOW, func():
+			book = (book + 1) % BOOKS.size()
+			page = 0
+			game.sfx("pop", -6.0)
+			_render_book()]], 2262)
+	_cafe_hint = _panel(Rect2(360, 2150, 760, 96), Color("5a4434"))
+	_cafe_hint_lbl = _lbl("", 32, Color("fff6e6"))
+	_cafe_hint.add_child(_cafe_hint_lbl)
 	_render_book()
+
+
+var _cafe_hint: PanelContainer
+var _cafe_hint_lbl: Label
 
 
 func _render_book() -> void:
@@ -277,6 +303,11 @@ func _render_book() -> void:
 	_page_lbl.text = b.p[page]
 	_num_lbl.text = "Halaman %d / %d" % [page + 1, b.p.size()]
 	_coffee_bar.size.x = 320.0 * clampf(coffee, 0, 1)
+	if _cafe_hint_lbl:
+		var n: int = BOOKS[book].p.size()
+		if coffee <= 0.05: _cafe_hint_lbl.text = "Ngantuk... ketuk Hirup Kopi"
+		elif page >= n - 1: _cafe_hint_lbl.text = "Tamat! Ganti buku di bawah"
+		else: _cafe_hint_lbl.text = "Ketuk panah > untuk halaman %d" % (page + 2)
 
 
 func _flip(d: int) -> void:
@@ -319,57 +350,118 @@ func _order() -> void:
 
 
 # ---------------- Lapangan Padel ----------------
-const FOES := [["Rina", 0.55], ["Dewi", 0.7], ["Coach Bima", 0.85]]
+# Maryam melawan Ryan atau Aji; Kak Ray jadi pelatih di pinggir lapangan.
+const FOES := [["Ryan", 0.55, "kebersihan", "happy", "wring"], ["Aji", 0.75, "satpam", "idle", "help"]]
 var foe := 0
 var pts := [0, 0]
-var games := [0, 0]
 var _score_lbl: Label
 var _foe_lbl: Label
 var _ball: _Ball
 var _msg: Label
+var _hint: Label
+var _ray_lbl: Label
+var _ray_box: PanelContainer
+var _mar: TextureRect
+var _opp: TextureRect
+var _ray: TextureRect
+var _tut := 0          # 0 sapa, 1 lihat bola, 2 tunggu lingkaran, 3 pukul!, 4 selesai
+var _rally := 0
+
+
+func _sprite(path: String, sc: float, feet: Vector2) -> TextureRect:
+	var tr := TextureRect.new()
+	tr.texture = load(path)
+	tr.size = tr.texture.get_size() * sc
+	tr.position = feet - Vector2(tr.size.x / 2.0, tr.size.y)
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tr.pivot_offset = Vector2(tr.size.x / 2.0, tr.size.y)
+	_layer.add_child(tr)
+	return tr
 
 
 func _show_padel() -> void:
 	_clear()
 	view = "padel"
 	_bg("res://assets/side/padel.jpg")
-	var sp := _panel(Rect2(440, 225, 560, 150))
-	var hb := HBoxContainer.new()
-	hb.alignment = BoxContainer.ALIGNMENT_CENTER
-	hb.add_theme_constant_override("separation", 20)
-	sp.add_child(hb)
-	hb.add_child(_lbl("Maryam", 34))
-	_score_lbl = _lbl("0 - 0", 56)
-	_score_lbl.custom_minimum_size = Vector2(190, 0)
-	hb.add_child(_score_lbl)
-	_foe_lbl = _lbl("", 34)
-	hb.add_child(_foe_lbl)
-	_msg = _lbl("", 56, Color("fff6e6"))
-	_msg.add_theme_color_override("font_outline_color", D.C_LINE)
-	_msg.add_theme_constant_override("outline_size", 14)
-	_msg.position = Vector2(0, 560)
-	_msg.size = Vector2(D.IW, 120)
-	_layer.add_child(_msg)
+	_opp = _sprite("res://assets/chars/%s/%s_L.png" % [FOES[foe][2], FOES[foe][3]], 0.62, Vector2(800, 1060))
 	_ball = _Ball.new()
 	_layer.add_child(_ball)
+	_ray = _sprite("res://assets/chars/trainer/clip_L.png", 1.15, Vector2(185, 2140))
+	_mar = _sprite("res://assets/chars/penjaga/idle_L.png", 1.75, Vector2(820, 2130))
+	_ball.player = _mar
 	_ball.missed.connect(_point.bind(1))
 	_ball.foe_missed.connect(_point.bind(0))
-	_hit(Rect2(20, 2275, 445, 180), func(): _walk(-1))
-	_hit(Rect2(495, 2275, 445, 180), func():
-		foe = (foe + 1) % FOES.size()
-		_new_match())
-	_hit(Rect2(970, 2275, 448, 180), _new_match)
+	_ball.hit_ok.connect(_on_hit)
+	# Papan skor
+	var sp := _panel(Rect2(420, 210, 600, 120))
+	var hb := HBoxContainer.new()
+	hb.alignment = BoxContainer.ALIGNMENT_CENTER
+	hb.add_theme_constant_override("separation", 22)
+	sp.add_child(hb)
+	hb.add_child(_lbl("Maryam", 36))
+	_score_lbl = _lbl("0 - 0", 54)
+	_score_lbl.custom_minimum_size = Vector2(200, 0)
+	hb.add_child(_score_lbl)
+	_foe_lbl = _lbl("", 36)
+	hb.add_child(_foe_lbl)
+	# Pesan besar di tengah lapangan
+	_msg = _lbl("", 64, Color("fff6e6"))
+	_msg.add_theme_color_override("font_outline_color", D.C_LINE)
+	_msg.add_theme_constant_override("outline_size", 16)
+	_msg.position = Vector2(0, 1480)
+	_msg.size = Vector2(D.IW, 120)
+	_layer.add_child(_msg)
+	# Gelembung Kak Ray
+	_ray_box = _panel(Rect2(40, 1440, 640, 220), Color("fffaf0"))
+	var rv := VBoxContainer.new()
+	rv.add_theme_constant_override("separation", 4)
+	_ray_box.add_child(rv)
+	var rn := _lbl("Kak Ray · Pelatih", 30, Color("8a5a3a"))
+	rn.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	rv.add_child(rn)
+	_ray_lbl = _lbl("", 36, D.C_INK, true)
+	_ray_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_ray_lbl.custom_minimum_size = Vector2(590, 0)
+	rv.add_child(_ray_lbl)
+	# Petunjuk yang mengikuti keadaan bola
+	_hint = _lbl("", 44, Color("fff6e6"))
+	_hint.add_theme_color_override("font_outline_color", D.C_LINE)
+	_hint.add_theme_constant_override("outline_size", 12)
+	_hint.position = Vector2(0, 2165)
+	_hint.size = Vector2(D.IW, 70)
+	_layer.add_child(_hint)
+	_bottom([["Balik ke Kost", D.C_GREEN, func(): _walk(-1)],
+		["Ganti Lawan", D.C_PINK, func():
+			foe = (foe + 1) % FOES.size()
+			_opp.texture = load("res://assets/chars/%s/%s_L.png" % [FOES[foe][2], FOES[foe][3]])
+			_ray_say("Lawan baru: %s! %s" % [FOES[foe][0], "Dia santai, cocok buat pemanasan." if foe == 0 else "Pak Aji pukulannya keras, fokus ya!"])
+			_new_match()],
+		["Main Lagi", D.C_YELLOW, func():
+			_ray_say("Ulang dari nol. Atur napas dulu, Mbak!")
+			_new_match()]], 2248)
+	var S: Dictionary = game.S
+	if not S.has("side"): S.side = {}
+	_tut = 4 if S.side.get("padel_tut", false) else 0
+	if _tut == 0:
+		_ray_say("Halo Mbak Maryam! Aku Kak Ray. Hari ini lawanmu %s. Perhatikan bola dari seberang net, ya." % FOES[foe][0])
+	else:
+		_ray_say("Selamat datang lagi! Lawanmu %s. Ingat: pukul saat bola masuk lingkaran putih." % FOES[foe][0])
 	_new_match()
+
+
+func _ray_say(t: String) -> void:
+	_ray_lbl.text = t
+	_ray_box.modulate.a = 1.0
+	_ray.texture = load("res://assets/chars/trainer/%s_L.png" % ("happy" if t.find("!") >= 0 else "clip"))
 
 
 func _new_match() -> void:
 	pts = [0, 0]
-	games = [0, 0]
+	_rally = 0
 	_foe_lbl.text = FOES[foe][0]
 	_ball.skill = float(FOES[foe][1])
 	_render_score()
-	_say("Siap? Geser ke atas saat bola dekat!")
-	_ball.serve(1.4)
+	_ball.serve(2.2 if _tut < 4 else 1.4)
 
 
 const PT := ["0", "15", "30", "40"]
@@ -377,7 +469,7 @@ const PT := ["0", "15", "30", "40"]
 
 func _render_score() -> void:
 	if pts[0] >= 3 and pts[1] >= 3:
-		_score_lbl.text = "Deuce" if pts[0] == pts[1] else ("Adv" if pts[0] > pts[1] else "Adv L")
+		_score_lbl.text = "Deuce" if pts[0] == pts[1] else ("Adv M" if pts[0] > pts[1] else "Adv " + FOES[foe][0].substr(0, 1))
 	else:
 		_score_lbl.text = "%s - %s" % [PT[mini(pts[0], 3)], PT[mini(pts[1], 3)]]
 
@@ -386,16 +478,65 @@ func _say(t: String) -> void:
 	_msg.text = t
 	_msg.modulate.a = 1.0
 	var tw := _msg.create_tween()
-	tw.tween_interval(1.4)
+	tw.tween_interval(1.2)
 	tw.tween_property(_msg, "modulate:a", 0.0, 0.4)
+
+
+func _process(_dt: float) -> void:
+	if view != "padel" or _ball == null: return
+	# Lawan bergerak mengikuti bola
+	var tx := clampf(_ball.a.x if _ball.state == "in" else _ball.b.x, 520, 1060)
+	_opp.position.x = lerpf(_opp.position.x, tx - _opp.size.x / 2.0, 0.08)
+	# Petunjuk sesuai keadaan bola (bukan teks hiasan)
+	var zone := _ball.in_zone()
+	if _ball.state == "in" and zone:
+		_hint.text = "SEKARANG! Geser ke atas!"
+		_hint.add_theme_color_override("font_color", Color("ffe28a"))
+	elif _ball.state == "in":
+		_hint.text = "Bola datang... tunggu lingkaran putih"
+		_hint.add_theme_color_override("font_color", Color("fff6e6"))
+	elif _ball.state == "out":
+		_hint.text = "Bagus! Bola menuju %s" % FOES[foe][0]
+		_hint.add_theme_color_override("font_color", Color("fff6e6"))
+	else:
+		_hint.text = "%s bersiap servis..." % FOES[foe][0]
+		_hint.add_theme_color_override("font_color", Color("fff6e6"))
+	# Tutorial Kak Ray mengikuti apa yang terjadi di lapangan
+	if _tut == 0 and _ball.state == "in":
+		_tut = 1
+		_ray_say("Itu bolanya datang! Jangan buru-buru, tunggu sampai bola turun ke dekatmu.")
+	elif _tut == 1 and zone:
+		_tut = 2
+		_ray_say("Lingkaran putih muncul = zona pukul. Geser jarimu ke ATAS sekarang!")
+	_ball.show_guide = _tut < 4
+
+
+func _on_hit() -> void:
+	_rally += 1
+	game.sfx("pop", -4.0)
+	_mar.texture = load("res://assets/chars/penjaga/happy_L.png")
+	var tw := _mar.create_tween()
+	tw.tween_property(_mar, "rotation", -0.12, 0.08)
+	tw.tween_property(_mar, "rotation", 0.0, 0.15)
+	tw.tween_interval(0.6)
+	tw.tween_callback(func(): _mar.texture = load("res://assets/chars/penjaga/idle_L.png"))
+	if _tut < 4:
+		_tut = 4
+		game.S.side["padel_tut"] = true
+		_ray_say("Mantap! Itu pukulan pertamamu. Sekarang lanjutkan sampai menang satu game!")
+	elif _rally >= 3:
+		_ray_say("Reli %d pukulan! Pertahankan ritmenya!" % _rally)
 
 
 func _point(who: int) -> void:
 	pts[who] += 1
+	_rally = 0
 	game.sfx("pop" if who == 0 else "arrive", -6.0)
+	_opp.texture = load("res://assets/chars/%s/%s_L.png" % [FOES[foe][2], FOES[foe][4] if who == 1 else FOES[foe][3]])
 	if pts[who] >= 4 and pts[who] - pts[1 - who] >= 2:
 		if who == 0:
 			_say("GAME! Maryam menang!")
+			_ray_say("Hebat, Mbak Maryam menang! %s minta tanding ulang tuh." % FOES[foe][0])
 			if _toast_once("padel"):
 				game.add_xp(25)
 				for e in game.each_tenant():
@@ -406,13 +547,19 @@ func _point(who: int) -> void:
 				game.ui.toast("Menang lagi! Hadiah harian sudah diambil, main santai saja~")
 		else:
 			_say("%s menang game ini." % FOES[foe][0])
+			_ray_say("Nggak apa-apa! Pukul sedikit lebih lambat, pas bola di tengah lingkaran.")
 		pts = [0, 0]
 		_render_score()
 		_ball.serve(2.4)
 		return
-	_say("Poin Maryam!" if who == 0 else "Bola lolos...")
+	if who == 0:
+		_say("Poin Maryam!")
+		if _tut >= 4: _ray_say(["%s nggak sempat mengejar. Bagus!" % FOES[foe][0], "Pukulan yang rapi!", "Terus tekan, Mbak!"].pick_random())
+	else:
+		_say("Bola lolos...")
+		if _tut >= 4: _ray_say(["Terlalu cepat menggesek. Tunggu lingkaran putih.", "Bola lolos. Tetap tenang, fokus ke bayangan bola.", "Hampir! Geser ke atas tepat saat lingkaran muncul."].pick_random())
 	_render_score()
-	_ball.serve(1.4)
+	_ball.serve(1.6)
 
 
 # ---------------- Input: geser ----------------
@@ -669,20 +816,28 @@ class _Walk extends Node2D:
 class _Ball extends Node2D:
 	signal missed
 	signal foe_missed
+	signal hit_ok
 	var skill := 0.6
 	var state := "idle"     # idle / in / out
 	var t := 0.0
 	var dur := 1.2
-	var a := Vector2(900, 900)
-	var b := Vector2(990, 1520)
+	var a := Vector2(800, 1000)
+	var b := Vector2(900, 1720)
+	var player: TextureRect
+	var show_guide := false
 	var _wait := 0.0
 	var _swing_t := 0.0
+	var _clock := 0.0
 
 	func serve(delay: float) -> void:
 		state = "idle"
 		_wait = delay
 
+	func in_zone() -> bool:
+		return state == "in" and t >= dur * 0.72 and t <= dur + 0.2
+
 	func _process(dt: float) -> void:
+		_clock += dt
 		_swing_t = maxf(0.0, _swing_t - dt)
 		if state == "idle":
 			if _wait > 0.0:
@@ -692,7 +847,7 @@ class _Ball extends Node2D:
 			queue_redraw()
 			return
 		t += dt
-		if state == "in" and t > dur + 0.18:
+		if state == "in" and t > dur + 0.2:
 			state = "idle"
 			missed.emit()
 		elif state == "out" and t >= dur:
@@ -706,39 +861,58 @@ class _Ball extends Node2D:
 	func _incoming() -> void:
 		state = "in"
 		t = 0.0
-		dur = randf_range(1.05, 1.35) - skill * 0.25
-		a = Vector2(randf_range(780, 1000), 880)
-		b = Vector2(randf_range(880, 1060), 1500)
+		dur = randf_range(1.25, 1.55) - skill * 0.3
+		a = Vector2(randf_range(640, 980), 1010)
+		var px := player.position.x + player.size.x * 0.78 if player else 980.0
+		b = Vector2(px + randf_range(-30, 40), 1730)
 
 	func swing() -> void:
-		_swing_t = 0.25
-		if state == "in" and t >= dur * 0.72 and t <= dur + 0.18:
+		_swing_t = 0.28
+		if in_zone():
 			state = "out"
 			t = 0.0
 			dur = 1.0
-			var tmp := a
 			a = _pos()
-			b = Vector2(randf_range(760, 1040), 870)
-			if tmp == Vector2.ZERO: pass
+			b = Vector2(randf_range(600, 1000), 1000)
+			hit_ok.emit()
 
 	func _pos() -> Vector2:
 		var k := clampf(t / dur, 0.0, 1.0)
 		var p := a.lerp(b, k)
-		p.y -= sin(k * PI) * 220.0
+		p.y -= sin(k * PI) * 240.0
 		return p
 
 	func _draw() -> void:
-		if _swing_t > 0.0:
-			draw_arc(Vector2(990, 1500), 150, -2.6, -0.4, 16, Color(1, 1, 1, _swing_t * 3.0), 10)
+		# Raket Maryam
+		if player:
+			var hand := player.position + Vector2(player.size.x * 0.82, player.size.y * 0.5)
+			var ang := -0.5 - (sin((0.28 - _swing_t) / 0.28 * PI) * 1.6 if _swing_t > 0 else 0.0)
+			var dir := Vector2(cos(ang), sin(ang))
+			var head := hand + dir * 120.0
+			draw_line(hand, hand + dir * 55.0, Color("2e2a2a"), 14)
+			draw_set_transform(head, ang + PI / 2.0, Vector2.ONE)
+			draw_circle(Vector2.ZERO, 58, Color("4f6378"))
+			draw_arc(Vector2.ZERO, 58, 0, TAU, 28, Color("2e2a2a"), 6)
+			for i in range(-2, 3):
+				for j in range(-2, 3):
+					if i * i + j * j <= 5: draw_circle(Vector2(i * 18, j * 18), 4, Color("2e3a48"))
+			draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
 		if state == "idle": return
 		var k := clampf(t / dur, 0.0, 1.0)
 		var near := k if state == "in" else 1.0 - k
-		var r := lerpf(12.0, 28.0, near)
+		var r := lerpf(12.0, 30.0, near)
 		var p := _pos()
 		var ground := a.lerp(b, k)
 		draw_circle(ground + Vector2(0, 8), r * 0.9, Color(0, 0, 0, 0.18))
+		if in_zone():
+			draw_arc(b, 80, 0, TAU, 36, Color(1, 1, 1, 0.85), 8)
+			draw_arc(b, 80 + fmod(_clock * 120.0, 30.0), 0, TAU, 36, Color(1, 1, 1, 0.35), 4)
+			if show_guide:
+				# Tangan & panah petunjuk: geser ke atas
+				var hp := b + Vector2(130, 140 - fmod(_clock * 220.0, 120.0))
+				draw_line(b + Vector2(130, 160), b + Vector2(130, 10), Color(1, 1, 1, 0.8), 10)
+				draw_colored_polygon(PackedVector2Array([b + Vector2(105, 20), b + Vector2(155, 20), b + Vector2(130, -20)]), Color(1, 1, 1, 0.85))
+				draw_circle(hp, 26, Color("fbe9d8"))
+				draw_arc(hp, 26, 0, TAU, 20, Color("6b4f3a"), 4)
 		draw_circle(p, r, Color("e6e85a"))
 		draw_arc(p, r, 0, TAU, 20, Color("6b6a20"), 3)
-		if state == "in" and k >= 0.72:
-			draw_arc(b, 70, 0, TAU, 32, Color(1, 1, 1, 0.7), 6)
-
