@@ -531,34 +531,66 @@ class _Lift extends Node2D:
 	var font: Font
 	var t := 0.0
 	var base := Node2D.new()
-	const X0 := 14.0
-	const X1 := 124.0
+	var cy := -1.0          # posisi kabin (atas kabin)
+	var _from := 0.0
+	var _to := 0.0
+	var _move_t := 0.0
+	var _move_dur := 1.0
+	var _wait := 4.0
+	const X0 := 20.0
+	const X1 := 118.0
+	const CAB_H := 132.0
+	const SPEED := 55.0      # px/detik: pelan dan santai
+	func _stop_y(f: int) -> float:
+		return float(D.FEET[f]) - CAB_H - 4.0
 	func _process(dt: float) -> void:
 		t += dt
+		if cy < 0.0:
+			cy = _stop_y(1)
+		if _wait > 0.0:
+			_wait -= dt
+			if _wait <= 0.0:
+				# pilih lantai tujuan lain, tidak terlalu jauh
+				var cur := 1
+				for f in range(1, D.TOP_FLOOR + 1):
+					if absf(_stop_y(f) - cy) < 5.0: cur = f
+				var nf := clampi(cur + [-2, -1, 1, 2].pick_random(), 1, D.TOP_FLOOR)
+				if nf == cur: nf = clampi(cur + 1, 1, D.TOP_FLOOR) if cur < D.TOP_FLOOR else cur - 1
+				_from = cy
+				_to = _stop_y(nf)
+				_move_dur = maxf(2.0, absf(_to - _from) / SPEED)
+				_move_t = 0.0
+		else:
+			_move_t += dt
+			var k := clampf(_move_t / _move_dur, 0.0, 1.0)
+			k = k * k * (3.0 - 2.0 * k)          # mulus di awal dan akhir
+			cy = lerpf(_from, _to, k)
+			if _move_t >= _move_dur:
+				_wait = randf_range(7.0, 14.0)  # berhenti agak lama di tiap lantai
 		queue_redraw()
 	func _draw() -> void:
 		var bottom := 1800.0
-		var ink := Color("5a3d2b")
-		draw_rect(Rect2(X0, top_y, X1 - X0, bottom - top_y), Color(0.74, 0.88, 0.96, 0.92))
-		draw_line(Vector2(X0, top_y), Vector2(X0, bottom), ink, 6.0)
-		draw_line(Vector2(X1, top_y), Vector2(X1, bottom), ink, 6.0)
-		draw_line(Vector2(X0, top_y), Vector2(X1, top_y), ink, 6.0)
-		draw_line(Vector2(X0 + 14, top_y), Vector2(X0 + 14, bottom), Color(1, 1, 1, 0.6), 4.0)
+		var frame := Color(0.55, 0.45, 0.36, 0.55)
+		# Kaca tipis, hampir menyatu dengan langit
+		draw_rect(Rect2(X0, top_y, X1 - X0, bottom - top_y), Color(0.86, 0.92, 0.95, 0.28))
+		draw_line(Vector2(X0, top_y), Vector2(X0, bottom), frame, 3.0)
+		draw_line(Vector2(X1, top_y), Vector2(X1, bottom), frame, 3.0)
+		draw_line(Vector2(X0, top_y), Vector2(X1, top_y), frame, 3.0)
 		var y := top_y + 30.0
 		while y < bottom:
-			draw_line(Vector2(X0, y), Vector2(X1, y), Color(0.35, 0.24, 0.17, 0.35), 2.0)
+			draw_line(Vector2(X0, y), Vector2(X1, y), Color(0.45, 0.36, 0.28, 0.18), 2.0)
 			y += 392.0
-		# kabin naik turun pelan
-		var span := bottom - top_y - 160.0
-		var k := (sin(t * 0.5 - PI / 2.0) * 0.5 + 0.5)
-		var cy := bottom - 150.0 - span * k
-		draw_line(Vector2((X0 + X1) / 2.0, top_y), Vector2((X0 + X1) / 2.0, cy), ink, 3.0)
-		draw_rect(Rect2(X0 + 8, cy, X1 - X0 - 16, 140), Color("f2d27a"))
-		draw_rect(Rect2(X0 + 8, cy, X1 - X0 - 16, 140), ink, false, 4.0)
-		draw_rect(Rect2(X0 + 18, cy + 16, 34, 110), Color("fff6e0"))
-		draw_rect(Rect2(X0 + 58, cy + 16, 34, 110), Color("fff6e0"))
+		# Kabin warna kalem
+		var mid := (X0 + X1) / 2.0
+		draw_line(Vector2(mid, top_y), Vector2(mid, cy), Color(0.4, 0.32, 0.25, 0.35), 2.0)
+		var cab := Rect2(X0 + 8, cy, X1 - X0 - 16, CAB_H)
+		draw_rect(cab, Color(0.86, 0.81, 0.73, 0.95))
+		draw_rect(cab, Color(0.45, 0.36, 0.28, 0.7), false, 3.0)
+		var dw := (cab.size.x - 18.0) / 2.0
+		draw_rect(Rect2(cab.position.x + 6, cy + 14, dw, CAB_H - 24), Color(0.93, 0.9, 0.84))
+		draw_rect(Rect2(cab.position.x + 12 + dw, cy + 14, dw, CAB_H - 24), Color(0.93, 0.9, 0.84))
 		if font:
-			draw_string(font, Vector2(X0, top_y - 12), "LIFT", HORIZONTAL_ALIGNMENT_CENTER, X1 - X0, 34, ink)
+			draw_string(font, Vector2(X0, top_y - 10), "LIFT", HORIZONTAL_ALIGNMENT_CENTER, X1 - X0, 26, Color(0.45, 0.36, 0.28, 0.6))
 
 
 func _refresh_world() -> void:
