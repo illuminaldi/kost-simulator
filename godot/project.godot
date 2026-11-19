@@ -10,11 +10,11 @@ config/description="Game simulasi juragan kost yang cozy."
 run/main_scene="res://main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
-boot_splash/image="res://assets/splash.png"
-boot_splash/bg_color=Color(1, 1, 1, 1)
+boot_splash/image="res://assets/brand/kelolapro_splash.png"
+boot_splash/bg_color=Color(0.957, 0.969, 0.984, 1)
 boot_splash/fullsize=true
 boot_splash/use_filter=true
-boot_splash/show_image=false
+boot_splash/show_image=true
 
 [display]
 

@@ -2,6 +2,7 @@ class_name BrandIntro
 extends CanvasLayer
 ## Pembuka sebelum game: animasi KelolaPro → KostTerdekat → splash Cozy Kost.
 ## Diambil dari splash di aplikasi KelolaPro (logo + tagline) dan KostTerdekat (Mpus cari kost).
+## Layar KelolaPro sama dengan layar loading; menunggu ketukan (supaya suara boleh diputar di browser).
 ## Ketuk layar untuk lompat ke adegan berikutnya.
 
 signal finished
@@ -11,13 +12,21 @@ var root: Control
 var scene_i := -1
 var cur: Control
 var _busy := false
+var sound := true
+var auto_tap := false
+var _waiting := false
+var _player: AudioStreamPlayer
 
 const W := 1438.0
 const H := 2576.0
 
 
-func setup(p_font: Font) -> void:
+func setup(p_font: Font, p_sound := true, p_auto := false) -> void:
 	font = p_font
+	sound = p_sound
+	auto_tap = p_auto
+	_player = AudioStreamPlayer.new()
+	add_child(_player)
 	layer = 70
 	root = Control.new()
 	root.size = Vector2(W, H)
@@ -25,8 +34,30 @@ func setup(p_font: Font) -> void:
 	add_child(root)
 	root.gui_input.connect(func(e: InputEvent):
 		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
-			_next())
+			if _waiting: _start()
+			else: _next())
 	_next()
+
+
+func _play(nm: String) -> void:
+	if not sound: return
+	_player.stream = load("res://assets/sfx/%s.wav" % nm)
+	_player.volume_db = -3.0
+	_player.play()
+
+
+## Ketukan pertama di layar KelolaPro: bunyikan denting, lalu lanjut.
+var _tap_lbl: Label
+
+
+func _start() -> void:
+	_waiting = false
+	_play("brand_kelolapro")
+	if _tap_lbl:
+		_tap_lbl.create_tween().tween_property(_tap_lbl, "modulate:a", 0.0, 0.3)
+	var my := scene_i
+	get_tree().create_timer(1.8).timeout.connect(func():
+		if scene_i == my: _next())
 
 
 func _next() -> void:
@@ -45,14 +76,20 @@ func _next() -> void:
 				finished.emit()
 				queue_free())
 			return
-	cur.modulate.a = 0.0
+	cur.modulate.a = 0.0 if scene_i > 0 else 1.0
 	root.add_child(cur)
+	if scene_i == 1: _play("brand_kostterdekat")
+	elif scene_i == 2: _play("brand_cozy")
 	var tw := create_tween()
 	tw.tween_property(cur, "modulate:a", 1.0, 0.35)
 	if old:
 		tw.parallel().tween_property(old, "modulate:a", 0.0, 0.35)
 		tw.tween_callback(old.queue_free)
-	var dur: float = [3.0, 3.2, 3.8][scene_i]
+	if scene_i == 0:
+		_waiting = true
+		if auto_tap: get_tree().create_timer(0.6).timeout.connect(_start)
+		return
+	var dur: float = [0.0, 4.4, 6.5][scene_i]
 	var my := scene_i
 	get_tree().create_timer(dur).timeout.connect(func():
 		if scene_i == my: _next())
@@ -116,38 +153,20 @@ func _box() -> Control:
 
 # ---------- 1. KelolaPro ----------
 func _kelolapro() -> Control:
+	# Sama persis dengan layar loading (boot splash), jadi peralihannya mulus.
 	var c := _box()
-	c.add_child(_grad(Color.WHITE, Color("eaf0f8")))
-	c.add_child(_Circle.new(Vector2(W + 40, 120), 420, Color(0.157, 0.353, 0.612, 0.07)))
-	c.add_child(_Circle.new(Vector2(40, H - 900), 360, Color(0.96, 0.72, 0.24, 0.14)))
-	var logo := _img("res://assets/brand/kelolapro_logo.png", 1000)
-	logo.position = Vector2((W - 1000) / 2.0, 980)
-	c.add_child(logo)
-	var bar := ColorRect.new()
-	bar.color = Color("f5b83d")
-	bar.size = Vector2(0, 11)
-	bar.position = Vector2(W / 2.0, 1330)
-	c.add_child(bar)
-	var t1 := _lbl("Bisnis Kost jadi", 46, Color("6b7280"))
-	t1.position = Vector2(0, 1390)
-	c.add_child(t1)
-	var t2 := _lbl("Mudah & Terkendali!", 70, Color("285a9c"))
-	t2.position = Vector2(0, 1452)
-	c.add_child(t2)
-	logo.scale = Vector2(0.82, 0.82)
-	logo.modulate.a = 0.0
-	t1.modulate.a = 0.0
-	t2.modulate.a = 0.0
-	var tw := c.create_tween()
-	tw.tween_interval(0.25)
-	tw.tween_property(logo, "scale", Vector2.ONE, 0.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.parallel().tween_property(logo, "modulate:a", 1.0, 0.4)
-	tw.tween_property(bar, "size:x", 130.0, 0.35).set_trans(Tween.TRANS_CUBIC)
-	tw.parallel().tween_property(bar, "position:x", W / 2.0 - 65.0, 0.35).set_trans(Tween.TRANS_CUBIC)
-	tw.tween_property(t1, "modulate:a", 1.0, 0.3)
-	tw.parallel().tween_property(t1, "position:y", 1380.0, 0.3).from(1420.0)
-	tw.tween_property(t2, "modulate:a", 1.0, 0.3)
-	tw.parallel().tween_property(t2, "position:y", 1440.0, 0.35).from(1490.0).set_trans(Tween.TRANS_BACK)
+	var bg := TextureRect.new()
+	bg.texture = load("res://assets/brand/kelolapro_splash.png")
+	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bg.size = Vector2(W, H)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.add_child(bg)
+	_tap_lbl = _lbl("Ketuk untuk mulai", 50, Color("285a9c"))
+	_tap_lbl.position = Vector2(0, 2150)
+	c.add_child(_tap_lbl)
+	var tw := c.create_tween().set_loops()
+	tw.tween_property(_tap_lbl, "modulate:a", 0.35, 0.8).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(_tap_lbl, "modulate:a", 1.0, 0.8).set_trans(Tween.TRANS_SINE)
 	return c
 
 

@@ -104,7 +104,7 @@ func _maybe_intro(args: PackedStringArray) -> void:
 		cutscene_on = true
 		var bi := BrandIntro.new()
 		add_child(bi)
-		bi.setup(font)
+		bi.setup(font, S.get("sfx", true), args.has("--brand"))
 		await bi.finished
 		cutscene_on = false
 	if args.has("--intro") or not S.get("seen", false):
