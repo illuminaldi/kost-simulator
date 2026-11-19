@@ -88,24 +88,35 @@ func setup(p_game: Node, art: Texture2D, p_font: Font, p_font_m: Font) -> void:
 	font_m = p_font_m
 	layer = 10
 	# Bar navigasi bawah (diambil dari ilustrasi, tidak ikut gelap saat malam).
-	var nav := Sprite2D.new()
-	nav.texture = art
-	nav.centered = false
-	nav.region_enabled = true
-	nav.region_rect = Rect2(0, 2386, 1438, 190)
-	nav.position = Vector2(0, 2386)
-	add_child(nav)
-	var beli := PanelContainer.new()
-	var bs := _sb(D.C_GREEN, 5, 70, 0, 0)
-	beli.add_theme_stylebox_override("panel", bs)
-	beli.position = Vector2(52, 2422)
-	beli.size = Vector2(304, 112)
-	beli.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var bl := _label("Beli", 62)
-	bl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	bl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	beli.add_child(bl)
-	add_child(beli)
+	var band := ColorRect.new()
+	band.color = Color("b98a5e")
+	band.position = Vector2(0, D.NAV_Y - 22)
+	band.size = Vector2(D.IW, D.IH - D.NAV_Y + 22)
+	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(band)
+	var edge := ColorRect.new()
+	edge.color = Color("6b4f3a")
+	edge.position = band.position
+	edge.size = Vector2(D.IW, 8)
+	edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(edge)
+	var cols := {"upgrade": [D.C_GREEN, "Beli"], "tenants": [D.C_PINK, "Penyewa"], "staff": [D.C_YELLOW, "Karyawan"], "manage": [D.C_CREAM, "Kelola"]}
+	for nv in D.NAV:
+		var r: Rect2 = nv[1]
+		var pc := PanelContainer.new()
+		var sb := _sb(cols[nv[0]][0], 6, 46, 0, 0)
+		sb.shadow_color = D.C_LINE
+		sb.shadow_offset = Vector2(0, 9)
+		sb.shadow_size = 1
+		pc.add_theme_stylebox_override("panel", sb)
+		pc.position = r.position
+		pc.size = r.size - Vector2(0, 10)
+		pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var lb := _label(cols[nv[0]][1], 58 if nv[0] != "staff" else 52)
+		lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lb.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		pc.add_child(lb)
+		add_child(pc)
 	# Panel HUD digambar ulang persis di atas pil pada ilustrasi.
 	_pill(D.PILL_MONEY)
 	_pill(D.PILL_LV)
@@ -159,7 +170,7 @@ func setup(p_game: Node, art: Texture2D, p_font: Font, p_font_m: Font) -> void:
 	nav_badge_lbl = _label("0", 32, Color.WHITE)
 	nav_badge_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	nav_badge.add_child(nav_badge_lbl)
-	nav_badge.position = Vector2(668, 2384)
+	nav_badge.position = Vector2(670, 2350)
 	nav_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(nav_badge)
 	ev_badge = PanelContainer.new()
@@ -167,7 +178,7 @@ func setup(p_game: Node, art: Texture2D, p_font: Font, p_font_m: Font) -> void:
 	ev_badge_lbl = _label("0", 32, Color.WHITE)
 	ev_badge_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ev_badge.add_child(ev_badge_lbl)
-	ev_badge.position = Vector2(1350, 2384)
+	ev_badge.position = Vector2(1380, 2350)
 	ev_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(ev_badge)
 
@@ -332,14 +343,17 @@ func _text(t: String, size: int = 38, col: Color = D.C_INK, medium: bool = true)
 	return l
 
 
-func _btn(t: String, col: Color, cb: Callable, disabled: bool = false, expand: bool = false) -> Button:
+## Tombol besar (≥100 px) supaya tidak salah pencet. Tombol "nonaktif" tetap bisa diketuk
+## dan menjelaskan alasannya (mis. "Kamar sudah bersih", "Uang belum cukup").
+func _btn(t: String, col: Color, cb: Callable, disabled: bool = false, expand: bool = false, why: String = "") -> Button:
 	var b := Button.new()
 	b.text = t
+	b.custom_minimum_size.y = 100
 	b.add_theme_font_override("font", font)
-	b.add_theme_font_size_override("font_size", 36)
+	b.add_theme_font_size_override("font_size", 38)
 	for st in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_disabled_color"]:
 		b.add_theme_color_override(st, Color("3e2b1d"))
-	var n := _sb(col, 5, 60, 34, 16)
+	var n := _sb(col, 5, 60, 36, 20)
 	n.shadow_color = D.C_LINE
 	n.shadow_offset = Vector2(0, 7)
 	n.shadow_size = 1
@@ -355,11 +369,23 @@ func _btn(t: String, col: Color, cb: Callable, disabled: bool = false, expand: b
 	b.add_theme_stylebox_override("pressed", p)
 	b.add_theme_stylebox_override("disabled", d)
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	b.disabled = disabled
 	if expand:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	b.pressed.connect(cb)
+	if disabled:
+		for s in ["normal", "hover", "pressed"]:
+			b.add_theme_stylebox_override(s, d)
+		b.add_theme_color_override("font_color", Color("9a8a7a"))
+		b.add_theme_color_override("font_hover_color", Color("9a8a7a"))
+		b.add_theme_color_override("font_pressed_color", Color("9a8a7a"))
+		var msg := why if why != "" else "Belum bisa sekarang"
+		b.pressed.connect(func(): toast(msg, "bad"))
+	else:
+		b.pressed.connect(cb)
 	return b
+
+
+func money_why(cost: float) -> String:
+	return "Uang tidak cukup. Butuh %s, kas kamu %s." % [D.rp(cost), D.rp(game.S.money)]
 
 
 func _card() -> VBoxContainer:
@@ -374,7 +400,7 @@ func _card() -> VBoxContainer:
 
 func _row(parent: Control, left: Control, right: Control = null) -> HBoxContainer:
 	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 16)
+	h.add_theme_constant_override("separation", 24)
 	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(left)
 	if right:
@@ -385,8 +411,8 @@ func _row(parent: Control, left: Control, right: Control = null) -> HBoxContaine
 
 func _flow(parent: Control) -> HFlowContainer:
 	var f := HFlowContainer.new()
-	f.add_theme_constant_override("h_separation", 16)
-	f.add_theme_constant_override("v_separation", 16)
+	f.add_theme_constant_override("h_separation", 26)
+	f.add_theme_constant_override("v_separation", 22)
 	parent.add_child(f)
 	return f
 
@@ -413,7 +439,9 @@ func _header(title: String, closable: bool = true) -> void:
 	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	h.add_child(t)
 	if closable:
-		h.add_child(_btn("X", Color.WHITE, close_sheet))
+		var xb := _btn("✕", Color.WHITE, close_sheet)
+		xb.custom_minimum_size = Vector2(120, 110)
+		h.add_child(xb)
 	box.add_child(h)
 
 
@@ -457,7 +485,7 @@ func _room_live(parent: Control, id: String, sc: float) -> void:
 		if furn.has(t):
 			var flv := int(furn[t])
 			var tx: Texture2D = load(D.furn_tex(id, t, flv))
-			var fr := D.furn_rect(id, t, tx.get_size())
+			var fr := D.furn_rect(id, t, tx.get_size(), flv)
 			var tr := TextureRect.new()
 			tr.texture = tx
 			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -523,15 +551,15 @@ func _furn_card(id: String) -> void:
 		elif int(S.lvl) < int(f.min) and lv == 0:
 			right = _label("Lv %d" % int(f.min), 32, D.C_MUTED, true)
 		elif lv == 0:
-			right = _btn("Beli " + D.short(f.cost), D.C_GREEN, func(): _do("buy", t), float(S.money) < float(f.cost))
+			right = _btn("Beli " + D.short(f.cost), D.C_GREEN, func(): _do("buy", t), float(S.money) < float(f.cost), false, money_why(float(f.cost)))
 		elif lv < 3:
-			var c: float = float(f.cost) * lv
-			right = _btn("Beli lagi " + D.short(f.cost), D.C_YELLOW, func(): _do("buy", t), float(S.money) < float(f.cost))
+			var nxt: String = f.lv_names[lv + 1] if f.has("lv_names") else "Lv %d" % (lv + 1)
+			right = _btn("Upgrade ke %s · %s" % [nxt, D.short(f.cost)], D.C_YELLOW, func(): _do("buy", t), float(S.money) < float(f.cost), false, money_why(float(f.cost)))
 		else:
-			right = _label("Maks", 32, Color("2f7a2a"), true)
-		var nm: String = f.n if lv == 0 else "%s · %s" % [f.n, D.FURN_LV_NAME[lv]]
+			right = _label("Level maks", 32, Color("2f7a2a"), true)
+		var nm: String = f.n if lv == 0 else ("%s (Lv %d)" % [f.lv_names[lv], lv] if f.has("lv_names") else "%s Lv %d · %s" % [f.n, lv, D.FURN_LV_NAME[lv]])
 		_row(v, _label(nm, 36, D.C_INK if lv > 0 else D.C_MUTED, lv == 0), right)
-	v.add_child(_text("Perabot yang dibeli datang dengan pickup. Seret kotaknya ke kamar ini; perabot yang sama akan naik level.", 30, D.C_MUTED))
+	v.add_child(_text("Pesanan datang dengan pickup. Seret kotaknya ke kamar ini; kalau perabotnya sudah ada, kotak itu meng-upgrade ke level berikutnya (maks Lv 3).", 30, D.C_MUTED))
 
 
 func _avatar(parent: Control, p: Dictionary) -> void:
@@ -1026,7 +1054,7 @@ func _sheet_beli() -> void:
 				for o in S.orders: mn = minf(mn, float(o.t))
 				eta = " (tiba ± %d menit)" % maxi(1, roundi(mn))
 			var st := _card()
-			st.add_child(_text("Pesanan dikirim pakai pickup. Setelah datang, tutup halaman ini lalu seret kotaknya ke kamar (barang yang sama = naik level).", 30, D.C_MUTED))
+			st.add_child(_text("Pesanan dikirim pakai pickup. Setelah datang, tutup halaman ini lalu seret kotaknya ke kamar (kalau kamar sudah punya barangnya = upgrade ke level berikutnya).", 30, D.C_MUTED))
 			st.add_child(_label("Dalam perjalanan: %d%s · Di pickup: %d · Slot %d/%d" % [otw, eta, inbox, otw + inbox, game.CARGO_MAX], 30, D.C_INK, true))
 			for t in D.FURN_ORDER:
 				var f: Dictionary = D.FURN[t]
@@ -1093,7 +1121,10 @@ func _buy_row(key: String, tex: Texture2D, title: String, desc: String, sub: Str
 	pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	right.add_child(pl)
 	if ok:
-		right.add_child(_btn(verb, D.C_YELLOW, func(): buy_confirm = key; refresh_sheet()))
+		var poor0: bool = money_now and float(S.money) < price
+		right.add_child(_btn(verb, D.C_YELLOW, func(): buy_confirm = key; refresh_sheet(), poor0, false, money_why(price)))
+	elif sub != "":
+		right.add_child(_btn("Terkunci", D.C_CREAM, func(): pass, true, false, sub))
 	h.add_child(right)
 	v.add_child(h)
 	if buy_confirm == key:
@@ -1227,19 +1258,23 @@ func _cand_card(p: Dictionary, room_ctx: String = "") -> void:
 	info.add_child(_text("Ingin kamar %s · %d hari%s" % [pref, int(p.days), fit], 34, D.C_MUTED))
 	var where := ""
 	var qi: int = S.queue.find(p)
-	if qi >= 1 and game.waiting_room_on():
+	if p.get("auto", false):
+		where = "  ·  di Ruang Tunggu, otomatis masuk kamar kosong"
+	elif qi >= 1 and game.waiting_room_on():
 		where = "  ·  di Ruang Tunggu (antrean %d)" % qi
 	info.add_child(_text("Menunggu %d jam%s%s" % [int(p.wait), "  ·  dari KostTerdekat" if p.get("via", "") != "" else "", where], 34, D.C_MUTED))
 	h.add_child(info)
 	v.add_child(h)
 	_screen_box(v, p)
 	var f := _flow(v)
+	if room_ctx == "" and not p.get("auto", false):
+		f.add_child(_btn("Ke Ruang Tunggu", D.C_CREAM, func(): _do("waitroom", str(p.id)), not game.has_facil("tunggu"), false, "Bangun Ruang Tunggu dulu (menu Beli › Kamar & Ruang)."))
 	if room_ctx != "":
 		f.add_child(_btn("Terima di " + D.room_name(room_ctx), D.C_GREEN, func(): _do("assign", "%s|%s" % [p.id, room_ctx])))
 	elif sel == p.id:
 		var er: Array = game.empty_rooms()
 		if er.is_empty():
-			f.add_child(_text("Tidak ada kamar kosong. Bangun kamar baru di menu Upgrade.", 34, D.C_MUTED))
+			f.add_child(_text("Tidak ada kamar kosong. Bangun kamar baru di menu Beli.", 34, D.C_MUTED))
 		for rid in er:
 			var r: Dictionary = S.rooms[rid]
 			var ok := int(r.lv) >= int(p.pref)
@@ -1301,7 +1336,7 @@ func _sheet_room() -> void:
 			v.add_child(_text("Kamar makin tinggi = sewa makin mahal (+3%%/lantai). Tanpa Lift, penghuni lantai atas cepat capek.", 30, D.C_MUTED))
 			var nxt: int = int(S.get("open_floor", 8)) + 1
 			if fln == nxt:
-				v.add_child(_btn("Renovasi " + D.short(D.floor_cost(fln)), D.C_YELLOW, func(): game.renovate_floor(fln), float(S.rep) < D.floor_rep(fln) or float(S.money) < D.floor_cost(fln)))
+				v.add_child(_btn("Renovasi " + D.short(D.floor_cost(fln)), D.C_YELLOW, func(): game.renovate_floor(fln), float(S.rep) < D.floor_rep(fln) or float(S.money) < D.floor_cost(fln), false, ("Rating kost harus minimal %.1f" % D.floor_rep(fln)) if float(S.rep) < D.floor_rep(fln) else money_why(D.floor_cost(fln))))
 			else:
 				v.add_child(_text("Renovasi lantai %d dulu." % nxt, 32, D.C_MUTED))
 		else:
@@ -1310,7 +1345,7 @@ func _sheet_room() -> void:
 				v.add_child(_text("%s sedang membangun kamar ini." % D.worker_label("build"), 38))
 				return
 			v.add_child(_text("Bangun kamar Standar baru di sini.", 38))
-			_row(v, _label(D.rp(c), 42), _btn("Bangun", D.C_GREEN, func(): _do("build", id), float(S.money) < c))
+			_row(v, _label(D.rp(c), 42), _btn("Bangun", D.C_GREEN, func(): _do("build", id), float(S.money) < c, false, money_why(c)))
 		return
 	_header("Kamar %s · %s" % [D.room_name(id), D.RLV[int(r.lv)].n])
 	var evr: Dictionary = game.event_at(id)
@@ -1323,11 +1358,11 @@ func _sheet_room() -> void:
 	_bar(v, float(r.clean))
 	if str(r.broken) != "":
 		var cost: int = D.ISSUES[r.broken]
-		_row(v, _label("Kerusakan: " + str(r.broken), 38), (_label("%s datang..." % D.WORKER.fix.nama, 34, Color("3f6f96"), true) if game.job_for(id, "fix") != {} else _btn("Panggil Teknisi " + D.short(cost), D.C_YELLOW, func(): _do("fix", id), float(S.money) < cost)))
+		_row(v, _label("Kerusakan: " + str(r.broken), 38), (_label("%s datang..." % D.WORKER.fix.nama, 34, Color("3f6f96"), true) if game.job_for(id, "fix") != {} else _btn("Panggil Teknisi " + D.short(cost), D.C_YELLOW, func(): _do("fix", id), float(S.money) < cost, false, money_why(cost))))
 	else:
 		v.add_child(_label("Semua fasilitas berfungsi", 34, D.C_MUTED, true))
 	var f := _flow(v)
-	f.add_child(_btn("Bersihkan (Rp 15rb)", D.C_GREEN, func(): _do("clean", id), float(r.clean) >= 99 or float(S.money) < 15000))
+	f.add_child(_btn("Bersihkan (Rp 15rb)", D.C_GREEN, func(): _do("clean", id), float(r.clean) >= 99 or float(S.money) < 15000, false, "Kamar sudah bersih (%d%%)." % roundi(float(r.clean)) if float(r.clean) >= 99 else money_why(15000)))
 	_furn_card(id)
 	if r.tenant != null:
 		var t: Dictionary = r.tenant
@@ -1411,6 +1446,10 @@ func _sheet_tenants() -> void:
 			f.add_child(_btn("Lihat kamar", D.C_CREAM, func(): open_sheet("room", rid)))
 
 
+const STAFF_PIC := {"cleaner": "kebersihan/happy", "resep": "penjaga/happy", "teknisi": "teknisi/idle", "satpam": "satpam/idle",
+	"laundry": "laundry/happy", "kantin": "kantin/idle", "barista": "barista/idle", "kasir": "kasir/idle"}
+
+
 func _sheet_staff() -> void:
 	var S: Dictionary = game.S
 	_header("Karyawan")
@@ -1426,10 +1465,23 @@ func _sheet_staff() -> void:
 		var st: Dictionary = D.STAFF[k]
 		var on: bool = S.staff.get(k, false)
 		var v := _card()
-		_row(v, _label(st.nama, 42), _label(D.rp(st.sal) + "/hari", 34, D.C_MUTED, true))
-		v.add_child(_label(st.n, 32, Color("8a5a3a"), true))
-		v.add_child(_text(st.d, 34, D.C_MUTED))
-		var f := _flow(v)
+		var hb := HBoxContainer.new()
+		hb.add_theme_constant_override("separation", 24)
+		var pic := TextureRect.new()
+		pic.texture = load("res://assets/chars/%s_L.png" % STAFF_PIC.get(k, "penjaga/happy"))
+		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		pic.custom_minimum_size = Vector2(170, 250)
+		if int(S.lvl) < int(st.min): pic.modulate = Color(0.3, 0.3, 0.3, 0.6)
+		hb.add_child(pic)
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hb.add_child(col)
+		v.add_child(hb)
+		_row(col, _label(st.nama, 42), _label(D.rp(st.sal) + "/hari", 32, D.C_MUTED, true))
+		col.add_child(_label(st.n, 32, Color("8a5a3a"), true))
+		col.add_child(_text(st.d, 30, D.C_MUTED))
+		var f := _flow(col)
 		if int(S.lvl) < int(st.min):
 			f.add_child(_label("Terbuka di Level %d" % int(st.min), 34, D.C_MUTED, true))
 		elif st.has("need") and not game.has_facil(st.need) and not on:
@@ -1521,7 +1573,7 @@ func _sheet_upgrade() -> void:
 		elif int(S.lvl) < int(fc.min):
 			right = _label("Level %d" % int(fc.min), 34, D.C_MUTED, true)
 		else:
-			right = _btn(D.short(fc.cost), D.C_GREEN, func(): _do("buy_fac", k), float(S.money) < float(fc.cost))
+			right = _btn(D.short(fc.cost), D.C_GREEN, func(): _do("buy_fac", k), float(S.money) < float(fc.cost), false, money_why(float(fc.cost)))
 		_row(v, _label(fc.n, 40), right)
 		if fc.d != "":
 			v.add_child(_text(fc.d, 32, D.C_MUTED))
@@ -1645,6 +1697,25 @@ func _sheet_manage() -> void:
 	_row(mv, _label("Musik lofi", 42), _btn("Nyala" if mon else "Mati", D.C_GREEN if mon else Color.WHITE, func(): game.set_music(not mon); refresh_sheet()))
 	var son: bool = S.get("sfx", true)
 	_row(mv, _label("Efek suara", 42), _btn("Nyala" if son else "Mati", D.C_GREEN if son else Color.WHITE, func(): _do("sfx")))
+	for vk in [["music", "Volume musik"], ["sfx", "Volume efek suara"]]:
+		var key: String = vk[0]
+		var cur: int = game.vol(key)
+		var vr := HBoxContainer.new()
+		vr.add_theme_constant_override("separation", 22)
+		var vl := _label(vk[1], 36)
+		vl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		vr.add_child(vl)
+		var mb := _btn("−", D.C_CREAM, func(): game.set_vol(key, cur - 10); refresh_sheet(), cur <= 0, false, "Sudah paling pelan")
+		mb.custom_minimum_size.x = 110
+		vr.add_child(mb)
+		var pl := _label("%d%%" % cur, 38, D.C_INK, true)
+		pl.custom_minimum_size.x = 120
+		pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vr.add_child(pl)
+		var pb := _btn("+", D.C_CREAM, func(): game.set_vol(key, cur + 10); refresh_sheet(), cur >= 100, false, "Sudah paling keras")
+		pb.custom_minimum_size.x = 110
+		vr.add_child(pb)
+		mv.add_child(vr)
 	var sv := _card()
 	sv.add_child(_label("Kecepatan waktu", 42))
 	var sh := HBoxContainer.new()

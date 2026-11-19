@@ -16,11 +16,13 @@ var ring2: _Ring
 var tag1: PanelContainer
 var tag2: PanelContainer
 var dot: _Dot
+var dim: ColorRect
+var dim_mat: ShaderMaterial
 var step := 0
 var _base := {}
 var _t := 0.0
 
-const NAV := {"beli": Vector2(204, 2440), "penyewa": Vector2(545, 2440), "karyawan": Vector2(890, 2440), "kelola": Vector2(1232, 2440), "jam": Vector2(1220, 175)}
+const NAV := {"beli": Vector2(185, 2458), "penyewa": Vector2(541, 2458), "karyawan": Vector2(897, 2458), "kelola": Vector2(1253, 2458), "jam": Vector2(1220, 175)}
 
 
 func setup(p_game: Node, p_ui: Node, p_font: Font) -> void:
@@ -29,6 +31,21 @@ func setup(p_game: Node, p_ui: Node, p_font: Font) -> void:
 	font = p_font
 	size = Vector2(D.IW, D.IH)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Latar gelap transparan dengan "lubang" terang di tempat yang harus disentuh.
+	dim = ColorRect.new()
+	dim.size = Vector2(D.IW, D.IH)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sh := Shader.new()
+	sh.code = """shader_type canvas_item;
+uniform vec2 h1 = vec2(-999.0); uniform vec2 h2 = vec2(-999.0); uniform float r = 170.0; uniform float a = 0.55;
+uniform vec2 sz = vec2(1438.0, 2576.0);
+void fragment(){ vec2 p = UV * sz;
+ float d = min(distance(p, h1), distance(p, h2));
+ COLOR = vec4(0.08, 0.05, 0.03, a * smoothstep(r, r + 40.0, d)); }"""
+	dim_mat = ShaderMaterial.new()
+	dim_mat.shader = sh
+	dim.material = dim_mat
+	add_child(dim)
 	ring = _Ring.new()
 	add_child(ring)
 	ring2 = _Ring.new()
@@ -174,7 +191,6 @@ func _enter() -> void:
 	if step == 1 and S.queue.is_empty():
 		S.next_cand = 0.0     # datangkan calon penyewa sekarang
 	game.S.tut = step
-	bubble.position.y = 220 if not st.get("top_low", false) else 1200
 	bubble.reset_size()
 
 
@@ -189,6 +205,7 @@ func _advance() -> void:
 func finish(skipped: bool) -> void:
 	game.S.tut = -1
 	visible = false
+	dim.visible = false
 	if skipped:
 		ui.toast("Tutorial dilewati. Bisa diulang dari menu Kelola.")
 	game.save_game()
@@ -276,6 +293,7 @@ func _process(dt: float) -> void:
 	var hide_world: bool = ui.kind != "" and st.get("at", "") in ["room", "boxroom", "truck"]
 	for c in [arrow, ring, arrow2, ring2, tag1, tag2, dot]:
 		c.visible = false
+	_layout(tp if not hide_world else null, sp if not hide_world else null)
 	if hide_world:
 		return
 	if st.has("from"):
@@ -293,7 +311,25 @@ func _process(dt: float) -> void:
 			dot.modulate.a = sin(k * PI)
 	elif tp != null:
 		_place(arrow, ring, tag1, tp, "Tap")
-	# Gelembung tutorial jangan menutupi panel yang sedang dipakai.
+
+
+## Gelembung di tengah layar (mudah dijangkau); pindah ke atas/bawah kalau menutupi target.
+## Latar digelapkan kecuali di sekitar target, supaya fokus menyelesaikan tutorial.
+func _layout(tp, sp) -> void:
+	var bh := bubble.size.y
+	var y := (D.IH - bh) / 2.0
+	for p in [tp, sp]:
+		if p != null and (p as Vector2).y > y - 200 and (p as Vector2).y < y + bh + 200:
+			y = 220.0 if (p as Vector2).y > D.IH / 2.0 else D.IH - bh - 420.0
+	if ui.kind != "":
+		y = 200.0   # panel terbuka: gelembung di atas, panel tetap bisa dipakai
+	bubble.position.y = lerpf(bubble.position.y, y, 0.25)
+	var show_dim: bool = ui.kind == ""
+	dim.visible = show_dim
+	if show_dim:
+		dim_mat.set_shader_parameter("h1", tp if tp != null else Vector2(-999, -999))
+		dim_mat.set_shader_parameter("h2", sp if sp != null else Vector2(-999, -999))
+		dim_mat.set_shader_parameter("a", 0.55 if (tp != null or sp != null) else 0.4)
 
 
 class _Arrow extends Control:

@@ -303,7 +303,7 @@ func _dashed_rect(r: Rect2, col: Color, w: float, dash: float) -> void:
 func _set_item(sp: Sprite2D, t: String, lv: int) -> void:
 	var tex: Texture2D = load(D.furn_tex(rid, t, lv))
 	sp.texture = tex
-	var fr := D.furn_rect(rid, t, tex.get_size())
+	var fr := D.furn_rect(rid, t, tex.get_size(), lv)
 	sp.position = fr.position - rect.position
 	sp.scale = fr.size / tex.get_size()
 	sp.set_meta("lv", lv)

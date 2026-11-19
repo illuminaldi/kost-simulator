@@ -42,7 +42,10 @@ func setup(p_font: Font, p_sound := true, p_auto := false) -> void:
 func _play(nm: String) -> void:
 	if not sound: return
 	_player.stream = load("res://assets/sfx/%s.wav" % nm)
-	_player.volume_db = -3.0
+	var g := get_parent()
+	var v: float = (g.vol("sfx") / 100.0) if g and g.has_method("vol") else 0.8
+	if v <= 0.0: return
+	_player.volume_db = -3.0 + linear_to_db(v)
 	_player.play()
 
 

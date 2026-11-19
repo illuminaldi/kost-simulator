@@ -122,8 +122,11 @@ const GROUND_LAMPS := [[673, 1912, 65], [780, 1915, 65], [837, 1905, 55], [1052,
 const PILL_MONEY := Rect2(31, 60, 465, 123)
 const PILL_LV := Rect2(545, 60, 351, 123)
 const PILL_CLOCK := Rect2(943, 43, 470, 154)
-const NAV := [["upgrade", Rect2(22, 2405, 340, 145)], ["tenants", Rect2(392, 2405, 314, 145)],
-	["staff", Rect2(733, 2405, 315, 145)], ["manage", Rect2(1074, 2405, 316, 145)]]
+# Tombol navigasi bawah: besar (176 px) & berjarak 26 px supaya tidak salah pencet.
+const NAV_Y := 2372.0
+const NAV_H := 180.0
+const NAV := [["upgrade", Rect2(20, 2372, 330, 180)], ["tenants", Rect2(376, 2372, 330, 180)],
+	["staff", Rect2(732, 2372, 330, 180)], ["manage", Rect2(1088, 2372, 330, 180)]]
 const GROUND_RECT := Rect2(380, 1860, 980, 512)
 const CAT_RECT := Rect2(400, 2195, 155, 110)
 
@@ -178,6 +181,7 @@ const FURN := {
 	"karpet": {"n": "Karpet", "cost": 200000, "c": 1.0, "min": 1, "icon": "2L_karpet", "d": "Lantai lebih nyaman."},
 	"dekor": {"n": "Hiasan Dinding", "cost": 180000, "c": 1.0, "min": 2, "icon": "4L_dekor", "d": "Lukisan, poster, atau jemuran."},
 	"rak": {"n": "Rak Buku", "cost": 300000, "c": 2.0, "min": 2, "icon": "2L_rak", "d": "Tempat menyimpan buku & barang."},
+	"kipas": {"n": "Kipas Angin", "cost": 250000, "c": 2.0, "min": 2, "icon": "", "d": "Kamar sejuk. Naik level jadi AC, lalu AC Inverter.", "lv_names": ["", "Kipas Angin", "AC", "AC Inverter"]},
 	"meja": {"n": "Meja Kerja", "cost": 350000, "c": 2.0, "min": 3, "icon": "2M_meja", "d": "Disukai freelancer & mahasiswa."},
 }
 # ---------- Ruang fasilitas di samping tangga ----------
@@ -200,10 +204,12 @@ const FACIL := {
 		"d": "Penghuni olahraga pagi & sore. Kebahagiaan naik."},
 	"lift": {"n": "Lift", "lv": 6, "cost": 4000000, "happy": 0, "inc": 0, "visit": [], "pose": "stand",
 		"d": "Penghuni lantai atas tidak perlu naik tangga panjang: tidak cepat capek & tetap betah."},
-	"rooftop": {"n": "Taman Rooftop", "lv": 7, "cost": 3500000, "happy": 3, "inc": 0, "visit": [16, 20], "pose": "stand",
+	"minimart": {"n": "Minimart", "lv": 7, "cost": 3500000, "happy": 2, "inc": 7000, "staff": "kasir", "visit": [10, 16, 21], "pose": "stand",
+		"d": "Belanja kebutuhan harian tanpa keluar kost. Pemasukan harian kalau ada Kasir."},
+	"rooftop_old": {"n": "Taman Rooftop", "lv": 99, "cost": 3500000, "happy": 3, "inc": 0, "visit": [], "pose": "stand",
 		"d": "Taman hijau untuk santai sore. Rating kost naik setiap hari."},
 }
-const FACIL_ORDER := ["tunggu", "laundry", "mushola", "dapur", "kantin", "cafe", "lift", "gym", "rooftop"]
+const FACIL_ORDER := ["tunggu", "laundry", "mushola", "dapur", "kantin", "cafe", "lift", "gym", "minimart"]
 
 
 ## Sisi kosong ruang tangga (lantai ganjil: kanan, genap: kiri).
@@ -270,7 +276,7 @@ const CHECKS := {
 const CHECK_ORDER := ["wawancara", "kerja", "riwayat"]
 
 
-const FURN_ORDER := ["kasur", "lampu", "tanaman", "karpet", "dekor", "rak"]
+const FURN_ORDER := ["kasur", "lampu", "kipas", "tanaman", "karpet", "dekor", "rak"]
 const FURN_MULT := [0.0, 1.0, 1.6, 2.3]
 const FURN_LV_NAME := ["", "Biasa", "Bagus", "Mewah"]
 const RLV := [{}, {"n": "Standar", "rent": 60000}, {"n": "Nyaman", "rent": 100000}, {"n": "Premium", "rent": 160000}]
@@ -283,7 +289,10 @@ const JOBS := {
 	"Freelancer": {"away": [], "pref": 2, "min": 2},
 	"Perawat": {"away": [14, 22], "pref": 2, "min": 2},
 	"Manajer": {"away": [8, 18], "pref": 3, "min": 3},
+	"Pensiunan": {"away": [6, 9], "pref": 2, "min": 1, "tua": true},
+	"Pedagang Pasar": {"away": [4, 12], "pref": 1, "min": 1, "tua": true},
 }
+const CHAR_TUA := ["kakek", "nenek"]
 const STAFF := {
 	"cleaner": {"nama": "Ryan", "n": "Petugas Kebersihan", "sal": 50000, "min": 1, "d": "Membersihkan kamar kotor; menangani sampah, area bersama kotor & hama."},
 	"resep": {"nama": "Maryam", "n": "Penjaga Kost", "sal": 60000, "min": 1, "d": "Berjaga di meja depan. Tamu lebih sering & sabar; menagih sewa, urus kunci hilang & tegur penghuni berisik."},
@@ -291,6 +300,7 @@ const STAFF := {
 	"laundry": {"nama": "Budi", "n": "Petugas Laundry", "sal": 45000, "min": 2, "need": "laundry", "d": "Mengurus mesin cuci. Pemasukan Laundry jadi 2x."},
 	"kantin": {"nama": "Bu Sari", "n": "Ibu Kantin", "sal": 55000, "min": 4, "need": "kantin", "d": "Memasak di Kantin. Membuka pemasukan harian Kantin."},
 	"barista": {"nama": "Nadia", "n": "Barista", "sal": 60000, "min": 5, "need": "cafe", "d": "Meracik kopi di Cafe. Membuka pemasukan harian Cafe."},
+	"kasir": {"nama": "Sinta", "n": "Kasir Minimart", "sal": 55000, "min": 7, "need": "minimart", "d": "Menjaga kasir Minimart. Membuka pemasukan harian Minimart."},
 	"satpam": {"nama": "Aji", "n": "Satpam", "sal": 70000, "min": 3, "d": "Patroli di depan kost. Mencegah pencurian; urus tamu menginap & paket hilang."},
 }
 const FAC := {
@@ -347,6 +357,7 @@ const BAGC := ["#a0764e", "#c79a5b", "#8f6a4a"]
 const STAFF_LOOK := {
 	"laundry": {"skin": "#ecc29b", "hair": "#3b2a20", "style": "short", "shirt": "#8fb3c9", "pants": "#3f4a5a", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#6f8fb0"},
 	"kantin": {"skin": "#d6a378", "hair": "#2f2320", "style": "bun", "shirt": "#e9a35a", "pants": "#6b5a48", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#fff"},
+	"kasir": {"skin": "#f2c7a5", "hair": "#2f2320", "style": "bun", "shirt": "#e0533a", "pants": "#3f4a5a", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#fff"},
 	"barista": {"skin": "#f2c7a5", "hair": "#6b4a2b", "style": "cap", "shirt": "#3f4a44", "pants": "#2f3a33", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#2f3833"},
 	"cleaner": {"skin": "#f6d3b3", "hair": "#6b4a2b", "style": "bun", "shirt": "#7d9a6b", "pants": "#4f5d4a", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#7d9a6b"},
 	"satpam": {"skin": "#d6a378", "hair": "#1f1a17", "style": "cap", "shirt": "#3d4f7a", "pants": "#2f3a52", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#2f3a52"},
@@ -394,8 +405,11 @@ const ITEM_LAYOUT := {
 	"tanaman": [0.92, 0.97, 0.11],
 	"rak": [0.87, 0.65, 0.22],
 	"dekor": [0.345, 0.34, 0.165],
+	"kipas": [0.80, 0.80, 0.11],
 }
-const ITEM_DRAW_ORDER := ["karpet", "dekor", "rak", "kasur", "lampu", "tanaman"]
+# Posisi khusus per level (kipas berdiri di lantai, AC menempel di dinding).
+const ITEM_LAYOUT_LV := {"kipas": {2: [0.84, 0.26, 0.24], 3: [0.84, 0.26, 0.24]}}
+const ITEM_DRAW_ORDER := ["karpet", "dekor", "rak", "kasur", "lampu", "kipas", "tanaman"]
 
 
 static func furn_has(_rid: String, t: String) -> bool:
@@ -411,9 +425,9 @@ static func furn_flip(rid: String) -> bool:
 
 
 ## Kotak gambar perabot (koordinat gedung) untuk ukuran tekstur tertentu.
-static func furn_rect(rid: String, t: String, tex_size: Vector2) -> Rect2:
+static func furn_rect(rid: String, t: String, tex_size: Vector2, lv: int = 1) -> Rect2:
 	var r := rect_of(rid)
-	var lay: Array = ITEM_LAYOUT[t]
+	var lay: Array = ITEM_LAYOUT_LV[t][lv] if ITEM_LAYOUT_LV.has(t) and ITEM_LAYOUT_LV[t].has(lv) else ITEM_LAYOUT[t]
 	var cx: float = lay[0]
 	if furn_flip(rid):
 		cx = 1.0 - cx
