@@ -823,9 +823,14 @@ func _cand_card(p: Dictionary, room_ctx: String = "") -> void:
 	if room_ctx != "":
 		fit = "  ·  Cocok" if int(S.rooms[room_ctx].lv) >= int(p.pref) else "  ·  Ingin kamar lebih bagus"
 	info.add_child(_text("Ingin kamar %s · %d hari%s" % [pref, int(p.days), fit], 34, D.C_MUTED))
-	info.add_child(_text("Menunggu %d jam" % int(p.wait), 34, D.C_MUTED))
+	var where := ""
+	var qi: int = S.queue.find(p)
+	if qi >= 1 and game.waiting_room_on():
+		where = "  ·  di Ruang Tunggu (antrean %d)" % qi
+	info.add_child(_text("Menunggu %d jam%s%s" % [int(p.wait), "  ·  dari KostTerdekat" if p.get("via", "") != "" else "", where], 34, D.C_MUTED))
 	h.add_child(info)
 	v.add_child(h)
+	_screen_box(v, p)
 	var f := _flow(v)
 	if room_ctx != "":
 		f.add_child(_btn("Terima di " + D.room_name(room_ctx), D.C_GREEN, func(): _do("assign", "%s|%s" % [p.id, room_ctx])))
@@ -841,6 +846,40 @@ func _cand_card(p: Dictionary, room_ctx: String = "") -> void:
 	else:
 		f.add_child(_btn("Terima", D.C_GREEN, func(): sel = p.id; refresh_sheet()))
 		f.add_child(_btn("Tolak", D.C_RED, func(): _do("reject", p.id)))
+
+
+## Hasil & tombol pemeriksaan latar belakang calon penyewa.
+func _screen_box(v: Control, p: Dictionary) -> void:
+	var S: Dictionary = game.S
+	var chk: Dictionary = p.get("checked", {})
+	v.add_child(_label("Cek latar belakang", 34, Color("8a5a3a"), true))
+	for ck in D.CHECK_ORDER:
+		var c: Dictionary = D.CHECKS[ck]
+		if chk.has(ck):
+			var found: Array = game.found_traits(p, ck)
+			var row := _flow(v)
+			row.add_child(_label("%s:" % c.n, 30, D.C_INK))
+			if found.is_empty():
+				row.add_child(_chip("Aman", Color("dff0d6"), Color("2f6a24")))
+			for k in found:
+				var tr: Dictionary = D.TRAITS[k]
+				row.add_child(_chip(tr.n, Color("f8d9d2") if tr.bad else Color("dff0d6"), Color("9b2f1c") if tr.bad else Color("2f6a24")))
+			for k in found:
+				if D.TRAITS[k].bad:
+					v.add_child(_text("• " + D.TRAITS[k].d, 28, Color("9b2f1c")))
+		elif int(S.lvl) >= int(c.lv):
+			var row2 := _flow(v)
+			var free: bool = int(c.cost) == 0 or (ck == "riwayat" and game.has_app("kelolapro"))
+			var price := "gratis" if free else D.short(c.cost)
+			row2.add_child(_btn("%s · %s" % [c.n, price], D.C_CREAM, func(): _do("screen", "%s|%s" % [p.id, ck]), not free and float(S.money) < float(c.cost)))
+			row2.add_child(_label(c.d, 26, D.C_MUTED))
+
+
+func _chip(t: String, bg: Color, fg: Color) -> Control:
+	var pc := PanelContainer.new()
+	pc.add_theme_stylebox_override("panel", _sb(bg, 0, 20, 14, 4))
+	pc.add_child(_label(t, 28, fg, true))
+	return pc
 
 
 func _sheet_room() -> void:
@@ -938,6 +977,14 @@ func _sheet_tenants() -> void:
 			_bar(info, float(t.happy))
 			h.add_child(info)
 			v.add_child(h)
+			var known := []
+			for ck in t.get("checked", {}):
+				known += game.found_traits(t, ck)
+			if not known.is_empty():
+				var tf := _flow(v)
+				for k in known:
+					var tr: Dictionary = D.TRAITS[k]
+					tf.add_child(_chip(tr.n, Color("f8d9d2") if tr.bad else Color("dff0d6"), Color("9b2f1c") if tr.bad else Color("2f6a24")))
 			var f := _flow(v)
 			f.add_child(_btn("Lihat kamar", D.C_CREAM, func(): open_sheet("room", rid)))
 
@@ -949,7 +996,10 @@ func _sheet_staff() -> void:
 	for k in S.staff:
 		if S.staff[k]:
 			tot += int(D.STAFF[k].sal)
-	box.add_child(_text("Total gaji: %s/hari (dibayar pukul 17:00)" % D.rp(tot), 36, D.C_MUTED))
+	var appfee := 0
+	for k in S.get("apps", {}):
+		appfee += int(D.APPS[k].fee)
+	box.add_child(_text("Total gaji: %s/hari%s (dibayar pukul 17:00)" % [D.rp(tot), (" + aplikasi " + D.rp(appfee)) if appfee > 0 else ""], 36, D.C_MUTED))
 	for k in D.STAFF:
 		var st: Dictionary = D.STAFF[k]
 		var on: bool = S.staff.get(k, false)
@@ -1053,6 +1103,36 @@ func _sheet_upgrade() -> void:
 		_row(v, _label(fc.n, 40), right)
 		if fc.d != "":
 			v.add_child(_text(fc.d, 32, D.C_MUTED))
+	# Aplikasi langganan
+	box.add_child(_label("Aplikasi", 44))
+	box.add_child(_text("Langganan harian, dibayar bersama gaji pukul 17:00. Bisa dihentikan kapan saja.", 32, D.C_MUTED))
+	for k in D.APP_ORDER:
+		var ap: Dictionary = D.APPS[k]
+		var v := _card()
+		var hb := HBoxContainer.new()
+		hb.add_theme_constant_override("separation", 20)
+		var ic := TextureRect.new()
+		ic.texture = load("res://assets/fac/%s.svg" % k)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.custom_minimum_size = Vector2(150, 170)
+		hb.add_child(ic)
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hb.add_child(col)
+		v.add_child(hb)
+		var right: Control
+		var on: bool = game.has_app(k)
+		if on:
+			right = _btn("Berhenti", D.C_RED, func(): _do("app_off", k))
+		elif int(S.lvl) < int(ap.lv):
+			right = _label("Level %d" % int(ap.lv), 34, D.C_MUTED, true)
+		else:
+			right = _btn("Pasang", D.C_GREEN, func(): _do("app_on", k))
+		_row(col, _label(ap.n, 40), right)
+		col.add_child(_label("%s · %s/hari%s" % [ap.tag, D.short(ap.fee), "  · Aktif" if on else ""], 30, Color("2f7a2a") if on else Color("8a5a3a"), true))
+		for perk in ap.perks:
+			col.add_child(_text("• " + perk, 30, D.C_MUTED))
 	# Ruang fasilitas di samping tangga + karyawannya
 	var sec := _label("Ruang Fasilitas", 44)
 	box.add_child(sec)

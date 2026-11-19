@@ -337,7 +337,7 @@ func _new_game() -> void:
 	S = {"money": 1500000.0, "lvl": 1, "xp": 0.0, "day": 1, "min": 420, "rep": 3.5, "price": 1, "speed": 1,
 		"rooms": rooms, "staff": {}, "fac": {}, "queue": [], "next_cand": 150.0,
 		"today": {"rent": 0.0, "salary": 0.0, "util": 0.0, "other": 0.0}, "last": null,
-		"total": {"rent": 0.0, "served": 0}, "seen": false, "jobs": [], "orders": [], "cargo": [], "events": [], "prevent": {}, "facil": {}}
+		"total": {"rent": 0.0, "served": 0}, "seen": false, "jobs": [], "orders": [], "cargo": [], "events": [], "prevent": {}, "facil": {}, "apps": {}}
 	var t1 := gen_person("p")
 	t1.job = "Mahasiswa"; t1.pref = 1; t1.happy = 78
 	rooms["1R"].tenant = t1
@@ -387,7 +387,74 @@ func gen_person(g: String) -> Dictionary:
 		tint = (tint + 1) % Npc.TINTS.size()
 	return {"id": "p%d" % randi(), "name": names.pick_random(), "g": g, "char": ch, "tint": tint,
 		"look": Spr.random_look(g), "job": job, "pref": clampi(pref, 1, 3), "days": randi_range(8, 30),
-		"stay": 0, "happy": randi_range(62, 80), "wait": 0}
+		"stay": 0, "happy": randi_range(62, 80), "wait": 0, "traits": _roll_traits(), "checked": {}}
+
+
+## Sifat tersembunyi calon penyewa (paling banyak 2 yang buruk).
+func _roll_traits() -> Array:
+	var out := []
+	var bad := 0
+	var keys := D.TRAITS.keys()
+	keys.shuffle()
+	for k in keys:
+		var tr: Dictionary = D.TRAITS[k]
+		if tr.bad and bad >= 2: continue
+		if randf() < float(tr.p):
+			# sifat yang saling bertentangan
+			if (k == "tepat" and out.has("bayar_seret")) or (k == "bayar_seret" and out.has("tepat")): continue
+			if (k == "rapi" and out.has("jorok")) or (k == "jorok" and out.has("rapi")): continue
+			if (k == "ramah" and out.has("berisik")) or (k == "berisik" and out.has("ramah")): continue
+			out.append(k)
+			if tr.bad: bad += 1
+	return out
+
+
+func _trait_sum(t: Dictionary, key: String) -> float:
+	var s := 0.0
+	for k in t.get("traits", []):
+		if D.TRAITS[k].has(key): s += float(D.TRAITS[k][key])
+	return s
+
+
+func has_trait(t: Dictionary, k: String) -> bool:
+	return k in t.get("traits", [])
+
+
+## Hasil pemeriksaan: sifat yang ditemukan lewat cek ini.
+func found_traits(p: Dictionary, check: String) -> Array:
+	var out := []
+	for k in p.get("traits", []):
+		if D.TRAITS[k].via == check: out.append(k)
+	return out
+
+
+func _trait_mult(t: Dictionary, key: String, default: float = 1.0) -> float:
+	var m := default
+	for k in t.get("traits", []):
+		if D.TRAITS[k].has(key): m *= float(D.TRAITS[k][key])
+	return m
+
+
+func _screen(pid: String, check: String) -> void:
+	var p: Dictionary = {}
+	for q in S.queue:
+		if q.id == pid: p = q
+	if p.is_empty() or p.get("checked", {}).has(check): return
+	var ck: Dictionary = D.CHECKS[check]
+	if int(S.lvl) < int(ck.lv): return
+	if float(S.money) < float(ck.cost) and not (check == "riwayat" and has_app("kelolapro")):
+		ui.toast("Uang belum cukup", "bad"); return
+	var cost := 0.0 if (check == "riwayat" and has_app("kelolapro")) else float(ck.cost)
+	if cost > 0: spend(cost, "other")
+	if not p.has("checked"): p.checked = {}
+	p.checked[check] = true
+	p.wait = int(p.wait) + 1
+	var f := found_traits(p, check)
+	var bad := f.filter(func(k): return D.TRAITS[k].bad)
+	if bad.size() > 0:
+		ui.toast("%s: %s" % [ck.n, ", ".join(bad.map(func(k): return D.TRAITS[k].n))], "bad")
+	else:
+		ui.toast("%s %s: aman" % [ck.n, p.name])
 
 
 func save_game() -> void:
@@ -431,6 +498,7 @@ func _load_game() -> Dictionary:
 	if not d.has("events"): d.events = []
 	if not d.has("prevent"): d.prevent = {}
 	if not d.has("facil"): d.facil = {}
+	if not d.has("apps"): d.apps = {}
 	if not d.has("cargo"): d.cargo = []
 	for o in d.orders: o.t = float(o.t)
 	for j in d.jobs:
@@ -622,10 +690,15 @@ func _next_guest_soon() -> void:
 func _spawn_cand() -> void:
 	var base := 330.0 * (1.4 - float(S.rep) * 0.15) * (0.7 if S.staff.get("resep", false) else 1.0) \
 		* float(D.PRICE[int(S.price)].c) * pow(0.96, fac_count()) * (0.8 if has_facil("tunggu") else 1.0)
-	S.next_cand = base * randf_range(0.7, 1.3)
-	if S.queue.size() >= 1:
+	S.next_cand = base * randf_range(0.7, 1.3) * (0.6 if has_app("kostterdekat") else 1.0)
+	if S.queue.size() >= queue_cap():
 		return
 	var p := gen_person(["p", "l"].pick_random())
+	if S.staff.get("resep", false):
+		p.checked["wawancara"] = true    # Mariam mewawancarai tamu di meja depan
+	if has_app("kostterdekat"):
+		p.checked["kerja"] = true        # profil terverifikasi di aplikasi
+		p.via = "KostTerdekat"
 	S.queue.append(p)
 	ui.toast("Calon penyewa datang: %s (%s)" % [p.name, p.job])
 	dirty = true
@@ -638,7 +711,7 @@ func _hourly() -> void:
 		var r: Dictionary = S.rooms[id]
 		if not r.built:
 			continue
-		r.clean = clampf(float(r.clean) - (0.6 if r.tenant != null else 0.08) * (0.85 if S.fac.has("jemur") else 1.0) * (0.75 if has_facil("laundry") else 1.0), 0, 100)
+		r.clean = clampf(float(r.clean) - (0.6 * _trait_mult(r.tenant, "dirt") if r.tenant != null else 0.08) * (0.85 if S.fac.has("jemur") else 1.0) * (0.75 if has_facil("laundry") else 1.0), 0, 100)
 		if r.tenant != null and str(r.broken) == "" and randf() < 0.003:
 			r.broken = D.ISSUES.keys().pick_random()
 			ui.toast("%s di Kamar %s!" % [r.broken, D.room_name(id)], "bad")
@@ -668,7 +741,7 @@ func _collect_rent() -> void:
 		if not ev_r.is_empty() and ev_r.type == "telat_bayar":
 			float_at(id, "Belum bayar", Color("b5543c"))
 			continue
-		if float(t.happy) < 30 and randf() < 0.4:
+		if (float(t.happy) < 30 and randf() < 0.4) or (has_trait(t, "bayar_seret") and randf() < (0.08 if has_app("kelolapro") else 0.2)):
 			float_at(id, "Telat bayar", Color("b5543c"))
 			continue
 		var a := rent_of(r)
@@ -683,11 +756,37 @@ func _collect_rent() -> void:
 		add_xp(round(tot / 2500.0))
 
 
+## Waiting list: Penjaga Kost mengarahkan tamu ke Ruang Tunggu.
+func waiting_room_on() -> bool:
+	return has_facil("tunggu") and S.staff.get("resep", false)
+
+
+func queue_cap() -> int:
+	return 1 + (1 if has_app("kostterdekat") else 0) + (3 if waiting_room_on() else 0)
+
+
+var _desk_say_t := 0.0
+
+
+func keeper_say(text: String, dur: float = 3.5) -> void:
+	if npcs.has("keeper"):
+		npcs.keeper.say(text, dur)
+	elif desk_tag:
+		(desk_tag.get_child(0) as Label).text = text
+		_desk_say_t = dur
+
+
+func has_app(k: String) -> bool:
+	return S.get("apps", {}).has(k)
+
+
 func _pay_salary() -> void:
 	var s := 0.0
 	for k in S.staff:
 		if S.staff[k]:
 			s += D.STAFF[k].sal
+	for k in S.apps:
+		s += float(D.APPS[k].fee)
 	if s > 0:
 		spend(s, "salary")
 		ui.toast("Gaji karyawan dibayar %s" % D.rp(s))
@@ -757,6 +856,10 @@ func _chat_tick(dt: float) -> void:
 			n.set_bubble(str(n.get_meta("nama")) if n.scene == "lobby" and n.fade_state == "" else "")
 	if desk_tag:
 		desk_tag.visible = recep_art.visible
+		if _desk_say_t > 0.0:
+			_desk_say_t -= dt
+			if _desk_say_t <= 0.0:
+				(desk_tag.get_child(0) as Label).text = D.STAFF.resep.nama
 	for c in _convos.duplicate():
 		var a: Npc = c.n[0]
 		var b: Npc = c.n[1]
@@ -942,17 +1045,34 @@ func _roll_events() -> void:
 			if e.type == k: busy = true
 		if busy: continue
 		var pmul := 0.4 if (k == "area_kotor" and has_facil("dapur")) else 1.0
-		if randf() > float(ev.p) * pmul: continue
+		if k == "telat_bayar" and has_app("kelolapro"): pmul *= 0.3
 		var room := ""
 		if ev.scope == "room":
 			var pool := []
+			var ws := []
+			var wsum := 0.0
 			for id in D.ROOMS:
 				var r: Dictionary = S.rooms[id]
 				if not r.built or not event_at(id).is_empty(): continue
 				if ev.get("need", "") == "tenant" and r.tenant == null: continue
+				var w := 1.0
+				if r.tenant != null:
+					for tk in r.tenant.get("traits", []):
+						if D.TRAITS[tk].get("ev", "") == k: w *= float(D.TRAITS[tk].ev_mul)
 				pool.append(id)
-			if pool.is_empty(): continue
-			room = pool.pick_random()
+				ws.append(w)
+				wsum += w
+			if pool.is_empty() or wsum <= 0.0: continue
+			# Sifat penghuni menaikkan (atau menurunkan) peluang masalah ini.
+			if randf() > float(ev.p) * pmul * (wsum / pool.size()): continue
+			var pick := randf() * wsum
+			room = pool[pool.size() - 1]
+			for i in range(pool.size()):
+				pick -= float(ws[i])
+				if pick <= 0.0:
+					room = pool[i]
+					break
+		elif randf() > float(ev.p) * pmul: continue
 		var e := {"id": "e%d" % randi(), "type": k, "room": room, "age": 0, "auto": -1}
 		S.events.append(e)
 		ui.toast("Masalah: %s%s" % [ev.n, (" di Kamar " + D.room_name(room)) if room != "" else ""], "bad")
@@ -979,7 +1099,7 @@ func _events_daily_penalty() -> void:
 		var ev: Dictionary = Ev.DEF[e.type]
 		e.age = int(e.age) + 1
 		var pen: Dictionary = ev.pen
-		var k := 1.0 + 0.3 * int(e.age)
+		var k := (1.0 + 0.3 * int(e.age)) * (0.6 if has_app("kelolapro") else 1.0)
 		if pen.has("rep"): S.rep = clampf(float(S.rep) - float(pen.rep) * k, 1, 5)
 		if pen.has("money"): spend(float(pen.money), "other")
 		for x in each_tenant():
@@ -1052,6 +1172,10 @@ func _new_day() -> void:
 		if str(r.broken) != "": d -= 10
 		if int(r.lv) < int(t.pref): d -= 3
 		if int(r.lv) > int(t.pref): d += 1
+		# Tetangga satu lantai: berisik / ramah
+		for e2 in each_tenant():
+			if e2[0] != id and str(e2[0])[0] == id[0]:
+				d += _trait_sum(e2[1].tenant, "neigh")
 		t.happy = clampf(float(t.happy) + d, 0, 100)
 		t.stay = int(t.stay) + 1
 		if float(t.happy) < 15:
@@ -1071,8 +1195,23 @@ func _new_day() -> void:
 				r.tenant = null
 				S.total.served = int(S.total.served) + 1
 				add_xp(40)
-				S.rep = clampf(float(S.rep) + 0.1, 1, 5)
+				S.rep = clampf(float(S.rep) + (0.18 if has_app("kostterdekat") else 0.1), 1, 5)
+				if has_app("kostterdekat"):
+					ui.toast("%s memberi ulasan bintang 5 di KostTerdekat!" % t.name, "gold")
 				continue
+		if has_trait(t, "kabur") and int(t.stay) >= 3 and randf() < 0.08:
+			var loss := rent_of(r) * 3.0
+			spend(loss, "other")
+			ui.toast("%s kabur tanpa melunasi sewa! Rugi %s" % [t.name, D.rp(loss)], "bad")
+			r.clean = minf(float(r.clean), 25.0)
+			r.tenant = null
+			S.rep = clampf(float(S.rep) - 0.1, 1, 5)
+			continue
+		if has_trait(t, "ktp") and not t.get("ktp_fined", false) and int(t.stay) >= 2 and randf() < 0.5:
+			t.ktp_fined = true
+			spend(150000.0, "other")
+			S.rep = clampf(float(S.rep) - 0.05, 1, 5)
+			ui.toast("Pak RT menegur: %s belum lapor identitas. Denda Rp 150.000" % t.name, "bad")
 		if float(t.happy) > 88 and randf() < 0.04:
 			S.money = float(S.money) + 50000
 			S.today.other = float(S.today.other) - 50000
@@ -1081,7 +1220,8 @@ func _new_day() -> void:
 		n += 1
 	if n > 0:
 		var target := 1.0 + 4.0 * (sum_h / n) / 100.0
-		S.rep = clampf(float(S.rep) * 0.75 + target * 0.25, 1, 5)
+		var wt := 0.35 if has_app("kostterdekat") else 0.25
+		S.rep = clampf(float(S.rep) * (1.0 - wt) + target * wt, 1, 5)
 	if not S.staff.get("satpam", false) and occ >= 3 and randf() < (0.04 if S.fac.has("cctv") else 0.09):
 		var loss := minf(maxf(float(S.money) * 0.05, 100000), 600000)
 		spend(loss, "other")
@@ -1102,6 +1242,10 @@ func _new_day() -> void:
 # ================= NPC =================
 func _goal_of(w: Dictionary) -> Dictionary:
 	if w.kind == "cand":
+		if int(w.slot) >= 1 and waiting_room_on():
+			var ff := facil_floor("tunggu")
+			var off := (float(int(w.slot) - 1) - 1.0) * 52.0
+			return {"key": "wait%d" % int(w.slot), "scene": "S%d" % ff, "spot": D.facil_spot(ff) + Vector2(off, 0), "pose": "sit"}
 		var slot := mini(int(w.slot), 3)
 		return {"key": "q%d" % slot, "scene": "lobby", "spot": Vector2(D.QUEUE_X[slot], D.LOBBY_Y), "pose": "stand"}
 	var pr := presence(w.p)
@@ -1249,6 +1393,9 @@ func _sync_npcs() -> void:
 		n.mood = _mood_of(w, n.gender)
 		var g := _goal_of(w)
 		if n.goal_key != g.key:
+			if str(g.key).begins_with("wait") and not str(n.goal_key).begins_with("wait"):
+				keeper_say("Silakan tunggu di Ruang Tunggu ya~")
+				ui.toast("%s mengarahkan %s ke Ruang Tunggu (waiting list)" % [D.STAFF.resep.nama, w.p.name])
 			_apply_goal(n, g)
 		_bubble_for(n, w)
 	for pid in want:
@@ -1257,6 +1404,9 @@ func _sync_npcs() -> void:
 			var g := _goal_of(w)
 			if g.key == "out":
 				continue
+			if str(g.key).begins_with("wait"):
+				keeper_say("Silakan tunggu di Ruang Tunggu ya~")
+				ui.toast("%s mengarahkan %s ke Ruang Tunggu (waiting list)" % [D.STAFF.resep.nama, w.p.name])
 			var n := _spawn(pid, w)
 			_apply_goal(n, g)
 			_bubble_for(n, w)
@@ -1283,7 +1433,7 @@ func _mood_of(w: Dictionary, g: String) -> String:
 
 func _bubble_for(n: Npc, w: Dictionary) -> void:
 	if w.kind == "cand":
-		n.set_bubble(str(w.p.name), int(w.slot) == 0)
+		n.set_bubble(str(w.p.name) if n.scene == "lobby" else "", int(w.slot) == 0)
 	elif n.scene == "lobby" and n.fade_state == "":
 		# Penghuni yang sedang lewat lobi ditandai dengan kamarnya.
 		n.set_bubble("Penghuni " + D.room_name(w.room))
@@ -1725,6 +1875,9 @@ func act(a: String, arg: String = "") -> void:
 			if S.staff.get("resep", false):
 				_set_keeper("happy", 2.5)
 			add_xp(10)
+		"screen":
+			var sp2 := arg.split("|")
+			_screen(sp2[0], sp2[1])
 		"reject":
 			for i in range(S.queue.size()):
 				if S.queue[i].id == arg:
@@ -1738,6 +1891,15 @@ func act(a: String, arg: String = "") -> void:
 		"fire":
 			S.staff.erase(arg)
 			ui.toast("%s diberhentikan" % D.staff_label(arg))
+		"app_on":
+			var ap: Dictionary = D.APPS[arg]
+			if int(S.lvl) < int(ap.lv) or has_app(arg): return
+			S.apps[arg] = true
+			ui.toast("%s aktif! Biaya %s/hari dibayar pukul 17:00" % [ap.n, D.rp(ap.fee)], "gold")
+			add_xp(20)
+		"app_off":
+			S.apps.erase(arg)
+			ui.toast("Langganan %s dihentikan" % D.APPS[arg].n)
 		"buy_fac":
 			var fc: Dictionary = D.FAC[arg]
 			if float(S.money) < float(fc.cost) or S.fac.has(arg): return
@@ -2079,6 +2241,13 @@ func _selftest() -> void:
 	S.rooms["3R"].clean = 10.0
 	act("clean", "3R")
 	S.lvl = 8
+	act("app_on", "kostterdekat")
+	act("app_on", "kelolapro")
+	S.next_cand = 0
+	if S.queue.is_empty(): _spawn_cand()
+	for ck in D.CHECK_ORDER: act("screen", "%s|%s" % [S.queue[0].id, ck])
+	ui.open_sheet("tenants")
+	S.lvl = 8
 	var fi := 1
 	for k in D.FACIL_ORDER:
 		act("facil_build", "%d|%s" % [fi, k])
@@ -2186,6 +2355,29 @@ func _handle_cli(args: PackedStringArray) -> void:
 			S.lvl = 5
 			for k in ["air_mati", "telat_bayar", "atap_bocor"]:
 				S.events.append({"id": "x" + k, "type": k, "room": "" if Ev.DEF[k].scope == "kost" else ("1R" if k == "telat_bayar" else "2L"), "age": 1, "auto": -1})
+			dirty = true
+		elif a == "--waitlist":
+			S.seen = true
+			ui.close_sheet()
+			S.lvl = 3
+			S.staff["resep"] = true
+			S.facil["1"] = "tunggu"
+			S.queue = []
+			for i in range(4):
+				S.queue.append(gen_person(["p", "l"][i % 2]))
+			dirty = true
+		elif a == "--cands":
+			S.seen = true
+			S.lvl = 3
+			S.apps = {"kostterdekat": true}
+			S.queue = []
+			for i in range(2):
+				var p := gen_person(["p", "l"][i])
+				p.traits = [["bayar_seret", "perokok", "rapi"], ["tepat", "ramah"]][i]
+				if i == 1: p.via = "KostTerdekat"
+				S.queue.append(p)
+			for ck in D.CHECK_ORDER: _screen(S.queue[0].id, ck)
+			S.queue[1].checked["kerja"] = true
 			dirty = true
 		elif a == "--emptyrooms":
 			S.seen = true

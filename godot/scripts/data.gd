@@ -133,7 +133,7 @@ const FURN := {
 # visit: jam-jam penghuni mampir.
 const FACIL := {
 	"tunggu": {"n": "Ruang Tunggu", "lv": 1, "cost": 800000, "happy": 0, "inc": 0, "visit": [], "pose": "stand",
-		"d": "Sofa nyaman di dekat lobi. Calon penyewa lebih sabar & lebih sering datang."},
+		"d": "Waiting list: Penjaga Kost mengarahkan hingga 3 tamu menunggu di sini. Calon penyewa lebih sabar & lebih sering datang."},
 	"laundry": {"n": "Laundry", "lv": 2, "cost": 1200000, "happy": 1, "inc": 4000, "staff": "laundry", "visit": [9, 19], "pose": "stand",
 		"d": "Kamar lebih lambat kotor. Jasa cuci menambah pemasukan (2x dengan Petugas Laundry)."},
 	"mushola": {"n": "Mushola", "lv": 3, "cost": 1000000, "happy": 2, "inc": 0, "visit": [5, 12, 15, 18], "pose": "stand",
@@ -180,6 +180,42 @@ static func facil_spot(f: int) -> Vector2:
 	return Vector2(facil_center_x(f), FEET[f])
 
 
+# ---------- Screening calon penyewa ----------
+# via: pemeriksaan yang bisa mengungkap sifat ini. ev/ev_mul: pengaruh ke peluang masalah di kamarnya.
+const TRAITS := {
+	"bayar_seret": {"n": "Kemampuan bayar kurang", "bad": true, "via": "kerja", "p": 0.14, "ev": "telat_bayar", "ev_mul": 4.0,
+		"d": "Penghasilan tidak sebanding harga sewa; sering telat bayar."},
+	"ktp": {"n": "Identitas tidak lengkap", "bad": true, "via": "kerja", "p": 0.08,
+		"d": "KTP/surat domisili tidak ada. Bisa ditegur Pak RT & kena denda."},
+	"kabur": {"n": "Pernah kabur tanpa bayar", "bad": true, "via": "riwayat", "p": 0.07,
+		"d": "Di kost lama pergi diam-diam tanpa melunasi sewa."},
+	"perokok": {"n": "Merokok di dalam kamar", "bad": true, "via": "riwayat", "p": 0.12, "ev": "bau_rokok", "ev_mul": 5.0, "dirt": 1.2,
+		"d": "Kamar cepat bau & kotor; tetangga terganggu."},
+	"berisik": {"n": "Suka berisik malam-malam", "bad": true, "via": "riwayat", "p": 0.12, "ev": "berisik", "ev_mul": 5.0, "neigh": -2,
+		"d": "Penghuni lain di lantai yang sama jadi kurang betah."},
+	"tamu": {"n": "Sering bawa tamu menginap", "bad": true, "via": "riwayat", "p": 0.1, "ev": "tamu_inap", "ev_mul": 5.0,
+		"d": "Melanggar aturan kost; tamu menginap tanpa izin."},
+	"jorok": {"n": "Kurang menjaga kebersihan", "bad": true, "via": "wawancara", "p": 0.14, "dirt": 1.7,
+		"d": "Kamar jauh lebih cepat kotor."},
+	"hewan": {"n": "Bawa hewan peliharaan", "bad": true, "via": "wawancara", "p": 0.08, "dirt": 1.3,
+		"d": "Kucing/anjing di kamar: bulu & bau, kamar lebih cepat kotor."},
+	"sebentar": {"n": "Cuma mau tinggal sebentar", "bad": true, "via": "wawancara", "p": 0.1, "ev": "pindah_mendadak", "ev_mul": 5.0,
+		"d": "Bisa tiba-tiba pindah sebelum masa sewa habis."},
+	"tepat": {"n": "Selalu bayar tepat waktu", "bad": false, "via": "kerja", "p": 0.25, "ev": "telat_bayar", "ev_mul": 0.0,
+		"d": "Penghasilan tetap & disiplin."},
+	"rapi": {"n": "Rapi & bersih", "bad": false, "via": "wawancara", "p": 0.25, "dirt": 0.7,
+		"d": "Kamar lebih lambat kotor."},
+	"ramah": {"n": "Ramah ke tetangga", "bad": false, "via": "riwayat", "p": 0.2, "neigh": 1,
+		"d": "Penghuni lain di lantai yang sama lebih betah."},
+}
+const CHECKS := {
+	"wawancara": {"n": "Wawancara", "cost": 0, "lv": 1, "d": "Kebersihan, hewan peliharaan & rencana lama tinggal."},
+	"kerja": {"n": "Cek KTP & slip gaji", "cost": 25000, "lv": 1, "d": "Kemampuan bayar & kelengkapan identitas."},
+	"riwayat": {"n": "Hubungi kost lama", "cost": 50000, "lv": 2, "d": "Riwayat sewa, rokok, berisik & tamu menginap."},
+}
+const CHECK_ORDER := ["wawancara", "kerja", "riwayat"]
+
+
 const FURN_ORDER := ["kasur", "lampu", "tanaman", "karpet", "dekor", "rak"]
 const FURN_MULT := [0.0, 1.0, 1.6, 2.3]
 const FURN_LV_NAME := ["", "Biasa", "Bagus", "Mewah"]
@@ -209,6 +245,18 @@ const FAC := {
 	"cctv": {"n": "CCTV", "cost": 1000000, "min": 3, "d": "Peluang pencurian turun separuh."},
 	"parkir": {"n": "Parkir Motor", "cost": 1500000, "min": 4, "d": ""},
 }
+# ---------- Aplikasi (langganan harian, dibayar bersama gaji pukul 17:00) ----------
+const APPS := {
+	"kostterdekat": {"n": "KostTerdekat", "tag": "Aplikasi cari kost", "fee": 25000, "lv": 2,
+		"perks": ["Kost tampil di aplikasi: calon penyewa lebih sering datang & antrean bisa 2 orang",
+			"Calon dari aplikasi sudah terverifikasi KTP & penghasilan (cek otomatis)",
+			"Ulasan penghuni yang betah menaikkan rating lebih cepat"]},
+	"kelolapro": {"n": "KelolaPro", "tag": "Aplikasi manajemen kost", "fee": 35000, "lv": 3,
+		"perks": ["Tagihan & pengingat bayar otomatis: telat bayar jauh berkurang",
+			"Keluhan penghuni masuk lebih cepat: dampak masalah kost berkurang",
+			"Data riwayat penyewa: cek \"Hubungi kost lama\" gratis"]},
+}
+const APP_ORDER := ["kostterdekat", "kelolapro"]
 const ISSUES := {"AC rusak": 250000, "Keran bocor": 120000, "Lampu mati": 60000, "Kasur jebol": 300000}
 # Karakter penghuni (folder di assets/chars) -> jenis kelamin untuk nama.
 const CHARS := {"kutu": "l", "kakek": "l", "siswi": "p", "flanel": "p", "nenek": "p"}
