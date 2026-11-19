@@ -275,17 +275,43 @@ static func src_rect(id: String) -> Rect2:
 	return rect_of(tpl(id))
 
 
-static func furn_tex(rid: String, t: String, lv: int = 1) -> String:
-	rid = tpl(rid)
-	if lv >= 2 and FURN_POS2.get(rid, {}).has(t):
-		return "res://assets/furn/%s_%s_2.png" % [rid, t]
-	return "res://assets/furn/%s_%s.png" % [rid, t]
+# Perabot berdiri sendiri (assets/furn/item/<jenis>_<level>.png), tata letak sama di semua kamar.
+# Nilai: [pusat x, alas y, lebar] sebagai pecahan kotak kamar, untuk kamar kiri (A).
+# Kamar kanan (C) dicerminkan supaya kasur menghadap ke kiri.
+const ITEM_LAYOUT := {
+	"kasur": [0.31, 0.97, 0.60],
+	"karpet": [0.69, 0.91, 0.42],
+	"lampu": [0.66, 0.72, 0.14],
+	"tanaman": [0.92, 0.97, 0.11],
+	"rak": [0.87, 0.65, 0.22],
+	"dekor": [0.29, 0.36, 0.24],
+}
+const ITEM_DRAW_ORDER := ["karpet", "dekor", "rak", "kasur", "lampu", "tanaman"]
 
 
-static func furn_pos(rid: String, t: String, lv: int = 1) -> Vector2:
-	if lv >= 2 and FURN_POS2.get(rid, {}).has(t):
-		return FURN_POS2[rid][t]
-	return FURN_POS[rid][t]
+static func furn_has(_rid: String, t: String) -> bool:
+	return ITEM_LAYOUT.has(t)
+
+
+static func furn_tex(_rid: String, t: String, lv: int = 1) -> String:
+	return "res://assets/furn/item/%s_%d.png" % [t, clampi(lv, 1, 3)]
+
+
+static func furn_flip(rid: String) -> bool:
+	return rid.ends_with("R")
+
+
+## Kotak gambar perabot (koordinat gedung) untuk ukuran tekstur tertentu.
+static func furn_rect(rid: String, t: String, tex_size: Vector2) -> Rect2:
+	var r := rect_of(rid)
+	var lay: Array = ITEM_LAYOUT[t]
+	var cx: float = lay[0]
+	if furn_flip(rid):
+		cx = 1.0 - cx
+	var w: float = r.size.x * float(lay[2])
+	var h := w * tex_size.y / tex_size.x
+	var bottom: float = r.position.y + r.size.y * float(lay[1])
+	return Rect2(r.position.x + r.size.x * cx - w / 2.0, bottom - h, w, h)
 
 
 static func room_name(id: String) -> String:

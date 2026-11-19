@@ -36,16 +36,14 @@ func setup(p_game: Node, id: String, art: Texture2D, plan_mat: Material, font: F
 	_plan.material = plan_mat
 	add_child(_plan)
 	# Sprite perabot (urutan gambar: belakang -> depan).
-	for t in ["karpet", "dekor", "rak", "kasur", "meja", "tanaman", "lampu"]:
-		if D.FURN_POS[id].has(t):
-			var sp := Sprite2D.new()
-			sp.texture = load(D.furn_tex(id, t, 1))
-			sp.centered = false
-			sp.position = D.furn_pos(id, t, 1) - rect.position
-			sp.set_meta("lv", 1)
-			sp.visible = false
-			add_child(sp)
-			_furn[t] = sp
+	for t in D.ITEM_DRAW_ORDER:
+		var sp := Sprite2D.new()
+		sp.centered = false
+		sp.flip_h = D.furn_flip(id)
+		_set_item(sp, t, 1)
+		sp.visible = false
+		add_child(sp)
+		_furn[t] = sp
 
 	_tag = _mk_label(font, 26, D.C_INK)
 	var tsb := _box(Color(0.984, 0.96, 0.918, 0.92), 3, 12, 10, 2)
@@ -124,11 +122,9 @@ func refresh(r: Dictionary, player_lv: int, cost: float, font: Font) -> void:
 		_furn[t].modulate = Color(1, 1, 1, 0.5) if (_preview == t and not on) else Color.WHITE
 		if on:
 			_furn_lv[t] = int(furn[t])
-		var want := 2 if (on and int(furn[t]) >= 2) else 1
+		var want := int(furn[t]) if on else 1
 		if int(_furn[t].get_meta("lv")) != want:
-			_furn[t].texture = load(D.furn_tex(rid, t, want))
-			_furn[t].position = D.furn_pos(rid, t, want) - rect.position
-			_furn[t].set_meta("lv", want)
+			_set_item(_furn[t], t, want)
 	_stars.queue_redraw()
 	var tp: PanelContainer = _tag.get_meta("panel")
 	tp.visible = _built
@@ -267,3 +263,12 @@ func _dashed_rect(r: Rect2, col: Color, w: float, dash: float) -> void:
 	var corners := [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y), r.position]
 	for i in range(4):
 		draw_dashed_line(corners[i], corners[i + 1], col, w, dash)
+
+
+func _set_item(sp: Sprite2D, t: String, lv: int) -> void:
+	var tex: Texture2D = load(D.furn_tex(rid, t, lv))
+	sp.texture = tex
+	var fr := D.furn_rect(rid, t, tex.get_size())
+	sp.position = fr.position - rect.position
+	sp.scale = fr.size / tex.get_size()
+	sp.set_meta("lv", lv)

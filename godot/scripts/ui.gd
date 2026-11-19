@@ -455,15 +455,17 @@ func _room_live(parent: Control, id: String, sc: float) -> void:
 	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	c.add_child(bg)
 	var furn: Dictionary = game.S.rooms[id].get("furn", {})
-	for t in ["karpet", "dekor", "rak", "kasur", "meja", "tanaman", "lampu"]:
-		if furn.has(t) and D.FURN_POS[id].has(t):
+	for t in D.ITEM_DRAW_ORDER:
+		if furn.has(t):
 			var flv := int(furn[t])
 			var tx: Texture2D = load(D.furn_tex(id, t, flv))
+			var fr := D.furn_rect(id, t, tx.get_size())
 			var tr := TextureRect.new()
 			tr.texture = tx
 			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			tr.position = (D.furn_pos(id, t, flv) - rect.position) * sc
-			tr.size = tx.get_size() * sc
+			tr.flip_h = D.furn_flip(id)
+			tr.position = (fr.position - rect.position) * sc
+			tr.size = fr.size * sc
 			c.add_child(tr)
 	var frame := Panel.new()
 	var fs := StyleBoxFlat.new()
@@ -513,7 +515,7 @@ func _furn_card(id: String) -> void:
 	if game.job_for(id, "fix") != {}:
 		v.add_child(_text("Teknisi sedang memperbaiki kamar ini.", 32, Color("3f6f96")))
 	for t in D.FURN_ORDER:
-		if not D.FURN_POS[id].has(t):
+		if not D.furn_has(id, t):
 			continue
 		var f: Dictionary = D.FURN[t]
 		var lv := int(r.furn.get(t, 0))

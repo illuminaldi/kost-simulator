@@ -190,8 +190,10 @@ func _build_world() -> void:
 	for id in D.ROOMS:
 		var r := D.rect_of(id)
 		var arr := []
-		for l in D.LAMPS[id]:
-			arr.append(_mk_light(Vector2(r.position.x + l[0] * r.size.x, r.position.y + l[1] * r.size.y), l[2], bld))
+		# Cahaya di kap lampu meja (perabot lampu).
+		var lt: Texture2D = load(D.furn_tex(id, "lampu", 1))
+		var lr := D.furn_rect(id, "lampu", lt.get_size())
+		arr.append(_mk_light(Vector2(lr.position.x + lr.size.x * (0.58 if D.furn_flip(id) else 0.42), lr.position.y + lr.size.y * 0.16), 120, bld))
 		room_lights[id] = arr
 	for f in range(1, D.TOP_FLOOR + 1):
 		var fr := D.facil_rect(f)
@@ -1102,8 +1104,8 @@ func _goal_of(w: Dictionary) -> Dictionary:
 func bed_spot(R: String) -> Vector2:
 	var lv := int(S.rooms[R].furn.get("kasur", 1))
 	var tex: Texture2D = load(D.furn_tex(R, "kasur", lv))
-	var p := D.furn_pos(R, "kasur", lv)
-	return Vector2(p.x + tex.get_width() * 0.5, p.y + tex.get_height() * 0.62)
+	var fr := D.furn_rect(R, "kasur", tex.get_size())
+	return Vector2(fr.position.x + fr.size.x * 0.5, fr.position.y + fr.size.y * 0.56)
 
 
 func _apply_goal(n: Npc, g: Dictionary) -> void:
@@ -1610,7 +1612,7 @@ func act(a: String, arg: String = "") -> void:
 			var rid: String = parts[0]
 			var t: String = parts[1]
 			var r: Dictionary = S.rooms[rid]
-			if not r.built or not D.FURN_POS[rid].has(t): return
+			if not r.built or not D.furn_has(rid, t): return
 			var lv := int(r.furn.get(t, 0))
 			if lv >= 3: return
 			var c: float = float(D.FURN[t].cost) * maxi(1, lv)
@@ -1821,7 +1823,7 @@ func _drop_ok(id: String) -> String:
 			var t: String = drag.item if drag.kind == "furn" else S.cargo[int(drag.item)]
 			if not r.built: return "Bangun kamarnya dulu"
 			if job_for(id, "deliver", t) != {}: return "%s untuk Kamar %s sedang diantar" % [D.FURN[t].n, D.room_name(id)]
-			if not D.FURN_POS[id].has(t): return "Kamar %s tidak punya tempat untuk %s" % [D.room_name(id), D.FURN[t].n]
+			if not D.furn_has(id, t): return "Kamar %s tidak punya tempat untuk %s" % [D.room_name(id), D.FURN[t].n]
 			if int(r.furn.get(t, 0)) >= 3: return "%s di Kamar %s sudah level maksimal" % [D.FURN[t].n, D.room_name(id)]
 			if int(S.lvl) < int(D.FURN[t].min): return "%s terbuka di Level %d" % [D.FURN[t].n, int(D.FURN[t].min)]
 			return ""
@@ -2131,8 +2133,8 @@ func _handle_cli(args: PackedStringArray) -> void:
 			for id in D.ROOMS:
 				S.rooms[id].built = true
 				S.rooms[id].tenant = null
-				for t in D.FURN_POS[id]:
-					S.rooms[id].furn[t] = 1
+				for t in D.ITEM_LAYOUT:
+					S.rooms[id].furn[t] = 1 + (D.ROOMS.find(id) + D.ITEM_LAYOUT.keys().find(t)) % 3
 				update_tier(S.rooms[id])
 			S.queue = []
 			dirty = true
@@ -2156,6 +2158,16 @@ func _handle_cli(args: PackedStringArray) -> void:
 			S.lvl = 5
 			for k in ["air_mati", "telat_bayar", "atap_bocor"]:
 				S.events.append({"id": "x" + k, "type": k, "room": "" if Ev.DEF[k].scope == "kost" else ("1R" if k == "telat_bayar" else "2L"), "age": 1, "auto": -1})
+			dirty = true
+		elif a == "--emptyrooms":
+			S.seen = true
+			ui.close_sheet()
+			S.lvl = 8
+			for id in D.ROOMS:
+				S.rooms[id].built = true
+				S.rooms[id].tenant = null
+				S.rooms[id].furn = {}
+			S.queue = []
 			dirty = true
 		elif a == "--facil":
 			S.seen = true
