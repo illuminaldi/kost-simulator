@@ -96,6 +96,17 @@ var cutscene_on := false
 
 
 func _maybe_intro(args: PackedStringArray) -> void:
+	# Pembuka brand (KelolaPro → KostTerdekat → Cozy Kost) setiap game dibuka; dilewati saat uji CLI.
+	var dev := false
+	for a in args:
+		if a.begins_with("--") and a != "--brand": dev = true
+	if args.has("--brand") or not dev:
+		cutscene_on = true
+		var bi := BrandIntro.new()
+		add_child(bi)
+		bi.setup(font)
+		await bi.finished
+		cutscene_on = false
 	if args.has("--intro") or not S.get("seen", false):
 		var cs := play_intro()
 		for a in args:
