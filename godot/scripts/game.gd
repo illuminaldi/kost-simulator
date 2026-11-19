@@ -435,7 +435,9 @@ func _build_world() -> void:
 	recep_art.region_enabled = true
 	recep_art.scale = Vector2(0.9, 0.9)
 	recep_art.z_index = 0
-	npc_lobby.add_child(recep_art)
+	# Urutan lapisan: Maryam di meja -> tablet KelolaPro -> karakter lain (driver, tamu).
+	lobby_root.add_child(recep_art)
+	lobby_root.move_child(recep_art, app_tablet.get_index() if app_tablet else npc_lobby.get_index())
 	kost_sign = PanelContainer.new()
 	var ksb := StyleBoxFlat.new()
 	ksb.bg_color = Color("b8835a")

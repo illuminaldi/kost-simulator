@@ -21,7 +21,7 @@ void fragment() {
 	vec2 lp = (UV - region_uv.xy) / region_uv.zw * room_size;
 	vec3 c = o.rgb;
 	if (wall_on && m.r > 0.01) {
-		float sh = clamp(luma(o.rgb) / 0.88, 0.55, 1.08);
+		float sh = clamp(luma(o.rgb) / 0.88, 0.0, 1.08);
 		vec3 a = wall_col.rgb;
 		vec3 b = wall_col2.rgb;
 		float k = 0.0;
