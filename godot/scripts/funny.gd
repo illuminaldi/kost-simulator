@@ -9,9 +9,9 @@ extends Node
 ## durian   : pickup salah kirim sekotak durian, lobi bau seharian.
 
 const GOSONG := "Gosong tersambar petir"
-const LIST := ["beruang", "petir", "maling", "hantu", "viral", "durian"]
+const LIST := ["beruang", "petir", "maling", "hantu", "viral", "durian", "zombie"]
 const NAMES := {"beruang": "Anak Beruang Nyasar", "petir": "Tersambar Petir", "maling": "Maling Manjat Jendela",
-	"hantu": "Hantu Kamar Kosong", "viral": "Kost Viral!", "durian": "Salah Kirim Durian"}
+	"hantu": "Hantu Kamar Kosong", "viral": "Kost Viral!", "durian": "Salah Kirim Durian", "zombie": "Serbuan Zombie?!"}
 # Kaca jendela tiap gambar kamar acuan (px kamar).
 const WIN := {"4L": Rect2(234, 42, 135, 128), "4R": Rect2(49, 42, 131, 129), "3L": Rect2(227, 42, 118, 115), "3R": Rect2(71, 42, 116, 115),
 	"2L": Rect2(194, 34, 115, 113), "2R": Rect2(106, 34, 113, 113), "1L": Rect2(194, 26, 113, 111), "1R": Rect2(108, 26, 111, 112)}
@@ -98,6 +98,7 @@ func start(k: String) -> void:
 		"hantu": _start_ghost()
 		"viral": _start_viral()
 		"durian": _start_durian()
+		"zombie": _start_zombie()
 	game.dirty = true
 
 
@@ -186,7 +187,7 @@ func _show_cub() -> void:
 	game.cat_spr.visible = false
 	cub = _Bear.new()
 	cub.small = true
-	cub.position = game.cat_spr.position + Vector2(0, 4)
+	cub.position = game.CAT_FLOOR + Vector2(0, 4)
 	game.lobby_root.add_child(cub)
 	game.lobby_root.move_child(cub, game.npc_lobby.get_index())
 
@@ -676,3 +677,71 @@ class _Durian extends Node2D:
 				var y := -170.0 - j * 14.0 - fmod(t * 40.0, 14.0)
 				pts.append(Vector2(x + sin(t * 3.0 + j * 0.8 + i) * 12.0, y))
 			draw_polyline(pts, Color(0.45, 0.7, 0.2, 0.6), 5.0)
+
+
+# ================= Zombie (ternyata karnaval Halloween) =================
+var zombies: Array = []
+
+
+func _start_zombie() -> void:
+	zombies.clear()
+	for i in range(6):
+		var n := Npc.new()
+		game.npc_lobby.add_child(n)
+		var nid := "zombie%d" % i
+		n.setup(nid, "visitor", D.STAFF_LOOK.teknisi, Vector2(D.IW + 160 + i * 130, D.LOBBY_Y), game.font)
+		n.art = true
+		n.char_id = "zombie" if i % 2 == 0 else "zombie2"
+		n.art_map = {"walk": "walk", "stand": "reach"}
+		n.set_meta("spd", 0.45)
+		n.dir = -1
+		n.set_meta("nama", "???")
+		game.npcs[nid] = n
+		zombies.append(n)
+		n.plan("lobby", Vector2(560 + i * 120, D.LOBBY_Y), "stand")
+	game.sfx("whoosh", -2.0)
+	game.ui.toast("Gerombolan ZOMBIE menyerbu kost! Tamu berlarian ketakutan!", "bad")
+	game.keeper_say("Aaaa! Zombie?! Semuanya masuk kamar!", 3.5)
+	_scare_guests("Zombieee! Kabuuur!")
+	# Penghuni di lobi lari keluar; yang paling tidak betah terlanjur pindah.
+	var worst: Dictionary = {}
+	var worst_r := ""
+	for e in game.each_tenant():
+		var t: Dictionary = e[1].tenant
+		if game.npcs.has(t.id) and game.npcs[t.id].scene == "lobby":
+			game.npcs[t.id].say("Tolooong!", 1.6)
+		if float(t.happy) < 55.0 and (worst.is_empty() or float(t.happy) < float(worst.happy)):
+			worst = t
+			worst_r = e[0]
+	if not worst.is_empty():
+		var tn: String = worst.name
+		game._sad_leave[worst.id] = true
+		S.rooms[worst_r].tenant = null
+		game.ui.toast("%s terlanjur kabur dan pindah dari kost karena ketakutan..." % tn, "bad")
+	var t := game.create_tween()
+	t.tween_interval(9.0)
+	t.tween_callback(_zombie_reveal)
+
+
+func _zombie_reveal() -> void:
+	game.ui.toast("Eh, ternyata cuma rombongan KARNAVAL HALLOWEEN! Mereka minta foto bareng.", "gold")
+	game.keeper_say("Ya ampun... kirain zombie beneran, hahaha!", 3.5)
+	var lines := ["Trick or treat!", "Hehe, maaf bikin kaget!", "Ayo foto bareng!", "Karnaval Halloween, Kak!", "Mampir ya ke parade!", "Boo! Hahaha"]
+	var i := 0
+	for z in zombies:
+		if not is_instance_valid(z): continue
+		z.say(lines[i % lines.size()], 2.6)
+		z.art_map["stand"] = "happy"
+		z.set_meta("nama", "Peserta Karnaval")
+		i += 1
+	S.rep = clampf(float(S.rep) + 0.05, 1.0, 5.0)
+	S.next_cand = minf(float(S.next_cand), 30.0)
+	game.add_xp(15)
+	var t := game.create_tween()
+	t.tween_interval(4.0)
+	t.tween_callback(func():
+		for z in zombies:
+			if not is_instance_valid(z): continue
+			z.set_meta("spd", 1.0)
+			z.plan("lobby", Vector2(-260, D.LOBBY_Y), "stand", func(m: Npc): game._remove_npc(m))
+		zombies.clear())

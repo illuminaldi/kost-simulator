@@ -200,8 +200,8 @@ const FACIL := {
 		"d": "Makan murah tanpa keluar kost. Pemasukan harian kalau ada Ibu Kantin."},
 	"cafe": {"n": "Cafe", "lv": 5, "cost": 2500000, "happy": 2, "inc": 8000, "staff": "barista", "visit": [15, 20], "pose": "stand",
 		"d": "Tempat nongkrong & kerja. Harga sewa +5%; pemasukan harian kalau ada Barista."},
-	"gym": {"n": "Gym", "lv": 6, "cost": 3000000, "happy": 3, "inc": 0, "visit": [6, 17], "pose": "stand",
-		"d": "Penghuni olahraga pagi & sore. Kebahagiaan naik."},
+	"gym": {"n": "Gym", "lv": 6, "cost": 3000000, "happy": 3, "inc": 5000, "staff": "trainer", "visit": [6, 17], "pose": "stand",
+		"d": "Penghuni olahraga pagi & sore. Kebahagiaan naik; pemasukan kelas latihan kalau ada Personal Trainer."},
 	"lift": {"n": "Lift", "lv": 6, "cost": 4000000, "happy": 0, "inc": 0, "visit": [], "pose": "stand",
 		"d": "Penghuni lantai atas tidak perlu naik tangga panjang: tidak cepat capek & tetap betah."},
 	"minimart": {"n": "Minimart", "lv": 7, "cost": 3500000, "happy": 2, "inc": 7000, "staff": "kasir", "visit": [10, 16, 21], "pose": "stand",
@@ -301,6 +301,7 @@ const STAFF := {
 	"kantin": {"nama": "Bu Sari", "n": "Ibu Kantin", "sal": 55000, "min": 4, "need": "kantin", "d": "Memasak di Kantin. Membuka pemasukan harian Kantin."},
 	"barista": {"nama": "Nadia", "n": "Barista", "sal": 60000, "min": 5, "need": "cafe", "d": "Meracik kopi di Cafe. Membuka pemasukan harian Cafe."},
 	"kasir": {"nama": "Sinta", "n": "Kasir Minimart", "sal": 55000, "min": 7, "need": "minimart", "d": "Menjaga kasir Minimart. Membuka pemasukan harian Minimart."},
+	"trainer": {"nama": "Kak Ray", "n": "Personal Trainer", "sal": 65000, "min": 6, "need": "gym", "d": "Melatih penghuni di Gym. Membuka pemasukan kelas latihan & penghuni lebih bugar (kebahagiaan ekstra)."},
 	"satpam": {"nama": "Aji", "n": "Satpam", "sal": 70000, "min": 3, "d": "Patroli di depan kost. Mencegah pencurian; urus tamu menginap & paket hilang."},
 }
 const FAC := {
@@ -330,7 +331,7 @@ const CHARS := {"kutu": "l", "kakek": "l", "siswi": "p", "flanel": "p", "nenek":
 const WORKER := {
 	"build": {"nama": "Pak Joko", "role": "Tukang", "char": "tukang", "map": {"walk": "walk", "stand": "hold", "job": ["repair", "repair", "carry"], "react": "hold"}, "mins": 240},
 	"fix": {"nama": "Dimas", "role": "Teknisi", "char": "teknisi", "map": {"walk": "walk", "stand": "idle", "job": ["idle", "fix", "fix"], "react": "happy"}, "mins": 90},
-	"deliver": {"nama": "Andi", "role": "Kurir", "char": "kurir", "map": {"walk": "carry", "stand": "idle", "job": "back", "react": "idle"}, "mins": 40},
+	"deliver": {"nama": "Andi", "role": "Kurir", "char": "kurir", "map": {"walk": "carry", "stand": "idle", "job": "back", "react": "idle"}, "mins": 20},
 }
 ## "Ryan (Petugas Kebersihan)"
 static func staff_label(k: String) -> String:
@@ -357,6 +358,7 @@ const HATS := ["#d98c6a", "#7d9a6b", "#6f8fb0", "#b5654a", "#c9a14a"]
 const BAGC := ["#a0764e", "#c79a5b", "#8f6a4a"]
 
 const STAFF_LOOK := {
+	"trainer": {"skin": "#c98d62", "hair": "#2a1d18", "style": "short", "shirt": "#2b2b30", "pants": "#2b2b30", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#fff"},
 	"laundry": {"skin": "#ecc29b", "hair": "#3b2a20", "style": "short", "shirt": "#8fb3c9", "pants": "#3f4a5a", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#6f8fb0"},
 	"kantin": {"skin": "#d6a378", "hair": "#2f2320", "style": "bun", "shirt": "#e9a35a", "pants": "#6b5a48", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#fff"},
 	"kasir": {"skin": "#f2c7a5", "hair": "#2f2320", "style": "bun", "shirt": "#e0533a", "pants": "#3f4a5a", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#fff"},
@@ -582,3 +584,26 @@ static func short(n: float) -> String:
 		if t.ends_with(",0"): t = t.substr(0, t.length() - 2)
 		return sign + t + "jt"
 	return sign + str(roundi(a / 1000.0)) + "rb"
+
+
+# ---- Outsource: jasa luar yang bisa di-upgrade ----
+const OUTSRC := {
+	"kurir": {"nama": "Andi", "n": "Kurir Perabot", "pic": "kurir/idle", "lv": [
+		{"n": "Kurir Motor", "cost": 0, "d": "Angkut 2 kotak sekali jalan. Barang tiba ± 45 menit."},
+		{"n": "Kurir Pickup", "cost": 750000, "d": "Angkut 3 kotak sekali jalan. Barang tiba ± 30 menit."},
+		{"n": "Ekspedisi Kilat", "cost": 2000000, "d": "Angkut 5 kotak sekaligus, barang tiba ± 15 menit, antar lebih cepat."}]},
+	"galon": {"nama": "Kang Asep", "n": "Kang Galon", "pic": "galon/happy", "lv": [
+		{"n": "Depot Isi Ulang", "cost": 0, "d": "Antar air ke Kantin 2 hari sekali, Rp 20rb/galon."},
+		{"n": "Air Mineral Bermerek", "cost": 600000, "d": "Rp 25rb/galon, penghuni +2 kebahagiaan tiap antar."},
+		{"n": "Langganan Harian", "cost": 1500000, "d": "Antar tiap hari, penghuni +3 kebahagiaan."}]},
+	"ojol": {"nama": "Bang Ojol", "n": "Ojek Online", "pic": "ojol/thumb", "lv": [
+		{"n": "Ojol Biasa", "cost": 0, "d": "Kadang mengantar makanan pesanan penghuni (+4 senang)."},
+		{"n": "Ojol Prioritas", "cost": 500000, "d": "Lebih sering datang, penghuni +6 senang."},
+		{"n": "Mitra Resmi Kost", "cost": 1200000, "d": "Hampir tiap jam makan datang, penghuni +8 senang."}]},
+	"sampah": {"nama": "Mang Ujang", "n": "Petugas Sampah", "pic": "sampah/wave", "lv": [
+		{"n": "Belum Langganan", "cost": 0, "fee": 0, "d": "Sampah menumpuk: semua kamar 30% lebih cepat kotor."},
+		{"n": "Angkut 3 Hari Sekali", "cost": 250000, "fee": 15000, "d": "Kamar kotor normal. Iuran Rp 15rb/hari."},
+		{"n": "Angkut Harian", "cost": 600000, "fee": 25000, "d": "Kamar 15% lebih lambat kotor. Iuran Rp 25rb/hari."},
+		{"n": "Pilah & Daur Ulang", "cost": 1500000, "fee": 35000, "d": "Kamar 25% lebih lambat kotor, penghuni +1 senang tiap hari. Iuran Rp 35rb/hari."}]},
+}
+const OUTSRC_ORDER := ["kurir", "galon", "ojol", "sampah"]

@@ -40,6 +40,8 @@ var tray_tab := "perabot"
 var ghost: Sprite2D
 var hints := {}
 var hint_root: Control
+var nav_nodes: Array = []
+var side: SideQuest
 
 
 class ClockIcon:
@@ -94,12 +96,14 @@ func setup(p_game: Node, art: Texture2D, p_font: Font, p_font_m: Font) -> void:
 	band.size = Vector2(D.IW, D.IH - D.NAV_Y + 22)
 	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(band)
+	nav_nodes.append(band)
 	var edge := ColorRect.new()
 	edge.color = Color("6b4f3a")
 	edge.position = band.position
 	edge.size = Vector2(D.IW, 8)
 	edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(edge)
+	nav_nodes.append(edge)
 	var cols := {"upgrade": [D.C_GREEN, "Beli"], "tenants": [D.C_PINK, "Penyewa"], "staff": [D.C_YELLOW, "Karyawan"], "manage": [D.C_CREAM, "Kelola"]}
 	for nv in D.NAV:
 		var r: Rect2 = nv[1]
@@ -117,6 +121,7 @@ func setup(p_game: Node, art: Texture2D, p_font: Font, p_font_m: Font) -> void:
 		lb.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		pc.add_child(lb)
 		add_child(pc)
+		nav_nodes.append(pc)
 	# Panel HUD digambar ulang persis di atas pil pada ilustrasi.
 	_pill(D.PILL_MONEY)
 	_pill(D.PILL_LV)
@@ -837,8 +842,9 @@ func update_hud() -> void:
 	clock_icon.dusk = clampf(1.0 - absf(h - 17.6) / 1.4, 0, 1) + clampf(1.0 - absf(h - 6.2) / 1.0, 0, 1)
 	clock_icon.queue_redraw()
 	var q: int = S.queue.size()
-	nav_badge.visible = q > 0 and not tray.visible
-	ev_badge.visible = S.events.size() > 0 and not tray.visible
+	var sq: bool = side != null and side.visible
+	nav_badge.visible = q > 0 and not tray.visible and not sq
+	ev_badge.visible = S.events.size() > 0 and not tray.visible and not sq
 	ev_badge_lbl.text = str(S.events.size())
 	nav_badge_lbl.text = str(q)
 
@@ -926,6 +932,9 @@ func refresh_sheet(keep: bool = true) -> void:
 		"facil": _sheet_facil()
 		"paint": _sheet_paint()
 		"funny": _sheet_funny()
+		"support": _sheet_support()
+		"devnote": _sheet_devnote()
+		"review": _sheet_review()
 	_fit.call_deferred(sv if keep else 0)
 
 
@@ -1562,12 +1571,63 @@ func _sheet_tenants() -> void:
 
 
 const STAFF_PIC := {"cleaner": "kebersihan/happy", "resep": "penjaga/happy", "teknisi": "teknisi/idle", "satpam": "satpam/idle",
-	"laundry": "laundry/happy", "kantin": "kantin/happy", "barista": "barista/happy", "kasir": "kasir/happy"}
+	"laundry": "laundry/happy", "kantin": "kantin/happy", "barista": "barista/happy", "kasir": "kasir/happy", "trainer": "trainer/happy"}
+
+
+var staff_tab := "karyawan"
 
 
 func _sheet_staff() -> void:
-	var S: Dictionary = game.S
 	_header("Karyawan")
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 14)
+	box.add_child(tabs)
+	for t in [["karyawan", "Karyawan"], ["outsource", "Outsource"], ["resource", "Resource"]]:
+		var key: String = t[0]
+		tabs.add_child(_btn(t[1], D.C_YELLOW if staff_tab == key else Color.WHITE, func(): staff_tab = key; refresh_sheet(), false, true))
+	match staff_tab:
+		"outsource": _staff_outsource()
+		"resource":
+			box.add_child(_text("Aplikasi pendukung kost. Langganan bisa dimulai atau dihentikan kapan saja.", 32, D.C_MUTED))
+			_apps_list()
+		_: _staff_list()
+
+
+func _staff_outsource() -> void:
+	var S: Dictionary = game.S
+	box.add_child(_text("Jasa dari luar kost. Tidak digaji harian; upgrade sekali bayar untuk layanan yang lebih handal.", 32, D.C_MUTED))
+	for k in D.OUTSRC_ORDER:
+		var o: Dictionary = D.OUTSRC[k]
+		var lv: int = game.out_lv(k)
+		var cur: Dictionary = o.lv[lv]
+		var v := _card()
+		var hb := HBoxContainer.new()
+		hb.add_theme_constant_override("separation", 24)
+		var pic := TextureRect.new()
+		pic.texture = load("res://assets/chars/%s_L.png" % o.pic)
+		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		pic.custom_minimum_size = Vector2(170, 250)
+		if k == "sampah" and lv == 0: pic.modulate = Color(0.45, 0.45, 0.45, 0.7)
+		hb.add_child(pic)
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hb.add_child(col)
+		v.add_child(hb)
+		_row(col, _label(o.nama, 42), _label(o.n, 30, Color("8a5a3a"), true))
+		col.add_child(_label("Sekarang: %s" % cur.n, 32, Color("2f7a2a") if not (k == "sampah" and lv == 0) else Color("9b2f1c"), true))
+		col.add_child(_text(cur.d, 30, D.C_MUTED))
+		if lv < o.lv.size() - 1:
+			var nx: Dictionary = o.lv[lv + 1]
+			col.add_child(_text("Berikutnya · %s: %s" % [nx.n, nx.d], 28, Color("3f6f96")))
+			var label: String = ("Langganan · " if k == "sampah" and lv == 0 else "Upgrade · ") + D.short(float(nx.cost))
+			col.add_child(_btn(label, D.C_YELLOW, func(): _do("out_up", k), float(S.money) < float(nx.cost), false, money_why(float(nx.cost))))
+		else:
+			col.add_child(_label("Layanan terbaik sudah aktif", 30, Color("2f7a2a"), true))
+
+
+func _staff_list() -> void:
+	var S: Dictionary = game.S
 	var tot := 0
 	for k in S.staff:
 		if S.staff[k]:
@@ -1705,36 +1765,7 @@ func _sheet_upgrade() -> void:
 		_row(v, _label(fc.n, 40), right)
 		if fc.d != "":
 			v.add_child(_text(fc.d, 32, D.C_MUTED))
-	# Aplikasi langganan
-	box.add_child(_label("Aplikasi", 44))
-	box.add_child(_text("Langganan bulanan, ditagih per hari bersama gaji pukul 17:00. Bisa dihentikan kapan saja.", 32, D.C_MUTED))
-	for k in D.APP_ORDER:
-		var ap: Dictionary = D.APPS[k]
-		var v := _card()
-		var hb := HBoxContainer.new()
-		hb.add_theme_constant_override("separation", 20)
-		var ic := TextureRect.new()
-		ic.texture = load("res://assets/fac/%s.svg" % k)
-		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		ic.custom_minimum_size = Vector2(150, 170)
-		hb.add_child(ic)
-		var col := VBoxContainer.new()
-		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		hb.add_child(col)
-		v.add_child(hb)
-		var right: Control
-		var on: bool = game.has_app(k)
-		if on:
-			right = _btn("Berhenti", D.C_RED, func(): _do("app_off", k))
-		elif int(S.lvl) < int(ap.lv):
-			right = _label("Level %d" % int(ap.lv), 34, D.C_MUTED, true)
-		else:
-			right = _btn("Pasang", D.C_GREEN, func(): _do("app_on", k))
-		_row(col, _label(ap.n, 40), right)
-		col.add_child(_label("%s · %s/bulan (± %s/hari)%s" % [ap.tag, D.short(ap.month), D.rp(roundi(ap.fee)), "  · Aktif" if on else ""], 30, Color("2f7a2a") if on else Color("8a5a3a"), true))
-		for perk in ap.perks:
-			col.add_child(_text("• " + perk, 30, D.C_MUTED))
+	_apps_list()
 	# Ruang fasilitas di samping tangga + karyawannya
 	var sec := _label("Ruang Fasilitas", 44)
 	box.add_child(sec)
@@ -1866,12 +1897,12 @@ func _sheet_manage() -> void:
 		_row(lv, _label("Listrik & air", 34, D.C_MUTED, true), _label("-" + D.rp(L.util), 34, D.C_MUTED, true))
 		_row(lv, _label("Lain-lain", 34, D.C_MUTED, true), _label(("-" if float(L.other) > 0 else "+") + D.rp(absf(float(L.other))), 34, D.C_MUTED, true))
 		_row(lv, _label("Bersih", 40), _label(D.rp(L.net), 40, Color("2f7a2a") if float(L.net) >= 0 else Color("c0392b")))
-	var f := _flow(box)
-	if confirm == "reset":
-		f.add_child(_btn("Ya, mulai ulang dari awal", D.C_RED, func(): _do("reset")))
-		f.add_child(_btn("Batal", D.C_CREAM, func(): confirm = ""; refresh_sheet()))
-	else:
-		f.add_child(_btn("Mulai Ulang Game", D.C_CREAM, func(): confirm = "reset"; refresh_sheet()))
+	var hv := _card()
+	hv.add_child(_label("Bantuan & Lainnya", 42))
+	var hf := _flow(hv)
+	hf.add_child(_btn("Customer Support", D.C_GREEN, func(): open_sheet("support")))
+	hf.add_child(_btn("Beri Rating", D.C_YELLOW, func(): game.open_review(true)))
+	hf.add_child(_btn("Catatan Pengembang", D.C_CREAM, func(): open_sheet("devnote")))
 
 
 # ---------- Geser untuk menggulir panel (HP) ----------
@@ -2004,3 +2035,92 @@ func _sheet_funny() -> void:
 	for o in d.o:
 		var c: float = o[2]
 		v.add_child(_btn(o[0] + ((" · " + D.short(c)) if c > 0 else ""), o[1], o[3], float(game.S.money) < c, true, money_why(c)))
+
+
+func _apps_list() -> void:
+	var S: Dictionary = game.S
+	box.add_child(_label("Aplikasi", 44))
+	box.add_child(_text("Langganan bulanan, ditagih per hari bersama gaji pukul 17:00. Bisa dihentikan kapan saja.", 32, D.C_MUTED))
+	for k in D.APP_ORDER:
+		var ap: Dictionary = D.APPS[k]
+		var v := _card()
+		var hb := HBoxContainer.new()
+		hb.add_theme_constant_override("separation", 20)
+		var ic := TextureRect.new()
+		ic.texture = load("res://assets/fac/%s.svg" % k)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.custom_minimum_size = Vector2(150, 170)
+		hb.add_child(ic)
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hb.add_child(col)
+		v.add_child(hb)
+		var right: Control
+		var on: bool = game.has_app(k)
+		if on:
+			right = _btn("Berhenti", D.C_RED, func(): _do("app_off", k))
+		elif int(S.lvl) < int(ap.lv):
+			right = _label("Level %d" % int(ap.lv), 34, D.C_MUTED, true)
+		else:
+			right = _btn("Pasang", D.C_GREEN, func(): _do("app_on", k))
+		_row(col, _label(ap.n, 40), right)
+		col.add_child(_label("%s · %s/bulan (± %s/hari)%s" % [ap.tag, D.short(ap.month), D.rp(roundi(ap.fee)), "  · Aktif" if on else ""], 30, Color("2f7a2a") if on else Color("8a5a3a"), true))
+		for perk in ap.perks:
+			col.add_child(_text("• " + perk, 30, D.C_MUTED))
+
+
+func set_nav_visible(on: bool) -> void:
+	for n in nav_nodes: n.visible = on
+	if floor_btn: floor_btn.visible = on
+	if not on:
+		nav_badge.visible = false
+		ev_badge.visible = false
+		if tray: tray.visible = false
+		close_sheet()
+
+
+func make_side() -> void:
+	side = SideQuest.new()
+	add_child(side)
+	move_child(side, 0)
+	side.setup(game, self, font)
+
+
+const SUPPORT_WA := "6285159225143"
+const SUPPORT_MAIL := "KelolaPro@gmail.com"
+
+
+func _sheet_support() -> void:
+	_header("Customer Support")
+	var v := _card()
+	v.add_child(_text("Ada kendala, bug, atau saran? Tim kami siap membantu. Sertakan nomor hari & level di game supaya lebih cepat ditangani.", 34, D.C_MUTED))
+	var info := "Halo, saya main Cozy Kost (Hari %d, Level %d). " % [int(game.S.day), int(game.S.lvl)]
+	v.add_child(_btn("Chat WhatsApp", D.C_GREEN, func(): OS.shell_open("https://wa.me/%s?text=%s" % [SUPPORT_WA, info.uri_encode()]), false, true))
+	v.add_child(_btn("Kirim Email", D.C_YELLOW, func(): OS.shell_open("mailto:%s?subject=%s&body=%s" % [SUPPORT_MAIL, "Bantuan Cozy Kost".uri_encode(), info.uri_encode()]), false, true))
+	var f := _card()
+	f.add_child(_label("Pertanyaan umum", 40))
+	for qa in [["Progres saya hilang?", "Data tersimpan di perangkat/browser ini. Jangan hapus data browser; fitur login & simpan cloud segera hadir."],
+			["Barang tidak diantar?", "Barang datang dengan pickup. Seret kotaknya ke kamar tujuan, lalu kurir Andi akan mengantar."],
+			["Kenapa Maryam tidak bisa jalan-jalan?", "Geser lobi ke kiri/kanan saat Maryam sedang berjaga di meja depan."]]:
+		f.add_child(_label(qa[0], 32, D.C_INK, true))
+		f.add_child(_text(qa[1], 30, D.C_MUTED))
+
+
+func _sheet_devnote() -> void:
+	_header("Catatan Pengembang")
+	var v := _card()
+	for t in ["Halo, terima kasih sudah bermain Cozy Kost!",
+			"Tampilan dan teknis game ini dibuat dengan bantuan AI. Ide, arahan, dan quality control-nya dikerjakan oleh manusia.",
+			"Mohon maaf kalau masih ada kekurangan di dalam game. Kritik dan saranmu sangat berarti. Sampaikan lewat Customer Support, ya.",
+			"Selamat mengelola kost bersama Maryam!"]:
+		v.add_child(_text(t, 34))
+	v.add_child(_btn("Hubungi Customer Support", D.C_GREEN, func(): open_sheet("support"), false, true))
+
+
+func _sheet_review() -> void:
+	_header("Suka main Cozy Kost?")
+	var v := _card()
+	v.add_child(_text("Kalau kamu menikmati mengurus kost bersama Maryam, bantu kami dengan rating bintang 5 di Google Play. Cuma sebentar kok!", 34))
+	v.add_child(_btn("Beri Rating", D.C_YELLOW, func(): close_sheet(); game.open_review(true), false, true))
+	v.add_child(_btn("Nanti saja", D.C_CREAM, func(): close_sheet(), false, true))

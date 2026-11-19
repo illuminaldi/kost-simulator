@@ -1,0 +1,656 @@
+class_name SideQuest
+extends Control
+## Jalan-jalan Maryam: geser lobi ke kiri/kanan saat Maryam ada di meja.
+## Kiri: Kost → jalan kota → Cafe Book → taman → Lapangan Padel → (kota) → Kost.
+## Kanan: urutan sebaliknya. Di Cafe Book & Padel ada permainan kecil.
+
+const RING := ["kost", "cafe", "padel"]
+# Pemandangan di antara dua tujuan, searah "kiri" (indeks naik).
+const SCENERY := {"kost>cafe": "kota", "cafe>padel": "taman", "padel>kost": "kota"}
+const NAMES := {"kost": "Kost", "cafe": "Cafe Book", "padel": "Lapangan Padel", "kota": "Jalan Kota", "taman": "Taman Kota"}
+
+var game: Node
+var ui: Node
+var font: Font
+var loc := "kost"
+var view := ""             # walk / cafe_ext / cafe_in / padel
+var _layer: Control
+var _press := Vector2.ZERO
+var _pressed := false
+var _swiped := false
+
+
+func setup(g: Node, u: Node, f: Font) -> void:
+	game = g
+	ui = u
+	font = f
+	position = Vector2.ZERO
+	size = Vector2(D.IW, D.IH)
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	visible = false
+
+
+func active() -> bool:
+	return visible
+
+
+## dir: -1 = geser ke kiri (jalan ke kiri), +1 = geser ke kanan.
+func start(dir: int) -> void:
+	visible = true
+	loc = "kost"
+	ui.set_nav_visible(false)
+	_walk(dir)
+
+
+func _close() -> void:
+	_clear()
+	visible = false
+	view = ""
+	loc = "kost"
+	ui.set_nav_visible(true)
+
+
+func _clear() -> void:
+	if _layer: _layer.queue_free()
+	_layer = Control.new()
+	_layer.size = size
+	_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_layer)
+
+
+func _next(dir: int) -> String:
+	var i := RING.find(loc)
+	return RING[(i + (1 if dir < 0 else -1) + RING.size()) % RING.size()]
+
+
+# ---------------- Berjalan ----------------
+func _walk(dir: int) -> void:
+	var to := _next(dir)
+	var key: String = ("%s>%s" % [loc, to]) if dir < 0 else ("%s>%s" % [to, loc])
+	var theme: String = SCENERY.get(key, "kota")
+	_clear()
+	view = "walk"
+	var w := _Walk.new()
+	w.theme = theme
+	w.dir = dir
+	w.font = font
+	w.dest = NAMES[to]
+	w.from = NAMES[loc]
+	_layer.add_child(w)
+	w.done.connect(func(): _arrive(to))
+	game.sfx("pop", -12.0)
+
+
+func _arrive(to: String) -> void:
+	loc = to
+	match to:
+		"kost":
+			_close()
+			game.keeper_say("Sudah pulang! Kost aman kan?", 2.5)
+		"cafe": _show_cafe_ext()
+		"padel": _show_padel()
+
+
+# ---------------- Tampilan bantu ----------------
+func _bg(path: String) -> void:
+	var tr := TextureRect.new()
+	tr.texture = load(path)
+	tr.size = size
+	tr.stretch_mode = TextureRect.STRETCH_SCALE
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_layer.add_child(tr)
+
+
+func _hit(r: Rect2, cb: Callable) -> void:
+	var b := Button.new()
+	b.flat = true
+	b.position = r.position
+	b.size = r.size
+	b.focus_mode = Control.FOCUS_NONE
+	var e := StyleBoxEmpty.new()
+	for st in ["normal", "hover", "pressed", "focus", "disabled"]:
+		b.add_theme_stylebox_override(st, e)
+	b.pressed.connect(cb)
+	b.button_down.connect(func(): b.modulate = Color(0.85, 0.85, 0.85))
+	b.button_up.connect(func(): b.modulate = Color.WHITE)
+	_layer.add_child(b)
+
+
+func _panel(r: Rect2, col := Color("fbf3e6")) -> PanelContainer:
+	var p := PanelContainer.new()
+	p.position = r.position
+	p.size = r.size
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = col
+	sb.border_color = D.C_LINE
+	sb.set_border_width_all(6)
+	sb.set_corner_radius_all(26)
+	sb.content_margin_left = 22
+	sb.content_margin_right = 22
+	sb.content_margin_top = 10
+	sb.content_margin_bottom = 10
+	p.add_theme_stylebox_override("panel", sb)
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_layer.add_child(p)
+	return p
+
+
+func _lbl(t: String, sz: int, col := D.C_INK, wrap := false) -> Label:
+	var l := Label.new()
+	l.text = t
+	l.add_theme_font_override("font", font)
+	l.add_theme_font_size_override("font_size", sz)
+	l.add_theme_color_override("font_color", col)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	if wrap: l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return l
+
+
+func _bottom(btns: Array) -> void:
+	var band := ColorRect.new()
+	band.color = Color("b98a5e")
+	band.position = Vector2(0, D.NAV_Y - 22)
+	band.size = Vector2(D.IW, D.IH - D.NAV_Y + 22)
+	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_layer.add_child(band)
+	var n := btns.size()
+	var gap := 26.0
+	var w := (D.IW - 40.0 - gap * (n - 1)) / n
+	for i in range(n):
+		var b: Array = btns[i]
+		var r := Rect2(20 + i * (w + gap), D.NAV_Y, w, 170)
+		var p := _panel(r, b[1])
+		p.add_child(_lbl(b[0], 46))
+		_hit(r, b[2])
+
+
+func _toast_once(key: String) -> bool:
+	var S: Dictionary = game.S
+	if not S.has("side"): S.side = {}
+	if int(S.side.get(key, -1)) == int(S.day): return false
+	S.side[key] = int(S.day)
+	return true
+
+
+# ---------------- Cafe Book: tampak luar ----------------
+func _show_cafe_ext() -> void:
+	_clear()
+	view = "cafe_ext"
+	_bg("res://assets/side/cafe_ext.jpg")
+	var m := TextureRect.new()
+	m.texture = load("res://assets/chars/penjaga/happy_L.png")
+	m.size = m.texture.get_size() * 1.32
+	m.position = Vector2(522 - m.size.x / 2.0, 2095 - m.size.y)
+	m.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_layer.add_child(m)
+	var tip := _panel(Rect2(250, 2160, 940, 110), Color(1, 0.98, 0.94, 0.92))
+	tip.add_child(_lbl("Geser kiri: ke Lapangan Padel · Geser kanan: pulang", 32, D.C_MUTED, true))
+	_bottom([["Masuk Cafe", D.C_GREEN, _show_cafe_in], ["Lanjut ke Padel", D.C_YELLOW, func(): _walk(-1)], ["Balik ke Kost", D.C_PINK, func(): _walk(1)]])
+
+
+# ---------------- Cafe Book: membaca ----------------
+const BOOKS := [
+	{"t": "Rahasia Kost Nyaman", "p": [
+		"Penghuni betah bukan karena kamar mewah, tapi karena pemiliknya cepat tanggap.",
+		"Bersih itu nomor satu. Kamar kotor membuat sewa terasa mahal.",
+		"Sapa penghuni setiap pagi. Senyum itu gratis, efeknya mahal.",
+		"Perbaikan kecil hari ini mencegah keluhan besar minggu depan.",
+		"Fasilitas bersama membuat penghuni saling kenal dan jarang pindah.",
+		"Kamu sudah membaca satu buku! Ide baru siap dicoba di kost."]},
+	{"t": "Kopi & Ketenangan", "p": [
+		"Hirup aroma kopinya dulu. Tidak semua hal harus selesai hari ini.",
+		"Istirahat bukan berhenti; istirahat itu mengisi bensin.",
+		"Kerja keras itu bagus. Kerja sambil bahagia itu lebih awet.",
+		"Rumah yang hangat dimulai dari pemilik yang tidak kelelahan.",
+		"Nenek bilang: rawat dirimu, baru rawat orang lain.",
+		"Selesai! Maryam merasa jauh lebih segar."]},
+	{"t": "Catatan Pengusaha Muda", "p": [
+		"Catat semua pemasukan dan pengeluaran, sekecil apa pun.",
+		"Harga sewa yang adil membuat kamar jarang kosong.",
+		"Dengarkan keluhan: itu daftar perbaikan gratis.",
+		"Reputasi dibangun bertahun-tahun, rusak dalam sehari.",
+		"Investasi terbaik: kenyamanan penghuni.",
+		"Tamat. Saatnya mempraktikkan di kost!"]},
+]
+var book := 0
+var page := 0
+var coffee := 1.0
+var _page_lbl: Label
+var _title_lbl: Label
+var _num_lbl: Label
+var _coffee_bar: ColorRect
+
+
+func _show_cafe_in() -> void:
+	_clear()
+	view = "cafe_in"
+	page = 0
+	_bg("res://assets/side/cafe_in.jpg")
+	# Halaman buku: kertas bersih di atas buku dalam ilustrasi.
+	var pg := _panel(Rect2(250, 1150, 940, 640), Color("fdf6e3"))
+	pg.rotation = -0.06
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 18)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pg.add_child(v)
+	_title_lbl = _lbl("", 40, Color("8a5a3a"))
+	v.add_child(_title_lbl)
+	_page_lbl = _lbl("", 46, D.C_INK, true)
+	_page_lbl.custom_minimum_size = Vector2(880, 380)
+	v.add_child(_page_lbl)
+	_num_lbl = _lbl("", 30, D.C_MUTED)
+	v.add_child(_num_lbl)
+	# Meter santai (kopi)
+	var cp := _panel(Rect2(40, 1990, 520, 90), Color(1, 0.98, 0.94, 0.95))
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 14)
+	cp.add_child(hb)
+	hb.add_child(_lbl("Santai", 32))
+	var bg := ColorRect.new()
+	bg.color = Color("e6d8c2")
+	bg.custom_minimum_size = Vector2(320, 30)
+	bg.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	hb.add_child(bg)
+	_coffee_bar = ColorRect.new()
+	_coffee_bar.color = Color("b07a4a")
+	_coffee_bar.size = Vector2(320, 30)
+	bg.add_child(_coffee_bar)
+	# Tombol yang sudah tergambar di ilustrasi (posisi sudah digeser 90 px ke atas).
+	_hit(Rect2(70, 1125, 152, 150), func(): _flip(-1))
+	_hit(Rect2(1218, 1125, 152, 150), func(): _flip(1))
+	_hit(Rect2(1160, 2020, 230, 190), _sip)
+	_hit(Rect2(20, 2275, 445, 180), func(): _walk(1))
+	_hit(Rect2(495, 2275, 445, 180), _order)
+	_hit(Rect2(970, 2275, 448, 180), func():
+		book = (book + 1) % BOOKS.size()
+		page = 0
+		game.sfx("pop", -6.0)
+		_render_book())
+	_render_book()
+
+
+func _render_book() -> void:
+	var b: Dictionary = BOOKS[book]
+	_title_lbl.text = b.t
+	_page_lbl.text = b.p[page]
+	_num_lbl.text = "Halaman %d / %d" % [page + 1, b.p.size()]
+	_coffee_bar.size.x = 320.0 * clampf(coffee, 0, 1)
+
+
+func _flip(d: int) -> void:
+	if coffee <= 0.05 and d > 0:
+		game.ui.toast("Maryam mulai ngantuk... hirup kopi dulu atau pesan minuman!", "bad")
+		return
+	var n: int = BOOKS[book].p.size()
+	var np := clampi(page + d, 0, n - 1)
+	if np == page: return
+	page = np
+	if d > 0: coffee = maxf(0.0, coffee - 0.22)
+	game.sfx("pop", -8.0)
+	if page == n - 1 and _toast_once("baca%d" % book):
+		game.add_xp(15)
+		for e in game.each_tenant():
+			e[1].tenant.happy = clampf(float(e[1].tenant.happy) + 2.0, 0, 100)
+		game.maybe_review("baca")
+		game.ui.toast("Maryam selesai membaca \"%s\"! +15 XP, penghuni ikut senang (+2)." % BOOKS[book].t, "gold")
+	_render_book()
+
+
+func _sip() -> void:
+	if coffee >= 0.99:
+		game.ui.toast("Kopinya masih penuh, lanjut baca!")
+		return
+	coffee = minf(1.0, coffee + 0.35)
+	game.ui.toast("Sruput~ Hangat dan wangi.")
+	_render_book()
+
+
+func _order() -> void:
+	var c := 25000.0
+	if float(game.S.money) < c:
+		game.ui.toast(game.ui.money_why(c), "bad"); return
+	game.spend(c, "other")
+	coffee = 1.0
+	game.sfx("buy", -6.0)
+	game.ui.toast("Es kopi gula aren datang! (%s)" % D.rp(c), "gold")
+	_render_book()
+
+
+# ---------------- Lapangan Padel ----------------
+const FOES := [["Rina", 0.55], ["Dewi", 0.7], ["Coach Bima", 0.85]]
+var foe := 0
+var pts := [0, 0]
+var games := [0, 0]
+var _score_lbl: Label
+var _foe_lbl: Label
+var _ball: _Ball
+var _msg: Label
+
+
+func _show_padel() -> void:
+	_clear()
+	view = "padel"
+	_bg("res://assets/side/padel.jpg")
+	var sp := _panel(Rect2(440, 225, 560, 150))
+	var hb := HBoxContainer.new()
+	hb.alignment = BoxContainer.ALIGNMENT_CENTER
+	hb.add_theme_constant_override("separation", 20)
+	sp.add_child(hb)
+	hb.add_child(_lbl("Maryam", 34))
+	_score_lbl = _lbl("0 - 0", 56)
+	_score_lbl.custom_minimum_size = Vector2(190, 0)
+	hb.add_child(_score_lbl)
+	_foe_lbl = _lbl("", 34)
+	hb.add_child(_foe_lbl)
+	_msg = _lbl("", 56, Color("fff6e6"))
+	_msg.add_theme_color_override("font_outline_color", D.C_LINE)
+	_msg.add_theme_constant_override("outline_size", 14)
+	_msg.position = Vector2(0, 560)
+	_msg.size = Vector2(D.IW, 120)
+	_layer.add_child(_msg)
+	_ball = _Ball.new()
+	_layer.add_child(_ball)
+	_ball.missed.connect(_point.bind(1))
+	_ball.foe_missed.connect(_point.bind(0))
+	_hit(Rect2(20, 2275, 445, 180), func(): _walk(-1))
+	_hit(Rect2(495, 2275, 445, 180), func():
+		foe = (foe + 1) % FOES.size()
+		_new_match())
+	_hit(Rect2(970, 2275, 448, 180), _new_match)
+	_new_match()
+
+
+func _new_match() -> void:
+	pts = [0, 0]
+	games = [0, 0]
+	_foe_lbl.text = FOES[foe][0]
+	_ball.skill = float(FOES[foe][1])
+	_render_score()
+	_say("Siap? Geser ke atas saat bola dekat!")
+	_ball.serve(1.4)
+
+
+const PT := ["0", "15", "30", "40"]
+
+
+func _render_score() -> void:
+	if pts[0] >= 3 and pts[1] >= 3:
+		_score_lbl.text = "Deuce" if pts[0] == pts[1] else ("Adv" if pts[0] > pts[1] else "Adv L")
+	else:
+		_score_lbl.text = "%s - %s" % [PT[mini(pts[0], 3)], PT[mini(pts[1], 3)]]
+
+
+func _say(t: String) -> void:
+	_msg.text = t
+	_msg.modulate.a = 1.0
+	var tw := _msg.create_tween()
+	tw.tween_interval(1.4)
+	tw.tween_property(_msg, "modulate:a", 0.0, 0.4)
+
+
+func _point(who: int) -> void:
+	pts[who] += 1
+	game.sfx("pop" if who == 0 else "arrive", -6.0)
+	if pts[who] >= 4 and pts[who] - pts[1 - who] >= 2:
+		if who == 0:
+			_say("GAME! Maryam menang!")
+			if _toast_once("padel"):
+				game.add_xp(25)
+				for e in game.each_tenant():
+					e[1].tenant.happy = clampf(float(e[1].tenant.happy) + 3.0, 0, 100)
+				game.maybe_review("padel")
+				game.ui.toast("Maryam menang lawan %s! Badan segar, semangat mengurus kost (+25 XP, penghuni +3 senang)." % FOES[foe][0], "gold")
+			else:
+				game.ui.toast("Menang lagi! Hadiah harian sudah diambil, main santai saja~")
+		else:
+			_say("%s menang game ini." % FOES[foe][0])
+		pts = [0, 0]
+		_render_score()
+		_ball.serve(2.4)
+		return
+	_say("Poin Maryam!" if who == 0 else "Bola lolos...")
+	_render_score()
+	_ball.serve(1.4)
+
+
+# ---------------- Input: geser ----------------
+func _gui_input(e: InputEvent) -> void:
+	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT:
+		if e.pressed:
+			_press = e.position
+			_pressed = true
+			_swiped = false
+		else:
+			_pressed = false
+	elif e is InputEventMouseMotion and _pressed and not _swiped:
+		var d: Vector2 = e.position - _press
+		if view == "padel":
+			if d.y < -70.0 or d.length() > 110.0:
+				_swiped = true
+				_ball.swing()
+		elif view == "cafe_ext" and absf(d.x) > 160.0 and absf(d.x) > absf(d.y) * 2.0:
+			_swiped = true
+			_walk(-1 if d.x < 0 else 1)
+		elif view == "walk" and absf(d.x) > 160.0:
+			_swiped = true
+			for c in _layer.get_children():
+				if c is _Walk: c.t = c.dur
+
+
+## Pemandangan berjalan: langit, gedung/pohon, trotoar bergerak; Maryam melangkah di tengah.
+class _Walk extends Node2D:
+	signal done
+	var theme := "kota"
+	var dir := -1
+	var font: Font
+	var dest := ""
+	var from := ""
+	var t := 0.0
+	var dur := 4.2
+	var _fired := false
+	var _frames: Array = []
+	const INK := Color("4a3626")
+
+	func _ready() -> void:
+		for f in ["walk", "walk2"]:
+			var tx: Texture2D = load("res://assets/chars/penjaga/%s_L.png" % f)
+			if dir < 0:
+				var img := tx.get_image()
+				img.flip_x()
+				tx = ImageTexture.create_from_image(img)
+			_frames.append(tx)
+
+	func _process(dt: float) -> void:
+		t += dt
+		queue_redraw()
+		if t >= dur and not _fired:
+			_fired = true
+			done.emit()
+
+	func _draw() -> void:
+		var W := float(D.IW)
+		var H := float(D.IH)
+		var off := t * 420.0 * float(-dir)   # pemandangan bergeser berlawanan arah langkah
+		var kota := theme == "kota"
+		# Langit
+		var top := Color("bfe0ee") if kota else Color("cfe9e3")
+		var bot := Color("fbeedd")
+		for i in range(24):
+			var y0 := H * 0.75 * i / 24.0
+			draw_rect(Rect2(0, y0, W, H * 0.75 / 24.0 + 2), top.lerp(bot, i / 24.0))
+		# Awan
+		for i in range(5):
+			var cx := fposmod(i * 420.0 + off * 0.15, W + 400) - 200
+			var cy := 420.0 + (i % 3) * 140
+			for k in range(3):
+				draw_circle(Vector2(cx + k * 70, cy - (k % 2) * 30), 70, Color(1, 1, 1, 0.85))
+		var ground := 2050.0
+		if kota:
+			_row(off * 0.4, 0.7, ground - 150, [Color("c8b9a6"), Color("b9c7cf"), Color("d4c3b0")], 380, 2000, false)
+			_row(off, 1.0, ground, [Color("e8cfae"), Color("f2dcc0"), Color("d9b896"), Color("cfe0d6")], 360, 1350, true)
+		else:
+			_trees(off * 0.4, 1.1, ground - 150, Color("9cc49a"))
+			_trees(off, 1.8, ground, Color("7fb07a"))
+		# Trotoar
+		draw_rect(Rect2(0, ground, W, 260), Color("d9d6cf") if kota else Color("e6d9b8"))
+		var x := fposmod(off, 220.0) - 220
+		while x < W:
+			draw_line(Vector2(x, ground), Vector2(x - 60, ground + 260), Color("bdb9b0"), 4)
+			x += 220
+		draw_line(Vector2(0, ground), Vector2(W, ground), INK, 6)
+		draw_rect(Rect2(0, ground + 260, W, H - ground - 260), Color("8e8a85") if kota else Color("a9c98f"))
+		# Maryam
+		var tex: Texture2D = _frames[int(t * 6.0) % 2]
+		var s := 2.1
+		var sz := tex.get_size() * s
+		var bob := -absf(sin(t * 12.0)) * 8.0
+		var r := Rect2(W / 2.0 - sz.x / 2.0, ground + 170 - sz.y + bob, sz.x, sz.y)
+		draw_texture_rect(tex, r, false)
+		# Papan keterangan
+		if font:
+			var txt := "%s  →  %s" % [from, dest] if dir > 0 else "%s  ←  %s" % [dest, from]
+			var tw := font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 52).x
+			var pr := Rect2(W / 2.0 - tw / 2.0 - 40, 300, tw + 80, 100)
+			draw_rect(pr, Color("fbf3e6"))
+			draw_rect(pr, INK, false, 6)
+			draw_string(font, pr.position + Vector2(40, 68), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 52, INK)
+			var hint := "Geser untuk lewati"
+			draw_string(font, Vector2(W / 2.0 - 160, 2350), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 36, Color(INK, 0.7))
+		# Progres
+		draw_rect(Rect2(200, 2420, W - 400, 18), Color(1, 1, 1, 0.6))
+		draw_rect(Rect2(200, 2420, (W - 400) * clampf(t / dur, 0, 1), 18), Color("e98b7a"))
+
+	func _row(off: float, sc: float, base: float, cols: Array, wmin: float, hmax: float, shops: bool) -> void:
+		var unit := 460.0 * sc
+		var start: float = floor(-off / unit) - 1
+		for i in range(int(start), int(start) + int(D.IW / unit) + 3):
+			var rng := RandomNumberGenerator.new()
+			rng.seed = i * 7919 + int(sc * 10)
+			var w := rng.randf_range(wmin, unit - 30) * (1.0 if shops else 0.9)
+			var h := rng.randf_range(hmax * 0.55, hmax) * sc
+			var x := i * unit + off
+			var c: Color = cols[absi(i) % cols.size()]
+			var r := Rect2(x, base - h, w, h)
+			draw_rect(r, c)
+			draw_rect(r, INK, false, 5 * sc)
+			# jendela
+			var wy := r.position.y + 50 * sc
+			while wy < base - (260 if shops else 80) * sc:
+				var wx := r.position.x + 40 * sc
+				while wx < r.end.x - 90 * sc:
+					draw_rect(Rect2(wx, wy, 60 * sc, 70 * sc), Color("cfe3ee"))
+					draw_rect(Rect2(wx, wy, 60 * sc, 70 * sc), INK, false, 3 * sc)
+					wx += 110 * sc
+				wy += 130 * sc
+			if shops:
+				# kanopi bergaris & pintu toko
+				var aw := Rect2(r.position.x - 10, base - 260, w + 20, 60)
+				var stripe := Color("e98b7a") if absi(i) % 2 == 0 else Color("8fb3c9")
+				var k := 0.0
+				while k < aw.size.x:
+					draw_rect(Rect2(aw.position.x + k, aw.position.y, minf(40, aw.size.x - k), aw.size.y), stripe if int(k / 40) % 2 == 0 else Color("fbf3e6"))
+					k += 40
+				draw_rect(aw, INK, false, 4)
+				draw_rect(Rect2(r.position.x + w * 0.35, base - 180, w * 0.3, 180), Color("a8774f"))
+				draw_rect(Rect2(r.position.x + w * 0.35, base - 180, w * 0.3, 180), INK, false, 4)
+
+	func _trees(off: float, sc: float, base: float, col: Color) -> void:
+		var unit := 300.0 * sc
+		var start: float = floor(-off / unit) - 1
+		for i in range(int(start), int(start) + int(D.IW / unit) + 3):
+			var rng := RandomNumberGenerator.new()
+			rng.seed = i * 104729 + int(sc * 10)
+			var x := i * unit + off + rng.randf_range(-40, 40)
+			var h := rng.randf_range(260, 420) * sc
+			draw_rect(Rect2(x - 14 * sc, base - h * 0.45, 28 * sc, h * 0.45), Color("8a6142"))
+			for k in range(3):
+				draw_circle(Vector2(x + (k - 1) * 55 * sc, base - h * 0.55 - (k % 2) * 60 * sc), 95 * sc, col.darkened(0.08 * k))
+			draw_circle(Vector2(x, base - h * 0.75), 90 * sc, col.lightened(0.08))
+			if sc >= 1.5 and absi(i) % 3 == 0:
+				# bangku taman
+				draw_rect(Rect2(x + 90, base - 70, 160, 20), Color("b0784c"))
+				draw_rect(Rect2(x + 100, base - 50, 12, 50), INK)
+				draw_rect(Rect2(x + 226, base - 50, 12, 50), INK)
+			if absi(i) % 2 == 0:
+				for f in range(4):
+					draw_circle(Vector2(x - 60 + f * 30, base - 10), 10, [Color("f4a7b9"), Color("f7d36e"), Color("c9b6ea")][f % 3])
+
+
+## Bola padel: dipukul lawan ke arah Maryam; geser ke atas saat bola di zona pukul.
+class _Ball extends Node2D:
+	signal missed
+	signal foe_missed
+	var skill := 0.6
+	var state := "idle"     # idle / in / out
+	var t := 0.0
+	var dur := 1.2
+	var a := Vector2(900, 900)
+	var b := Vector2(990, 1520)
+	var _wait := 0.0
+	var _swing_t := 0.0
+
+	func serve(delay: float) -> void:
+		state = "idle"
+		_wait = delay
+
+	func _process(dt: float) -> void:
+		_swing_t = maxf(0.0, _swing_t - dt)
+		if state == "idle":
+			if _wait > 0.0:
+				_wait -= dt
+				if _wait <= 0.0:
+					_incoming()
+			queue_redraw()
+			return
+		t += dt
+		if state == "in" and t > dur + 0.18:
+			state = "idle"
+			missed.emit()
+		elif state == "out" and t >= dur:
+			if randf() < skill:
+				_incoming()
+			else:
+				state = "idle"
+				foe_missed.emit()
+		queue_redraw()
+
+	func _incoming() -> void:
+		state = "in"
+		t = 0.0
+		dur = randf_range(1.05, 1.35) - skill * 0.25
+		a = Vector2(randf_range(780, 1000), 880)
+		b = Vector2(randf_range(880, 1060), 1500)
+
+	func swing() -> void:
+		_swing_t = 0.25
+		if state == "in" and t >= dur * 0.72 and t <= dur + 0.18:
+			state = "out"
+			t = 0.0
+			dur = 1.0
+			var tmp := a
+			a = _pos()
+			b = Vector2(randf_range(760, 1040), 870)
+			if tmp == Vector2.ZERO: pass
+
+	func _pos() -> Vector2:
+		var k := clampf(t / dur, 0.0, 1.0)
+		var p := a.lerp(b, k)
+		p.y -= sin(k * PI) * 220.0
+		return p
+
+	func _draw() -> void:
+		if _swing_t > 0.0:
+			draw_arc(Vector2(990, 1500), 150, -2.6, -0.4, 16, Color(1, 1, 1, _swing_t * 3.0), 10)
+		if state == "idle": return
+		var k := clampf(t / dur, 0.0, 1.0)
+		var near := k if state == "in" else 1.0 - k
+		var r := lerpf(12.0, 28.0, near)
+		var p := _pos()
+		var ground := a.lerp(b, k)
+		draw_circle(ground + Vector2(0, 8), r * 0.9, Color(0, 0, 0, 0.18))
+		draw_circle(p, r, Color("e6e85a"))
+		draw_arc(p, r, 0, TAU, 20, Color("6b6a20"), 3)
+		if state == "in" and k >= 0.72:
+			draw_arc(b, 70, 0, TAU, 32, Color(1, 1, 1, 0.7), 6)
