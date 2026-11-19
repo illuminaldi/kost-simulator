@@ -99,9 +99,13 @@ func _on_input(e: InputEvent) -> void:
 	if name_mode:
 		return
 	if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+		var on_name: bool = scenes[idx].bg == "name"
 		if typing and typing.is_running():
 			typing.kill()
 			text_lbl.visible_ratio = 1.0
+			if on_name: _ask_name()
+		elif on_name:
+			_ask_name()
 		else:
 			_next()
 
@@ -237,6 +241,8 @@ func _build(kind: String) -> Control:
 
 # ---------- Nama kost ----------
 func _ask_name() -> void:
+	if name_mode:
+		return
 	name_mode = true
 	var p := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
