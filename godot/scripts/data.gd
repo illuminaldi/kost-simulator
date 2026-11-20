@@ -58,7 +58,7 @@ static func col(id: String) -> String:
 
 ## Biaya renovasi untuk membuka lantai f (lantai 9 ke atas).
 static func floor_cost(f: int) -> float:
-	return 5000000.0 * (1.0 + 0.3 * (f - 9))
+	return roundf(5000000.0 * pow(1.2, f - 9) / 500000.0) * 500000.0
 
 
 static func floor_rep(f: int) -> float:
@@ -311,9 +311,9 @@ const JOBS := {
 }
 const CHAR_TUA := ["kakek", "nenek"]
 const STAFF := {
-	"cleaner": {"nama": "Ryan", "n": "Petugas Kebersihan", "sal": 50000, "min": 1, "d": "Membersihkan kamar kotor; menangani sampah, area bersama kotor & hama."},
+	"cleaner": {"nama": "Mustofa", "n": "Petugas Kebersihan", "sal": 50000, "min": 1, "d": "Membersihkan kamar kotor; menangani sampah, area bersama kotor & hama."},
 	"resep": {"nama": "Maryam", "n": "Pemilik & Penjaga Kost", "sal": 0, "min": 1, "owner": true, "d": "Cucu Nenek dan pewaris kost. Mantan eksekutif yang memilih pulang. Berjaga di meja depan: tamu lebih sabar, menagih sewa, urus kunci hilang & tegur penghuni berisik."},
-	"teknisi": {"nama": "Dimas", "n": "Teknisi", "sal": 80000, "min": 3, "d": "Memperbaiki kerusakan gratis; menangani air mati, WiFi lemot, listrik jeglek & atap bocor."},
+	"teknisi": {"nama": "Boy", "n": "Teknisi", "sal": 60000, "min": 3, "d": "Memperbaiki kerusakan gratis; menangani air mati, WiFi lemot, listrik jeglek & atap bocor."},
 	"laundry": {"nama": "Budi", "n": "Petugas Laundry", "sal": 45000, "min": 2, "need": "laundry", "d": "Mengurus mesin cuci. Pemasukan Laundry jadi 2x."},
 	"kantin": {"nama": "Bu Sari", "n": "Ibu Kantin", "sal": 55000, "min": 4, "need": "kantin", "d": "Memasak di Kantin. Membuka pemasukan harian Kantin."},
 	"barista": {"nama": "Nadia", "n": "Barista", "sal": 60000, "min": 5, "need": "cafe", "d": "Meracik kopi di Cafe. Membuka pemasukan harian Cafe."},
@@ -325,7 +325,7 @@ const STAFF := {
 	"florist": {"nama": "Mbak Rosa", "n": "Florist", "sal": 55000, "min": 6, "need": "bunga", "d": "Merangkai buket bunga. Membuka pemasukan Toko Bunga."},
 	"koperasi": {"nama": "Bu Wati", "n": "Pengurus Koperasi", "sal": 60000, "min": 7, "need": "koperasi", "d": "Mengurus simpan pinjam & sembako. Membuka pemasukan Koperasi."},
 	"warteg": {"nama": "Bu Tini", "n": "Ibu Warteg", "sal": 60000, "min": 5, "need": "warteg", "d": "Memasak & melayani di Warteg. Membuka pemasukan harian Warteg."},
-	"satpam": {"nama": "Aji", "n": "Satpam", "sal": 70000, "min": 3, "d": "Patroli di depan kost. Mencegah pencurian; urus tamu menginap & paket hilang."},
+	"satpam": {"nama": "John", "n": "Satpam", "sal": 55000, "min": 3, "d": "Patroli di depan kost. Mencegah pencurian; urus tamu menginap & paket hilang."},
 }
 const FAC := {
 	"wifi": {"n": "WiFi Kencang", "cost": 800000, "min": 1, "d": ""},
@@ -353,10 +353,10 @@ const CHARS := {"kutu": "l", "kakek": "l", "siswi": "p", "flanel": "p", "nenek":
 # Pekerja: pose -> file (Array = bergantian tiap 3.5 detik).
 const WORKER := {
 	"build": {"nama": "Pak Joko", "role": "Tukang", "char": "tukang", "map": {"walk": "walk", "stand": "hold", "job": ["repair", "repair", "carry"], "react": "hold"}, "mins": 240},
-	"fix": {"nama": "Dimas", "role": "Teknisi", "char": "teknisi", "map": {"walk": "walk", "stand": "idle", "job": ["idle", "fix", "fix"], "react": "happy"}, "mins": 90},
+	"fix": {"nama": "Boy", "role": "Teknisi", "char": "teknisi", "map": {"walk": "walk", "stand": "idle", "job": ["idle", "fix", "fix"], "react": "happy"}, "mins": 90},
 	"deliver": {"nama": "Bang Jali", "role": "Kurir", "char": "kurir", "map": {"walk": "carry", "stand": "idle", "job": "back", "react": "idle"}, "mins": 20},
 }
-## "Ryan (Petugas Kebersihan)"
+## "Mustofa (Petugas Kebersihan)"
 static func staff_label(k: String) -> String:
 	return "%s (%s)" % [STAFF[k].nama, STAFF[k].n]
 

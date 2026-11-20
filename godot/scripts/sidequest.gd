@@ -692,8 +692,8 @@ class _CafeLife extends Node2D:
 
 
 # ---------------- Lapangan Padel ----------------
-# Maryam melawan Ryan atau Aji.
-const FOES := [["Ryan", 0.55, "padel_ryan"], ["Aji", 0.75, "padel_aji"]]
+# Maryam melawan Mustofa atau John.
+const FOES := [["Mustofa", 0.55, "padel_ryan"], ["John", 0.75, "padel_aji"]]
 var foe := 0
 var pts := [0, 0]
 var _score_lbl: Label
@@ -760,11 +760,11 @@ func _show_padel() -> void:
 	_bottom([["Balik ke Kost", D.C_GREEN, func(): _walk(-1)],
 		["Ganti Lawan", D.C_PINK, func():
 			if not game.S.side.get("aji", false):
-				_ray_say("Belum ada lawan lain. Main dulu sama Ryan~")
+				_ray_say("Belum ada lawan lain. Main dulu sama Mustofa~")
 				return
 			foe = (foe + 1) % FOES.size()
 			_opose("ready")
-			_ray_say("Lawan baru: %s! %s" % [FOES[foe][0], "Dia santai, cocok buat pemanasan." if foe == 0 else "Pak Aji pukulannya keras, fokus ya!"])
+			_ray_say("Lawan baru: %s! %s" % [FOES[foe][0], "Dia santai, cocok buat pemanasan." if foe == 0 else "Pak John pukulannya keras, fokus ya!"])
 			_new_match()],
 		["Main Lagi", D.C_YELLOW, func():
 			_ray_say("Ulang dari nol. Atur napas dulu, Mbak!")
@@ -777,9 +777,9 @@ func _show_padel() -> void:
 		S.side.padel_intro = true
 		_tut = 0
 		_ball.serve(999.0)
-		_chat("Ryan", [["Ryan", "Mbak Maryam, sore ini padel yuk? Aku udah booking lapangan di taman."],
+		_chat("Mustofa", [["Mustofa", "Mbak Maryam, sore ini padel yuk? Aku udah booking lapangan di taman."],
 			["Maryam", "Boleh! Lagi pusing ngurus kost, pas banget buat olahraga."],
-			["Ryan", "Sip! Aku ajarin dulu ya, gampang kok."]], func():
+			["Mustofa", "Sip! Aku ajarin dulu ya, gampang kok."]], func():
 				_ray_say("Lawanmu %s. Lingkaran kuning = tempat bola jatuh. Geser ke situ, lalu geser ke ATAS untuk memukul." % FOES[foe][0])
 				_new_match())
 		return
@@ -918,19 +918,19 @@ var _op_t := 0.0
 var _hits_total := 0
 
 
-## Cutscene: chat dari Aji "kamu lagi dimana?", lalu dia menyusul ke lapangan.
+## Cutscene: chat dari John "kamu lagi dimana?", lalu dia menyusul ke lapangan.
 func _aji_calls() -> void:
 	_ball.serve(999.0)
 	game.sfx("pop", -2.0)
-	_chat("Aji", [["Aji", "Maryam, kamu lagi dimana?"],
-		["Maryam", "Lagi main padel sama Ryan di lapangan taman."],
-		["Aji", "Wah, curang nggak ngajak! Aku nyusul ya, 5 menit sampai!"],
+	_chat("John", [["John", "Maryam, kamu lagi dimana?"],
+		["Maryam", "Lagi main padel sama Mustofa di lapangan taman."],
+		["John", "Wah, curang nggak ngajak! Aku nyusul ya, 5 menit sampai!"],
 		["Maryam", "Hahaha oke, buruan!"]], func():
 			game.S.side.aji = true
 			foe = 1
 			_opose("ready")
-			_say("Aji datang!")
-			_ray_say("Aji menyusul! Pukulannya lebih keras. Tekan Ganti Lawan untuk kembali ke Ryan.")
+			_say("John datang!")
+			_ray_say("John menyusul! Pukulannya lebih keras. Tekan Ganti Lawan untuk kembali ke Mustofa.")
 			_new_match())
 
 

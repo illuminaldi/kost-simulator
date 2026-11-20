@@ -1332,7 +1332,7 @@ func _sheet_preman() -> void:
 	var on: bool = game.S.staff.get("satpam", false)
 	var opts := [
 		["Bayar " + D.short(amt), D.C_YELLOW, "pay", "Aman untuk sekarang, tapi preman akan datang lagi lebih sering & minta lebih banyak."],
-		["Tolak", D.C_CREAM, "refuse", "Aji (Satpam) akan mengusirnya." if on else "Tanpa Satpam, preman marah & menakuti penghuni."],
+		["Tolak", D.C_CREAM, "refuse", "John (Satpam) akan mengusirnya." if on else "Tanpa Satpam, preman marah & menakuti penghuni."],
 		["Panggil Pak Bambang · gratis" if game.out_lv("polisi") >= 1 else "Lapor polisi · Rp 50rb", D.C_GREEN, "police", "Polisi datang & menyeret preman ke kantor." if game.out_lv("polisi") >= 1 else "Preman ditangkap & tidak datang lama. Rating naik. Langganan Polisi di menu Outsource."],
 	]
 	for o in opts:
@@ -1353,7 +1353,7 @@ func _sheet_tired() -> void:
 	box.add_child(_text("\"Udah 2 jam jaga kost terus nih... Kepala mulai pusing. Boleh aku istirahat sebentar?\"", 34, D.C_INK))
 	box.add_child(_text("Main terlalu lama juga bikin kamu capek, lho. Yuk rehat sejenak bareng Maryam!", 30, D.C_MUTED))
 	for o in [["Ngopi Cantik di Cafe Book", D.C_PINK, "cafe", "Minum kopi sambil baca buku klasik."],
-			["Main Padel di Taman", D.C_GREEN, "padel", "Olahraga sebentar melawan Ryan atau Aji."]]:
+			["Main Padel di Taman", D.C_GREEN, "padel", "Olahraga sebentar melawan Mustofa atau John."]]:
 		var v := _card()
 		var w: String = o[2]
 		v.add_child(_btn(o[0], o[1], func(): game.go_side(w)))
@@ -1622,7 +1622,7 @@ func _sheet_room() -> void:
 	if not S.staff.get("cleaner", false):
 		f.add_child(_btn("Bersihkan (Rp 15rb)", D.C_GREEN, func(): _do("clean", id), float(r.clean) >= 99 or float(S.money) < 15000, false, "Kamar sudah bersih (%d%%)." % roundi(float(r.clean)) if float(r.clean) >= 99 else money_why(15000)))
 	else:
-		f.add_child(_label("Ryan membersihkan otomatis", 30, Color("2f7a2a"), true))
+		f.add_child(_label("Mustofa membersihkan otomatis", 30, Color("2f7a2a"), true))
 	_furn_card(id)
 	var dv := _card()
 	var pp: Dictionary = r.get("paint", {})

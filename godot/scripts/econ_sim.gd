@@ -36,8 +36,13 @@ func run(days: int) -> void:
 		if int(S.lvl) != cur_lv:
 			cur_lv = int(S.lvl)
 			lv_at[cur_lv] = real_min()
-			log_lines.append("LV %2d  @ %6.1f mnt nyata  hari %3d  uang %s  kamar %d  penghuni %d" % [cur_lv, real_min(), int(S.day), D.short(float(S.money)), _built(), g.each_tenant().size()])
-		if int(S.lvl) >= 14: break
+			var L: Dictionary = S.get("last", {})
+			var hs := 0.0
+			for e in g.each_tenant(): hs += float(e[1].tenant.happy)
+			log_lines.append("LV %2d @%6.1f mnt hari %3d uang %s kamar %d huni %d | sewa/hr %s gaji %s util %s lain %s net %s | senang %.0f rating %.1f ev %d antre %d" % [cur_lv, real_min(), int(S.day), D.short(float(S.money)), _built(), g.each_tenant().size(),
+				D.short(float(L.get("rent", 0))), D.short(float(L.get("salary", 0))), D.short(float(L.get("util", 0))), D.short(float(L.get("other", 0))), D.short(float(L.get("net", 0))),
+				hs / maxf(1, g.each_tenant().size()), float(S.rep), S.events.size(), S.queue.size()])
+		if int(S.lvl) >= 25: break
 	_report()
 
 
@@ -58,6 +63,9 @@ func _spend(c: float) -> bool:
 
 
 func _brain() -> void:
+	# Pemain menagih sewa (ketuk koin) beberapa kali sehari
+	for id in D.ROOMS:
+		if float(S.rooms[id].get("due", 0.0)) > 0.0: g.collect_due(id)
 	# Isi kamar kosong dengan antrean
 	for p in S.queue.duplicate():
 		var er: Array = g.empty_rooms()
@@ -105,6 +113,15 @@ func _buy() -> void:
 			gaps.append([int(S.lvl), (steps - last_buy) * 0.1 / 60.0])
 			last_buy = steps
 			return
+	# 2b) karyawan kewalahan -> upgrade dulu (pemain diberi peringatan "mulai kecapekan")
+	for k in S.staff:
+		if S.staff[k] and not D.STAFF[k].get("owner", false) and int(g.staff_cap(k)) < _built() + 1:
+			var uc := float(g.staff_up_cost(k))
+			if m - uc >= reserve:
+				g.staff_upgrade(k)
+				gaps.append([int(S.lvl), (steps - last_buy) * 0.1 / 60.0])
+				last_buy = steps
+			return
 	# 3) pilih pembelian termurah yang berguna
 	var opts: Array = []   # [biaya, Callable]
 	var free_room := ""
@@ -112,8 +129,14 @@ func _buy() -> void:
 		if not S.rooms[id].built and g.floor_open(D.fl(id)) and g.job_for(id, "build") == {}:
 			free_room = id
 			break
-	if free_room != "" and g.empty_rooms().size() < 2:
-		opts.append([g.build_cost(), func(): g.act("build", free_room)])
+	if free_room != "" and g.empty_rooms().is_empty() and S.rooms.values().filter(func(r): return r.built).size() < 6 + int(S.lvl) * 2:
+		# Prioritas: kamar penuh -> tabung untuk bangun kamar baru.
+		var c := float(g.build_cost())
+		if m - c >= reserve:
+			g.act("build", free_room)
+			gaps.append([int(S.lvl), (steps - last_buy) * 0.1 / 60.0])
+			last_buy = steps
+		return
 	for id in D.ROOMS:
 		var r: Dictionary = S.rooms[id]
 		if not r.built: continue
@@ -123,7 +146,8 @@ func _buy() -> void:
 			if lv >= 3: continue
 			var rr := r
 			var tt: String = t
-			opts.append([float(D.FURN[t].cost) * (1.0 + 0.0 * lv), func():
+			opts.append([float(D.FURN[t].cost), func():
+				g.spend(float(D.FURN[tt].cost), "other")
 				rr.furn[tt] = int(rr.furn.get(tt, 0)) + 1
 				g.update_tier(rr)])
 			break
@@ -137,6 +161,10 @@ func _buy() -> void:
 			g.act("facil_build", "%d|%s" % [ff, kk])
 			if fc.has("staff"): S.staff[fc.staff] = true])
 		break
+	for k in D.FAC:
+		if not S.fac.has(k) and int(S.lvl) >= int(D.FAC[k].min):
+			var kf: String = k
+			opts.append([float(D.FAC[k].cost), func(): g.act("buy_fac", kf)])
 	for k in S.staff:
 		if S.staff[k] and not D.STAFF[k].get("owner", false) and g.staff_lv(k) < int(S.lvl):
 			var kk2: String = k
@@ -147,9 +175,7 @@ func _buy() -> void:
 	if m - float(best[0]) < reserve: return
 	if best[1] is Callable:
 		# act() untuk build/facil memotong uang sendiri; selain itu potong di sini.
-		var before := float(S.money)
 		best[1].call()
-		if float(S.money) == before: g.spend(float(best[0]), "other")
 		gaps.append([int(S.lvl), (steps - last_buy) * 0.1 / 60.0])
 		last_buy = steps
 

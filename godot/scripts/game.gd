@@ -1344,7 +1344,9 @@ func build_cost() -> float:
 	for id in D.ROOMS:
 		if S.rooms[id].built:
 			n += 1
-	return 600000.0 + n * 250000.0
+	# Sedikit makin mahal untuk gedung besar supaya uang late-game tetap berarti.
+	var big := maxi(0, n - 12)
+	return roundf((600000.0 + n * 250000.0 + big * big * 12000.0) / 50000.0) * 50000.0
 
 
 func xp_need(l: int) -> float:
@@ -2006,9 +2008,9 @@ const MOOD_FRIEND := {
 	"lelah": [["Capek ya? Mau kubikinin mie?", "Boleh banget... laper.", "Yuk ke dapur bareng!"]],
 }
 const MOOD_STAFF := {
-	"cleaner": [["Mas Ryan, kamarku tolong dibersihin dong.", "Siap, habis ini langsung saya ke sana!"]],
-	"teknisi": [["Mas Dimas, ada yang rusak di kamarku...", "Oke, saya bawa perkakas dulu, ya."]],
-	"satpam": [["Pak Aji, paketku kok hilang ya?", "Saya cek CCTV & buku tamu dulu, Kak."]],
+	"cleaner": [["Mas Mustofa, kamarku tolong dibersihin dong.", "Siap, habis ini langsung saya ke sana!"]],
+	"teknisi": [["Mas Boy, ada yang rusak di kamarku...", "Oke, saya bawa perkakas dulu, ya."]],
+	"satpam": [["Pak John, paketku kok hilang ya?", "Saya cek CCTV & buku tamu dulu, Kak."]],
 }
 
 
@@ -2355,9 +2357,9 @@ func _context_lines(a: Dictionary, b: Dictionary) -> Array:
 					opts.append(["%s, ada yang rusak di kamarku..." % bn, "Oke, saya bawa perkakas dulu, ya."])
 				else: opts.append(["%s, lagi cek apa?" % bn, "Cek instalasi listrik, biar aman.", "Makasih, Mas!"])
 			"satpam":
-				if _recent("maling", 0, 2): opts.append(["Pak Aji, katanya ada maling ya?", "Iya, tapi tenang, sudah saya usir."])
-				elif malam: opts.append(["Pak Aji, aman malam ini?", "Aman, Kak. Saya keliling terus."])
-				else: opts.append(["Pak Aji, titip motor ya.", "Siap, saya jagain."])
+				if _recent("maling", 0, 2): opts.append(["Pak John, katanya ada maling ya?", "Iya, tapi tenang, sudah saya usir."])
+				elif malam: opts.append(["Pak John, aman malam ini?", "Aman, Kak. Saya keliling terus."])
+				else: opts.append(["Pak John, titip motor ya.", "Siap, saya jagain."])
 			"kurir": opts.append(["Paket buat siapa, %s?" % bn, "Perabot baru buat salah satu kamar!", "Wah, asik!"])
 			"tukang": opts.append(["Lagi bangun apa, %s?" % bn, "Ruangan baru, biar kost makin rame!"])
 			"barista", "kantin", "laundry", "trainer":
@@ -2455,7 +2457,7 @@ func _thief_tick(dt: float) -> void:
 					m.set_meta("spd", 1.0)
 					m.say("Jangan balik lagi, ya!", 2.5))
 				_thief_flee("Waduh, ada satpam!")
-				_thief_end("Aji mengusir maling! Kost aman.", 0.0)
+				_thief_end("John mengusir maling! Kost aman.", 0.0)
 		"grab":
 			if out_lv("polisi") >= 2 and not npcs.has("polisi"):
 				_police_come("thief")
@@ -2469,7 +2471,7 @@ func _thief_tick(dt: float) -> void:
 					_thief_end("Maling mencuri, tapi CCTV merekam wajahnya. Barang berhasil kembali!", 0.0)
 				else:
 					_thief_flee("Kabur!")
-					_thief_end("Kemalingan! Hilang %s. Pasang CCTV atau rekrut Satpam (Aji)." % D.rp(loss), loss)
+					_thief_end("Kemalingan! Hilang %s. Pasang CCTV atau rekrut Satpam (John)." % D.rp(loss), loss)
 
 
 func _thief_flee(line: String) -> void:
@@ -2622,7 +2624,7 @@ func preman_answer(how: String) -> void:
 				preman.say("Iya, iya... saya pergi.", 2.5)
 				S.preman_next = int(S.day) + 5
 				add_xp(10)
-				ui.toast("Aji mengusir preman. Kost aman!", "gold")
+				ui.toast("John mengusir preman. Kost aman!", "gold")
 				_preman_leave("angry", 2.5, true)
 			else:
 				preman.say("Awas ya, Bos! Nyesel nanti!", 3.0)
@@ -2642,7 +2644,7 @@ func preman_answer(how: String) -> void:
 						S.rooms[rid].broken = keys.pick_random()
 						dmg = " Dia juga merusak %s di Kamar %s!" % [str(S.rooms[rid].broken), D.room_name(rid)]
 						preman.say("Nih, biar tahu rasa!", 3.0)
-				ui.toast(("Preman marah & mengancam. Penghuni jadi takut (kebahagiaan turun). Rekrut Aji (Satpam) atau lapor polisi." if how == "refuse" else "Preman dicuekin, marah-marah & menakuti penghuni.") + dmg, "bad")
+				ui.toast(("Preman marah & mengancam. Penghuni jadi takut (kebahagiaan turun). Rekrut John (Satpam) atau lapor polisi." if how == "refuse" else "Preman dicuekin, marah-marah & menakuti penghuni.") + dmg, "bad")
 				_preman_leave("angry", 2.5)
 	dirty = true
 
@@ -5254,9 +5256,11 @@ func _handle_cli(args: PackedStringArray) -> void:
 		elif a.begins_with("--econsim="):
 			S.seen = true
 			ui.close_sheet()
-			var es := EconSim.new(self)
-			es.run(int(a.substr(10)))
-			get_tree().quit()
+			var nd := int(a.substr(10))
+			get_tree().create_timer(1.0).timeout.connect(func():
+				var es := EconSim.new(self)
+				es.run(nd)
+				get_tree().quit())
 		elif a == "--bagdrag":
 			_bagdrag_test.call_deferred()
 		elif a == "--codetest":
