@@ -662,9 +662,9 @@ class _CafeLife extends Node2D:
 		["siswi/chair", "siswi/happy", 398.0, 684.0, 0.68, true, 1.0, 1.0],        # 1
 		["nenek/chair", "nenek/happy", 492.0, 600.0, 0.58, false, 1.0, 1.0],      # 2 meja payung tengah
 		["kakek/chair", "kakek/happy", 768.0, 582.0, 0.58, true, 1.0, 1.0],       # 3
-		["flanel/chair", "flanel/happy", 1150.0, 930.0, 0.78, false, 1.0, 1.0],    # 4 meja dalam
+		["flanel/chair", "flanel/happy", 1180.0, 880.0, 0.72, false, 1.0, 1.0],    # 4 meja dalam
 		["kutu/chair", "kutu/happy", 1400.0, 912.0, 0.78, true, 1.0, 1.0],         # 5
-		["barista/idle", "barista/happy", 1330.0, 650.0, 0.66, true, 1.0, 1.0],    # 6 di balik bar
+		["barista/idle", "barista/happy", 1330.0, 572.0, 0.62, true, 1.0, 1.0],    # 6 di balik bar
 		["ojol/ride", "ojol/ride2", 300.0, 488.0, 0.46, false, 1.0, 1.0],         # 7 ojol parkir di luar
 	]
 	const TALKS := [
@@ -795,7 +795,7 @@ func _show_padel() -> void:
 	_clear()
 	view = "padel"
 	_bg("res://assets/side/padel.jpg")
-	_opp = _sprite("res://assets/chars/%s/ready_L.png" % FOES[foe][2], 0.6, Vector2(800, 1060))
+	_opp = _sprite("res://assets/chars/%s/ready_L.png" % FOES[foe][2], 0.55, Vector2(800, 1140))
 	_ball = _Ball.new()
 	_layer.add_child(_ball)
 	_mar = _sprite("res://assets/chars/padel_back/ready_L.png", 1.7, Vector2(820, 2130))
@@ -1796,7 +1796,7 @@ class _Props extends Node2D:
 		if front:
 			_table(Vector2(238, 694), 0.62)
 			_table(Vector2(628, 591), 0.52)
-			_table(Vector2(1272, 921), 0.7)
+			_table(Vector2(1292, 892), 0.68)
 			_counter()
 			_plant(Vector2(860, 575), 0.95)
 			_plant(Vector2(-10, 785), 0.9)
@@ -1859,7 +1859,7 @@ class _Props extends Node2D:
 
 	## Rak & tanaman gantung di dinding belakang bar (di balik barista).
 	func _shelves() -> void:
-		for y in [400.0, 470.0]:
+		for y in [330.0, 400.0]:
 			draw_rect(Rect2(1150, y, 260, 10), WOOD_D)
 			var cols := [Color("e7d3a8"), Color("b9d2c6"), Color("d9a77a"), Color("efe6d2")]
 			for i in range(5):
@@ -1868,30 +1868,30 @@ class _Props extends Node2D:
 				draw_rect(r, INK, false, 3)
 		# lampu gantung
 		for x in [1180.0, 1330.0]:
-			draw_line(Vector2(x, 280), Vector2(x, 330), INK, 3)
-			draw_colored_polygon(PackedVector2Array([Vector2(x - 26, 352), Vector2(x - 12, 328), Vector2(x + 12, 328), Vector2(x + 26, 352)]), Color("f1c86b"))
-			draw_circle(Vector2(x, 356), 7, Color(1, 0.95, 0.7))
+			draw_line(Vector2(x, 200), Vector2(x, 250), INK, 3)
+			draw_colored_polygon(PackedVector2Array([Vector2(x - 26, 272), Vector2(x - 12, 248), Vector2(x + 12, 248), Vector2(x + 26, 272)]), Color("f1c86b"))
+			draw_circle(Vector2(x, 276), 7, Color(1, 0.95, 0.7))
 
 	## Meja bar kopi + mesin espresso (menutupi bagian bawah barista).
 	func _counter() -> void:
-		var r := Rect2(1120, 560, 318, 110)
+		var r := Rect2(1120, 500, 318, 80)
 		draw_rect(r, WOOD)
 		for i in range(1, 6):
 			draw_line(Vector2(r.position.x + i * 55, r.position.y + 18), Vector2(r.position.x + i * 55, r.end.y), WOOD_D, 3)
-		draw_rect(Rect2(1110, 546, 328, 20), Color("e9dcc4"))
-		draw_rect(Rect2(1110, 546, 328, 20), INK, false, 4)
+		draw_rect(Rect2(1110, 486, 328, 20), Color("e9dcc4"))
+		draw_rect(Rect2(1110, 486, 328, 20), INK, false, 4)
 		draw_rect(r, INK, false, 4)
 		# mesin espresso
-		var m := Rect2(1150, 478, 90, 70)
+		var m := Rect2(1150, 418, 90, 70)
 		draw_rect(m, Color("c9ced2"))
 		draw_rect(m, INK, false, 4)
-		draw_rect(Rect2(1168, 520, 18, 20), Color("6b6f73"))
-		draw_rect(Rect2(1204, 520, 18, 20), Color("6b6f73"))
-		draw_circle(Vector2(1195, 498), 8, Color("e0533d"))
+		draw_rect(Rect2(1168, 460, 18, 20), Color("6b6f73"))
+		draw_rect(Rect2(1204, 460, 18, 20), Color("6b6f73"))
+		draw_circle(Vector2(1195, 438), 8, Color("e0533d"))
 		# toples & gelas
-		draw_rect(Rect2(1256, 506, 34, 42), Color("f6efe0"))
-		draw_rect(Rect2(1256, 506, 34, 42), INK, false, 3)
-		draw_rect(Rect2(1260, 526, 26, 20), Color("8a5a3a"))
+		draw_rect(Rect2(1256, 446, 34, 42), Color("f6efe0"))
+		draw_rect(Rect2(1256, 446, 34, 42), INK, false, 3)
+		draw_rect(Rect2(1260, 466, 26, 20), Color("8a5a3a"))
 
 	func _ellipse(c: Vector2, rx: float, ry: float, col: Color) -> void:
 		var pts := PackedVector2Array()
