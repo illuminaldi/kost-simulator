@@ -658,20 +658,27 @@ class _CafeLife extends Node2D:
 	var _g := 0
 	# [gambar, gambar alternatif, x tengah, y alas, skala, cermin, bagian terlihat (0..1), alpha]
 	const SPEC := [
-		["siswi/idle", "siswi/happy", 150.0, 660.0, 0.5, false, 1.0, 1.0],      # 0 teras kiri
-		["kutu/idle", "kutu/happy", 270.0, 650.0, 0.5, true, 1.0, 1.0],        # 1
-		["nenek/idle", "nenek/happy", 600.0, 560.0, 0.42, false, 1.0, 1.0],    # 2 teras tengah
-		["kakek/idle", "kakek/happy", 700.0, 552.0, 0.42, true, 1.0, 1.0],     # 3
-		["barista/idle", "barista/happy", 1230.0, 860.0, 0.7, false, 1.0, 0.85],  # 4 di balik pintu kaca
-		["flanel/idle", "flanel/happy", 1360.0, 880.0, 0.72, true, 1.0, 0.85],    # 5
+		["kupluk/chair", "kupluk/happy", 130.0, 712.0, 0.5, false, 1.0, 1.0],     # 0 meja payung kiri
+		["siswi/chair", "siswi/happy", 330.0, 712.0, 0.5, true, 1.0, 1.0],        # 1
+		["nenek/chair", "nenek/happy", 518.0, 598.0, 0.42, false, 1.0, 1.0],      # 2 meja payung tengah
+		["kakek/chair", "kakek/happy", 690.0, 598.0, 0.42, true, 1.0, 1.0],       # 3
+		["flanel/chair", "flanel/happy", 1160.0, 905.0, 0.6, false, 1.0, 1.0],    # 4 meja dalam
+		["kutu/chair", "kutu/happy", 1365.0, 905.0, 0.6, true, 1.0, 1.0],         # 5
+		["barista/idle", "barista/happy", 1330.0, 640.0, 0.5, true, 1.0, 1.0],    # 6 di balik bar
+		["ojol/ride", "ojol/ride2", 330.0, 478.0, 0.34, false, 1.0, 1.0],         # 7 ojol parkir di luar
 	]
 	const TALKS := [
 		[[0, 1], ["Eh, tugas kelompok udah?", "Belum, nanti malam ya!", "Aku traktir kopi deh.", "Serius? Asyik!"]],
 		[[2, 3], ["Kopinya enak banget.", "Iya, gula arennya pas.", "Minggu depan ke sini lagi?", "Boleh, bawa cucu sekalian."]],
-		[[4, 5], ["Satu latte, siap!", "Makasih, Kak!", "Latte art-nya bentuk hati~", "Lucu banget!"]],
+		[[4, 5], ["Gimana kerjaan?", "Lagi sibuk, tapi seru.", "Jangan lupa istirahat.", "Siap, makanya ngopi dulu."]],
+		[[6], ["Satu latte, siap!", "Latte art-nya bentuk hati~"]],
+		[[7], ["Nunggu orderan dulu...", "Mantap, dapat orderan!"]],
 	]
 
 	func _ready() -> void:
+		var back := _Props.new()
+		back.front = false
+		add_child(back)
 		for sp in SPEC:
 			var tex: Texture2D = load("res://assets/chars/%s_L.png" % sp[0])
 			var alt: Texture2D = load("res://assets/chars/%s_L.png" % sp[1]) if ResourceLoader.exists("res://assets/chars/%s_L.png" % sp[1]) else tex
@@ -683,6 +690,9 @@ class _CafeLife extends Node2D:
 			var p := {"sp": s, "tex": tex, "alt": alt, "x": float(sp[2]), "y": float(sp[3]), "sc": float(sp[4]), "vis": float(sp[6]), "bob": 0.0, "ph": randf() * TAU}
 			people.append(p)
 			_set_tex(p, tex)
+		var front := _Props.new()
+		front.front = true
+		add_child(front)
 		_top = _Top.new()
 		_top.life = self
 		add_child(_top)
@@ -1773,3 +1783,126 @@ class _CafeDeco extends Node2D:
 		draw_rect(Rect2(sr.position + Vector2(82, 46), Vector2(40, 10)), Color("5a3a26"))
 		if font:
 			draw_string(font, sr.position + Vector2(0, 150), "Hirup Kopi", HORIZONTAL_ALIGNMENT_CENTER, sr.size.x, 34, Color.WHITE)
+
+
+## Properti cafe yang digambar di atas latar: payung, meja, tanaman, bar kopi.
+class _Props extends Node2D:
+	var front := false
+	const INK := Color("5a4030")
+	const WOOD := Color("b98a5c")
+	const WOOD_D := Color("8f6440")
+
+	func _draw() -> void:
+		if front:
+			_table(Vector2(230, 712), 0.5)
+			_table(Vector2(604, 598), 0.42)
+			_table(Vector2(1262, 905), 0.6)
+			_counter()
+			_plant(Vector2(790, 590), 0.8)
+			_plant(Vector2(40, 770), 0.7)
+		else:
+			_shelves()
+			_umbrella(Vector2(230, 712 - 96), 330.0, 230.0, Color("f4e6c6"), Color("e3b97c"))
+			_umbrella(Vector2(604, 598 - 80), 280.0, 200.0, Color("f4e6c6"), Color("cfe0b4"))
+			_plant(Vector2(470, 520), 0.55)
+
+	## Meja bundar kaki satu; p = titik lantai di tengah meja.
+	func _table(p: Vector2, sc: float) -> void:
+		var top := p.y - 190.0 * sc
+		var rx := 150.0 * sc
+		draw_rect(Rect2(p.x - 7 * sc, top, 14 * sc, p.y - top), WOOD_D)
+		draw_line(Vector2(p.x - 40 * sc, p.y), Vector2(p.x + 40 * sc, p.y), INK, 7 * sc)
+		_ellipse(Vector2(p.x, top + 10 * sc), rx, 30 * sc, WOOD_D)
+		_ellipse(Vector2(p.x, top), rx, 30 * sc, WOOD)
+		_ellipse_line(Vector2(p.x, top), rx, 30 * sc, INK, 4.0)
+		# cangkir kecil di meja
+		for k in [-1, 1]:
+			var c := Vector2(p.x + k * 50 * sc, top - 4 * sc)
+			draw_rect(Rect2(c.x - 14 * sc, c.y - 24 * sc, 28 * sc, 24 * sc), Color("fbf3e4"))
+			draw_rect(Rect2(c.x - 14 * sc, c.y - 24 * sc, 28 * sc, 24 * sc), INK, false, 3)
+			draw_arc(c + Vector2(17 * sc * k, -12 * sc), 7 * sc, 0, TAU, 10, INK, 3)
+
+	func _umbrella(base: Vector2, h: float, w: float, c1: Color, c2: Color) -> void:
+		var tip := base - Vector2(0, h)
+		draw_line(base, tip, Color("6b4a33"), 7)
+		var y0 := tip.y + 18
+		var pts := PackedVector2Array([tip - Vector2(0, 14)])
+		var n := 6
+		for i in range(n + 1):
+			var x := base.x - w / 2.0 + w * i / float(n)
+			pts.append(Vector2(x, y0 + 70))
+			if i < n: pts.append(Vector2(x + w / float(n) / 2.0, y0 + 82))
+		draw_colored_polygon(pts, c1)
+		for i in range(1, n, 2):
+			var x0 := base.x - w / 2.0 + w * i / float(n)
+			draw_colored_polygon(PackedVector2Array([tip - Vector2(0, 14), Vector2(x0, y0 + 70), Vector2(x0 + w / float(n) / 2.0, y0 + 82), Vector2(x0 + w / float(n), y0 + 70)]), c2)
+		pts.append(pts[0])
+		draw_polyline(pts, INK, 4.0)
+		draw_circle(tip - Vector2(0, 16), 6, INK)
+
+	func _plant(base: Vector2, sc: float) -> void:
+		var g1 := Color("7fa35f")
+		var g2 := Color("5d8a4a")
+		for i in range(9):
+			var a := -PI / 2 + (i - 4) * 0.32
+			var tip := base + Vector2(cos(a) * 120, sin(a) * 150) * sc - Vector2(0, 60 * sc)
+			var mid := base.lerp(tip, 0.55) - Vector2(0, 50 * sc)
+			var leaf := PackedVector2Array([base - Vector2(0, 60 * sc), mid + Vector2(-22, 0) * sc, tip, mid + Vector2(22, 0) * sc])
+			draw_colored_polygon(leaf, g1 if i % 2 == 0 else g2)
+			leaf.append(leaf[0])
+			draw_polyline(leaf, Color("3f5e31"), 2.5)
+		var pot := PackedVector2Array([base + Vector2(-48, -70) * sc, base + Vector2(48, -70) * sc, base + Vector2(36, 0) * sc, base + Vector2(-36, 0) * sc])
+		draw_colored_polygon(pot, Color("d07a4f"))
+		pot.append(pot[0])
+		draw_polyline(pot, INK, 4.0)
+		draw_rect(Rect2(base + Vector2(-54, -82) * sc, Vector2(108, 16) * sc), Color("b86440"))
+
+	## Rak & tanaman gantung di dinding belakang bar (di balik barista).
+	func _shelves() -> void:
+		for y in [400.0, 470.0]:
+			draw_rect(Rect2(1150, y, 260, 10), WOOD_D)
+			var cols := [Color("e7d3a8"), Color("b9d2c6"), Color("d9a77a"), Color("efe6d2")]
+			for i in range(5):
+				var r := Rect2(1162 + i * 50, y - 42, 30, 42)
+				draw_rect(r, cols[i % 4])
+				draw_rect(r, INK, false, 3)
+		# lampu gantung
+		for x in [1180.0, 1330.0]:
+			draw_line(Vector2(x, 280), Vector2(x, 330), INK, 3)
+			draw_colored_polygon(PackedVector2Array([Vector2(x - 26, 352), Vector2(x - 12, 328), Vector2(x + 12, 328), Vector2(x + 26, 352)]), Color("f1c86b"))
+			draw_circle(Vector2(x, 356), 7, Color(1, 0.95, 0.7))
+
+	## Meja bar kopi + mesin espresso (menutupi bagian bawah barista).
+	func _counter() -> void:
+		var r := Rect2(1120, 560, 318, 110)
+		draw_rect(r, WOOD)
+		for i in range(1, 6):
+			draw_line(Vector2(r.position.x + i * 55, r.position.y + 18), Vector2(r.position.x + i * 55, r.end.y), WOOD_D, 3)
+		draw_rect(Rect2(1110, 546, 328, 20), Color("e9dcc4"))
+		draw_rect(Rect2(1110, 546, 328, 20), INK, false, 4)
+		draw_rect(r, INK, false, 4)
+		# mesin espresso
+		var m := Rect2(1150, 478, 90, 70)
+		draw_rect(m, Color("c9ced2"))
+		draw_rect(m, INK, false, 4)
+		draw_rect(Rect2(1168, 520, 18, 20), Color("6b6f73"))
+		draw_rect(Rect2(1204, 520, 18, 20), Color("6b6f73"))
+		draw_circle(Vector2(1195, 498), 8, Color("e0533d"))
+		# toples & gelas
+		draw_rect(Rect2(1256, 506, 34, 42), Color("f6efe0"))
+		draw_rect(Rect2(1256, 506, 34, 42), INK, false, 3)
+		draw_rect(Rect2(1260, 526, 26, 20), Color("8a5a3a"))
+
+	func _ellipse(c: Vector2, rx: float, ry: float, col: Color) -> void:
+		var pts := PackedVector2Array()
+		for i in range(32):
+			var a := TAU * i / 32.0
+			pts.append(c + Vector2(cos(a) * rx, sin(a) * ry))
+		draw_colored_polygon(pts, col)
+
+	func _ellipse_line(c: Vector2, rx: float, ry: float, col: Color, w: float) -> void:
+		var pts := PackedVector2Array()
+		for i in range(33):
+			var a := TAU * i / 32.0
+			pts.append(c + Vector2(cos(a) * rx, sin(a) * ry))
+		draw_polyline(pts, col, w)
