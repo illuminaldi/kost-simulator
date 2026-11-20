@@ -681,10 +681,11 @@ func _build_tray() -> void:
 				_buy_row("stairmax", sat, "Eskalator", "Tangga sudah level maksimal.", "Sudah terpasang", 0.0, false, "Upgrade", func(): pass)
 			for k in D.FACIL_ORDER:
 				var fc: Dictionary = D.FACIL[k]
-				var owned: bool = game.has_facil(k)
-				var ok2 := int(S.lvl) >= int(fc.lv) and not owned
-				var sub2: String = ("Sudah dibangun di lantai %d" % game.facil_floor(k)) if owned else (fc.d if int(S.lvl) >= int(fc.lv) else "Terbuka di Level %d" % int(fc.lv))
-				var price: String = "Dimiliki" if owned else (D.short(fc.cost) if int(S.lvl) >= int(fc.lv) else "Lv %d" % int(fc.lv))
+				var bn: int = game.facil_count(k)
+				var bw: String = game.branch_why(k)
+				var ok2 := int(S.lvl) >= int(fc.lv) and bw == ""
+				var sub2: String = (bw if bw != "" else "Bangun cabang ke-%d" % (bn + 1)) if bn > 0 else (fc.d if int(S.lvl) >= int(fc.lv) else "Terbuka di Level %d" % int(fc.lv))
+				var price: String = D.short(game.facil_cost(k)) if int(S.lvl) >= int(fc.lv) else "Lv %d" % int(fc.lv)
 				tray_row.add_child(_tray_card(load("res://assets/facil/%s.png" % k), fc.n, price, "facil", k, ok2, sub2, "Seret"))
 		"layanan":
 			for k in D.FAC:
@@ -1116,10 +1117,11 @@ func _sheet_beli() -> void:
 			_buy_row("build", at, "Kamar Baru", "Dibangun tukang di lahan kosong. Setelah jadi, beli kasur supaya bisa disewa.", "Lahan siap dibangun: %d" % empty, game.build_cost(), empty > 0, "Pilih lahan", func(): game.start_place("build", ""), false)
 			for k in D.FACIL_ORDER:
 				var fc: Dictionary = D.FACIL[k]
-				var owned: bool = game.has_facil(k)
+				var bn: int = game.facil_count(k)
+				var bw: String = game.branch_why(k)
 				var lvok := int(S.lvl) >= int(fc.lv)
-				var sub: String = ("Sudah dibangun di lantai %d" % game.facil_floor(k)) if owned else ("" if lvok else "Terbuka di Level %d" % int(fc.lv))
-				_buy_row("facil:" + k, load("res://assets/facil/%s.png" % k), fc.n, fc.d, sub, float(fc.cost), lvok and not owned, "Pilih tempat", func(): game.start_place("facil", k), false)
+				var sub: String = ((bw if bw != "" else "Punya %d cabang · bangun cabang ke-%d" % [bn, bn + 1]) if bn > 0 else ("" if lvok else "Terbuka di Level %d" % int(fc.lv)))
+				_buy_row("facil:" + k, load("res://assets/facil/%s.png" % k), fc.n, fc.d, sub, game.facil_cost(k), lvok and bw == "", "Pilih tempat", func(): game.start_place("facil", k), false)
 		"layanan":
 			for k in D.FAC:
 				var f2: Dictionary = D.FAC[k]
@@ -1716,7 +1718,8 @@ func _staff_list() -> void:
 			var tr2: float = game.staff_tired(k)
 			col.add_child(_label("Kelelahan %d%%%s" % [roundi(tr2), "  · MOGOK sampai besok" if game.staff_strike(k) else ""], 30, Color("9b2f1c") if tr2 >= 70 else D.C_MUTED, true))
 			_bar(col, 100.0 - tr2, Color("e98b7a") if tr2 >= 70 else Color("8fc77a"))
-			if lvk < game.STAFF_CAP.size() - 1:
+			col.add_child(_label("%s · kinerja %d%% (lebih cepat & pintar)" % [game.staff_rank(k), roundi(game.staff_perf(k) * 100.0)], 30, Color("2f7a2a"), true))
+			if true:
 				var uc: float = game.staff_up_cost(k)
 				f.add_child(_btn("Upgrade ke Lv %d · %s" % [lvk + 1, D.short(uc)], D.C_YELLOW, func(): _do("staff_up", k), float(S.money) < uc, false, money_why(uc)))
 			f.add_child(_btn("Berhentikan", D.C_RED, func(): _do("fire", k)))
@@ -1758,10 +1761,13 @@ func _sheet_facil() -> void:
 			v.add_child(_label("Level maksimal", 30, Color("2f7a2a"), true))
 		v.add_child(_label("Ganti dengan fasilitas lain", 34))
 		for key in D.FACIL_ORDER:
-			if game.has_facil(key): continue
+			if game.S.facil.get(arg, "") == key: continue
 			var fc2: Dictionary = D.FACIL[key]
 			var okl: bool = int(S.lvl) >= int(fc2.lv)
-			_row(v, _label(fc2.n, 32), _btn("Ganti · " + D.short(fc2.cost), D.C_CREAM, func(): _do("facil_swap", "%s|%s" % [arg, key]), not okl or float(S.money) < float(fc2.cost), false, ("Terbuka di Level %d" % int(fc2.lv)) if not okl else money_why(float(fc2.cost))))
+			var c2: float = game.facil_cost(key)
+			var bw2: String = game.branch_why(key)
+			var why2: String = ("Terbuka di Level %d" % int(fc2.lv)) if not okl else (bw2 if bw2 != "" else money_why(c2))
+			_row(v, _label(fc2.n + (" (cabang)" if game.facil_count(key) > 0 else ""), 32), _btn("Ganti · " + D.short(c2), D.C_CREAM, func(): _do("facil_swap", "%s|%s" % [arg, key]), not okl or bw2 != "" or float(S.money) < c2, false, why2))
 	elif not j.is_empty():
 		v.add_child(_label("%s sedang dibangun" % D.FACIL[j.item].n, 40))
 		v.add_child(_text("%s sedang bekerja." % D.worker_label("build"), 32, D.C_MUTED))
@@ -1772,7 +1778,6 @@ func _sheet_facil() -> void:
 		v.add_child(_text("Bangun satu fasilitas tambahan di samping tangga. Fasilitas menambah kebahagiaan, harga sewa, dan pemasukan.", 30, D.C_MUTED))
 		for key in D.FACIL_ORDER:
 			var fc3: Dictionary = D.FACIL[key]
-			if game.has_facil(key): continue
 			var hb := HBoxContainer.new()
 			hb.add_theme_constant_override("separation", 20)
 			_fac_pic(hb, key, 150)
@@ -1784,7 +1789,8 @@ func _sheet_facil() -> void:
 			if int(S.lvl) < int(fc3.lv):
 				col.add_child(_label("Terbuka di Level %d" % int(fc3.lv), 30, D.C_MUTED, true))
 			else:
-				col.add_child(_btn("Bangun " + D.short(fc3.cost), D.C_GREEN, func(): _do("facil_build", "%d|%s" % [f, key]), why != "", false, why))
+				if game.facil_count(key) > 0: col.add_child(_label("Sudah punya %d · ini jadi cabang" % game.facil_count(key), 28, Color("2f7a2a"), true))
+				col.add_child(_btn("Bangun " + D.short(game.facil_cost(key)), D.C_GREEN, func(): _do("facil_build", "%d|%s" % [f, key]), why != "", false, why))
 			hb.add_child(col)
 			v.add_child(hb)
 	# --- Tangga ---
@@ -1947,17 +1953,23 @@ func _sheet_upgrade() -> void:
 		var building := false
 		for j in S.jobs:
 			if j.type == "fbuild" and j.item == k: building = true
-		if fl > 0:
-			right = _label("Lantai %d" % fl, 34, Color("2f7a2a"), true)
-		elif building:
-			right = _label("Dibangun", 34, D.C_MUTED, true)
-		elif int(S.lvl) < int(fc.lv):
+		var bn: int = game.facil_count(k)
+		var bw: String = game.branch_why(k)
+		var fls := []
+		for f2 in S.facil:
+			if S.facil[f2] == k: fls.append(str(f2))
+		if int(S.lvl) < int(fc.lv):
 			right = _label("Level %d" % int(fc.lv), 34, D.C_MUTED, true)
+		elif building and bn == fls.size() + 1 and fls.is_empty():
+			right = _label("Dibangun", 34, D.C_MUTED, true)
 		else:
 			var ff: int = game.free_facil_floor()
-			right = _btn(D.short(fc.cost), D.C_GREEN, func(): _do("facil_build", "%d|%s" % [ff, k]), ff == 0 or float(S.money) < float(fc.cost))
+			var cst: float = game.facil_cost(k)
+			right = _btn(("+ Cabang · " if bn > 0 else "") + D.short(cst), D.C_GREEN, func(): _do("facil_build", "%d|%s" % [ff, k]), ff == 0 or float(S.money) < cst or bw != "")
 		_row(col, _label(fc.n, 40), right)
 		col.add_child(_text(fc.d, 30, D.C_MUTED))
+		if bn > 0:
+			col.add_child(_text(("Cabang di lantai " + ", ".join(fls) if not fls.is_empty() else "Sedang dibangun") + ("" if bw == "" else " · " + bw), 28, Color("2f7a2a") if bw == "" else Color("9b2f1c")))
 		if fc.has("staff"):
 			var st: Dictionary = D.STAFF[fc.staff]
 			var on: bool = S.staff.get(fc.staff, false)

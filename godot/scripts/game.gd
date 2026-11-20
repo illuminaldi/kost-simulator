@@ -1176,7 +1176,7 @@ func _process(dt: float) -> void:
 			if is_instance_valid(n):
 				var lvm := 1.0
 				if n.kind == "staff" and n.role != "":
-					lvm = 1.0 + 0.12 * float(staff_lv(n.role) - 1)
+					lvm = 1.0 + (staff_perf(n.role) - 1.0) * 0.5
 				n.speed_mul = (1.0 + (sp - 1) * 0.5) * float(n.get_meta("spd", 1.0)) * lvm
 				n.tick(dt)
 		recep_art.visible = S.staff.get("resep", false) and not npcs.has("keeper")
@@ -1494,15 +1494,35 @@ func staff_lv(k: String) -> int:
 
 
 func staff_cap(k: String) -> int:
-	return STAFF_CAP[clampi(staff_lv(k), 1, STAFF_CAP.size() - 1)]
+	var lv := staff_lv(k)
+	if lv < STAFF_CAP.size(): return STAFF_CAP[maxi(lv, 1)]
+	return 110 + 40 * (lv - STAFF_CAP.size() + 1)
+
+
+## Level tanpa batas, tapi manfaatnya makin landai (soft cap): kinerja mendekati 2,4x.
+func staff_perf(k: String) -> float:
+	return 1.0 + 1.4 * (1.0 - pow(0.86, float(staff_lv(k) - 1)))
+
+
+## Gelar sesuai level, untuk tampilan.
+func staff_rank(k: String) -> String:
+	var lv := staff_lv(k)
+	if lv >= 20: return "Legenda"
+	if lv >= 15: return "Master"
+	if lv >= 10: return "Ahli"
+	if lv >= 5: return "Senior"
+	return "Junior"
 
 
 func staff_sal(k: String) -> float:
-	return roundf(float(D.STAFF[k].sal) * (1.0 + 0.4 * (staff_lv(k) - 1)) / 1000.0) * 1000.0
+	var lv := staff_lv(k)
+	var m := 1.0 + 0.4 * (mini(lv, 7) - 1) + 0.2 * maxi(lv - 7, 0)
+	return roundf(float(D.STAFF[k].sal) * m / 1000.0) * 1000.0
 
 
 func staff_up_cost(k: String) -> float:
-	return float(D.STAFF[k].sal) * 12.0 * staff_lv(k)
+	var lv := staff_lv(k)
+	return roundf(float(D.STAFF[k].sal) * 12.0 * lv * pow(1.12, maxf(0.0, lv - 7.0)) / 1000.0) * 1000.0
 
 
 func staff_tired(k: String) -> float:
@@ -1549,7 +1569,6 @@ func _staff_daily() -> void:
 
 
 func staff_upgrade(k: String) -> void:
-	if staff_lv(k) >= STAFF_CAP.size() - 1: return
 	var c := staff_up_cost(k)
 	if float(S.money) < c:
 		ui.toast("Uang tidak cukup (%s)" % D.rp(c), "bad"); return
@@ -1557,7 +1576,7 @@ func staff_upgrade(k: String) -> void:
 	if not S.has("slv"): S.slv = {}
 	S.slv[k] = staff_lv(k) + 1
 	if S.has("tired"): S.tired[k] = maxf(0.0, staff_tired(k) - 50.0)
-	ui.toast("%s naik ke Level %d! Sanggup mengurus %d kamar." % [D.staff_label(k), staff_lv(k), staff_cap(k)], "gold")
+	ui.toast("%s naik ke Level %d (%s)! Sanggup mengurus %d kamar, kinerja %d%%." % [D.staff_label(k), staff_lv(k), staff_rank(k), staff_cap(k), roundi(staff_perf(k) * 100.0)], "gold")
 	sfx("upgrade")
 
 
@@ -2583,13 +2602,17 @@ func facil_upgrade(f: String) -> void:
 ## Ganti fasilitas di sisi tangga ini dengan fasilitas lain (bangun ulang, level kembali 1).
 func facil_swap(f: String, k: String) -> void:
 	var old: String = S.facil.get(f, "")
-	if old == "" or has_facil(k): return
+	if old == "" or old == k: return
+	var bw := branch_why(k)
+	if bw != "":
+		ui.toast(bw, "bad"); return
 	var fc: Dictionary = D.FACIL[k]
 	if int(S.lvl) < int(fc.lv):
 		ui.toast("%s terbuka di Level %d" % [fc.n, int(fc.lv)], "bad"); return
-	if float(S.money) < float(fc.cost):
-		ui.toast(ui.money_why(float(fc.cost)), "bad"); return
-	spend(float(fc.cost), "other")
+	var cost := facil_cost(k)
+	if float(S.money) < cost:
+		ui.toast(ui.money_why(cost), "bad"); return
+	spend(cost, "other")
 	S.facil.erase(f)
 	if S.has("flv"): S.flv.erase(f)
 	add_job("fbuild", "S%s" % f, k)
@@ -2597,6 +2620,43 @@ func facil_swap(f: String, k: String) -> void:
 	_refresh_facil()
 	ui.close_sheet()
 	dirty = true
+
+
+## Jumlah cabang fasilitas k (yang sudah jadi + sedang dibangun).
+func facil_count(k: String) -> int:
+	var n := 0
+	for f in S.facil:
+		if S.facil[f] == k: n += 1
+	for j in S.jobs:
+		if j.type == "fbuild" and j.item == k: n += 1
+	return n
+
+
+## Level karyawan yang dibutuhkan untuk cabang ke-n: 1, 3, 6, 10, 15, ...
+func branch_need(n: int) -> int:
+	return n * (n + 1) / 2
+
+
+## Harga cabang berikutnya: tiap cabang +50% dari harga dasar.
+func facil_cost(k: String) -> float:
+	return float(D.FACIL[k].cost) * (1.0 + 0.5 * facil_count(k))
+
+
+## "" kalau cabang berikutnya boleh dibangun; selain itu alasannya.
+func branch_why(k: String) -> String:
+	var n := facil_count(k)
+	if n == 0: return ""
+	var fc: Dictionary = D.FACIL[k]
+	var need := branch_need(n + 1)
+	if fc.has("staff"):
+		var st: String = fc.staff
+		if not S.staff.get(st, false) and not staff_strike(st):
+			return "Cabang ke-%d butuh %s (rekrut dulu)" % [n + 1, D.STAFF[st].n]
+		if staff_lv(st) < need:
+			return "Cabang ke-%d butuh %s Lv %d (sekarang Lv %d)" % [n + 1, D.STAFF[st].nama, need, staff_lv(st)]
+	elif int(S.lvl) < int(fc.lv) + 3 * n:
+		return "Cabang ke-%d terbuka di Level kost %d" % [n + 1, int(fc.lv) + 3 * n]
+	return ""
 
 
 func facil_floor(k: String) -> int:
@@ -2673,10 +2733,9 @@ func facil_ok(f: int, k: String) -> String:
 	if int(S.lvl) < int(fc.lv): return "%s terbuka di Level %d" % [fc.n, int(fc.lv)]
 	if not floor_open(f): return floor_lock_text(f)
 	if S.facil.has(str(f)) or job_for("S%d" % f, "fbuild") != {}: return "Sisi tangga lantai %d sudah terpakai" % f
-	if has_facil(k): return "%s sudah ada di kost" % fc.n
-	for j in S.jobs:
-		if j.type == "fbuild" and j.item == k: return "%s sedang dibangun" % fc.n
-	if float(S.money) < float(fc.cost): return "Uang belum cukup (%s)" % D.rp(fc.cost)
+	var bw := branch_why(k)
+	if bw != "": return bw
+	if float(S.money) < facil_cost(k): return "Uang belum cukup (%s)" % D.rp(facil_cost(k))
 	return ""
 
 
@@ -2700,9 +2759,13 @@ func stair_at(p: Vector2) -> int:
 func _facil_daily() -> void:
 	var occ := each_tenant().size()
 	var inc := 0.0
+	var seen := {}
 	for f in S.facil:
 		var fc: Dictionary = D.FACIL[S.facil[f]]
-		var mult := 1.0
+		var bi: int = int(seen.get(S.facil[f], 0))
+		seen[S.facil[f]] = bi + 1
+		# Cabang berikutnya berbagi pengunjung: 100%, 70%, 55%, 45%, ...
+		var mult := 1.0 if bi == 0 else maxf(0.3, 0.85 - 0.15 * bi)
 		if fc.has("staff"):
 			var on: bool = S.staff.get(fc.staff, false)
 			if S.facil[f] == "laundry": mult = 2.0 if on else 1.0
@@ -3615,7 +3678,7 @@ func _smart_score(n: Npc, base: Callable) -> Callable:
 
 ## Durasi kerja makin singkat seiring level karyawan.
 func _work_t(n: Npc, base: float) -> float:
-	return base / (1.0 + 0.2 * float(staff_lv(n.role) - 1))
+	return base / staff_perf(n.role)
 
 
 func _pick_room(self_n: Npc, filter: Callable, score: Callable) -> String:
@@ -3726,8 +3789,10 @@ func act(a: String, arg: String = "") -> void:
 			var why := facil_ok(ff, parts2[1])
 			if why != "":
 				ui.toast(why, "bad"); return
-			spend(float(D.FACIL[parts2[1]].cost), "other")
+			var bn := facil_count(parts2[1])
+			spend(facil_cost(parts2[1]), "other")
 			add_job("fbuild", "S%d" % ff, parts2[1])
+			if bn > 0: ui.toast("Cabang ke-%d %s dibangun!" % [bn + 1, D.FACIL[parts2[1]].n], "gold")
 			ui.toast("%s mulai membangun %s di lantai %d" % [D.worker_label("build"), D.FACIL[parts2[1]].n, ff])
 			if ui.kind == "facil": ui.close_sheet()
 		"event":
@@ -4712,6 +4777,20 @@ func _handle_cli(args: PackedStringArray) -> void:
 				if cp == "kaget": cat_startle()
 				elif cp == "walk": _cat_to = 820.0; _cat_set("walk", 0.0)
 				else: _cat_set(cp, 30.0))
+		elif a == "--branch":
+			# uji cabang: laundry di lantai 1, petugas laundry Lv 3 -> boleh cabang ke-2
+			S.lvl = 8
+			S.facil = {"1": "laundry"}
+			S.staff["laundry"] = true
+			if not S.has("slv"): S.slv = {}
+			S.slv["laundry"] = 3
+			print("BRANCH why2=", branch_why("laundry"), " cost=", facil_cost("laundry"))
+			S.money = 9000000.0
+			print("BRANCH ok2=", facil_ok(2, "laundry"))
+			act("facil_build", "2|laundry")
+			print("BRANCH count=", facil_count("laundry"), " why3=", branch_why("laundry"))
+			S.slv["laundry"] = 12
+			print("BRANCH perf12=", staff_perf("laundry"), " rank=", staff_rank("laundry"), " cost13=", staff_up_cost("laundry"), " sal=", staff_sal("laundry"), " cap=", staff_cap("laundry"))
 		elif a == "--tired":
 			play_secs = TIRED_SECS - 1.0
 		elif a.begins_with("--side="):
@@ -4741,8 +4820,7 @@ func _handle_cli(args: PackedStringArray) -> void:
 		elif a == "--bag":
 			get_tree().create_timer(0.4).timeout.connect(func():
 				for e in each_tenant():
-					drop_bag(str(e[1].tenant.id), str(e[1].tenant.name), e[0], "nasi padang")
-					break)
+					drop_bag(str(e[1].tenant.id), str(e[1].tenant.name), e[0], "nasi padang"))
 		elif a.begins_with("--stair="):
 			S.stair_lv = int(a.substr(8))
 			_refresh_stairs()
@@ -5273,7 +5351,9 @@ func _refresh_bags() -> void:
 		sp.texture = tex
 		sp.centered = false
 		sp.offset = Vector2(-tex.get_width() / 2.0, -tex.get_height())
-		sp.position = Vector2(905 + i * 95, D.LOBBY_Y + 8)
+		# Ditaruh di atas meja lobi (sebelah kanan kucing), maksimal 3 per baris.
+		sp.position = Vector2(1130 + (i % 3) * 62, CAT_DESK.y + 4 - float(i / 3) * 46)
+		sp.scale = Vector2.ONE * 0.8
 		var tag := Label.new()
 		tag.text = str(bg.name)
 		tag.add_theme_font_override("font", font)
@@ -5287,13 +5367,14 @@ func _refresh_bags() -> void:
 		sp.add_child(tag)
 		sp.set_meta("bid", bg.id)
 		lobby_root.add_child(sp)
+		lobby_root.move_child(sp, recep_art.get_index() + 1)
 		bag_nodes.append(sp)
 		i += 1
 
 
 func _bag_at(p: Vector2) -> String:
 	for sp in bag_nodes:
-		var r := Rect2(sp.position + Vector2(-60, -150), Vector2(120, 160))
+		var r := Rect2(sp.position + Vector2(-45, -125), Vector2(90, 135))
 		if r.has_point(p): return str(sp.get_meta("bid"))
 	return ""
 
