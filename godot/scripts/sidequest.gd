@@ -288,6 +288,10 @@ func _show_cafe_in() -> void:
 	_bk = _Book.new()
 	_bk.font = font
 	_layer.add_child(_bk)
+	var life := _CafeLife.new()
+	life.font = font
+	_layer.add_child(life)
+	_layer.move_child(life, 1)
 	_mug = _Mug.new()
 	_layer.add_child(_mug)
 	# Meter fokus & isi gelas
@@ -600,91 +604,127 @@ class _Mug extends Node2D:
 		draw_set_transform(Vector2.ZERO)
 
 
-## Suasana cafe: pengunjung lalu-lalang di teras & meja-meja saling mengobrol.
+## Pengunjung cafe (karakter game sendiri) di kursi-kursi pada ilustrasi.
+## Ilustrasi asli sudah dibersihkan dari orang; pagar depan digambar ulang di atas mereka.
 class _CafeLife extends Node2D:
 	var font: Font
 	var t := 0.0
-	var walkers: Array = []
-	var _spawn := 1.0
-	var _chat_t := 0.0
+	var people: Array = []    # {sp, tex, alt, h, talk_t}
+	var bubble := {}
+	var _top: Node2D
+	var _chat_t := 2.0
 	var _chat_i := 0
-	var bubble := {}   # {"p": Vector2, "s": String, "t": float}
-	const PATH_Y := 478.0
-	const WALK_CHARS := ["barista", "siswi", "kupluk", "flanel", "nenek", "kakek", "kasir"]
-	# Posisi kepala orang-orang di ilustrasi + percakapan bergiliran.
-	const TALKS := [
-		[[Vector2(70, 540), Vector2(150, 515), Vector2(285, 540)], ["Eh, tugas kelompok udah?", "Belum, nanti malam ya!", "Aku traktir kopi deh.", "Serius? Asyik!"]],
-		[[Vector2(600, 410), Vector2(765, 385)], ["Kopinya enak banget.", "Iya, gula arennya pas.", "Minggu depan ke sini lagi?", "Boleh, bawa buku ya."]],
-		[[Vector2(1000, 470), Vector2(1170, 490)], ["Gimana kerjaan?", "Lagi sibuk, tapi seru.", "Jangan lupa istirahat.", "Siap, makanya ngopi dulu."]],
-		[[Vector2(1365, 350)], ["Satu kopi susu, siap!", "Pesanan meja 3 ya!", "Latte art-nya bentuk hati~"]],
+	var _g := 0
+	# [gambar, gambar alternatif, x tengah, y alas, skala, cermin, bagian terlihat (0..1), alpha]
+	const SPEC := [
+		["kupluk/chair", "kupluk/happy", 72.0, 815.0, 0.9, false, 1.0, 1.0],       # 0 meja kiri
+		["flanel/chair", "flanel/happy", 160.0, 618.0, 0.7, false, 0.55, 1.0],     # 1 di balik meja
+		["siswi/chair", "siswi/happy", 272.0, 800.0, 0.88, true, 1.0, 1.0],        # 2
+		["nenek/chair", "nenek/happy", 600.0, 606.0, 0.66, false, 1.0, 1.0],       # 3 meja tengah
+		["kakek/chair", "kakek/happy", 786.0, 600.0, 0.66, true, 1.0, 1.0],        # 4
+		["siswi/chair", "siswi/happy", 995.0, 772.0, 0.92, false, 1.0, 0.6],       # 5 di balik kaca
+		["kutu/chair", "kutu/happy", 1150.0, 797.0, 0.95, true, 1.0, 1.0],         # 6
+		["barista/idle", "barista/happy", 1362.0, 478.0, 0.85, false, 0.44, 1.0],  # 7 di balik meja bar
+		["flanel/chair", "flanel/happy", 1400.0, 952.0, 1.2, true, 1.0, 1.0],      # 8
+		["kasir/idle", "kasir/happy", 252.0, 318.0, 0.5, false, 0.42, 1.0],        # 9 penjual kios
+		["ojol/ride", "ojol/ride2", 410.0, 516.0, 0.62, false, 1.0, 1.0],          # 10 ojol parkir
 	]
+	const TALKS := [
+		[[0, 1, 2], ["Eh, tugas kelompok udah?", "Belum, nanti malam ya!", "Aku traktir kopi deh.", "Serius? Asyik!"]],
+		[[3, 4], ["Kopinya enak banget.", "Iya, gula arennya pas.", "Minggu depan ke sini lagi?", "Boleh, bawa cucu sekalian."]],
+		[[5, 6], ["Gimana kerjaan?", "Lagi sibuk, tapi seru.", "Jangan lupa istirahat.", "Siap, makanya ngopi dulu."]],
+		[[7, 8], ["Satu latte, siap!", "Makasih, Kak!", "Latte art-nya bentuk hati~", "Lucu banget!"]],
+		[[9], ["Gorengan anget, gorengan!", "Pisang goreng baru matang~"]],
+		[[10], ["Nunggu orderan dulu...", "Mantap, dapat orderan!"]],
+	]
+
+	func _ready() -> void:
+		for sp in SPEC:
+			var tex: Texture2D = load("res://assets/chars/%s_L.png" % sp[0])
+			var alt: Texture2D = load("res://assets/chars/%s_L.png" % sp[1]) if ResourceLoader.exists("res://assets/chars/%s_L.png" % sp[1]) else tex
+			var s := Sprite2D.new()
+			s.centered = false
+			s.flip_h = sp[5]
+			s.modulate.a = sp[7]
+			add_child(s)
+			var p := {"sp": s, "tex": tex, "alt": alt, "x": float(sp[2]), "y": float(sp[3]), "sc": float(sp[4]), "vis": float(sp[6]), "bob": 0.0, "ph": randf() * TAU}
+			people.append(p)
+			_set_tex(p, tex)
+		# Pagar depan menutupi kaki pengunjung meja kiri.
+		var fg := Sprite2D.new()
+		fg.texture = load("res://assets/side/cafe_fg.png")
+		fg.centered = false
+		fg.position = Vector2(0, 695)
+		add_child(fg)
+		_top = _Top.new()
+		_top.life = self
+		add_child(_top)
+
+	## Pakai tekstur (dipotong dari atas kalau orangnya di balik meja), alas di (x, y).
+	func _set_tex(p: Dictionary, tex: Texture2D) -> void:
+		var s: Sprite2D = p.sp
+		var sz := tex.get_size()
+		var vh: float = sz.y * float(p.vis)
+		s.texture = tex
+		s.region_enabled = float(p.vis) < 1.0
+		s.region_rect = Rect2(0, 0, sz.x, vh)
+		s.offset = Vector2(-sz.x / 2.0, -vh)
+		s.scale = Vector2.ONE * float(p.sc)
+		p.h = vh * float(p.sc)
 
 	func _process(dt: float) -> void:
 		t += dt
-		_spawn -= dt
-		if _spawn <= 0.0 and walkers.size() < 2:
-			_spawn = randf_range(4.0, 8.0)
-			_add_walker()
-		for w in walkers.duplicate():
-			if w.pause > 0.0:
-				w.pause -= dt
-				continue
-			w.x += w.dir * 70.0 * dt
-			if not w.paused and absf(w.x - w.stop) < 4.0:
-				# berhenti di depan kasir, menyapa, lalu balik arah (tidak menembus meja pengunjung)
-				w.paused = true
-				w.pause = 2.2
-				w.dir = -1
-				bubble = {"p": Vector2(w.x, PATH_Y - 230), "s": ["Permisi~", "Halo!", "Antre dulu ah.", "Wah, ramai ya."].pick_random(), "t": 2.2}
-			if w.x < -160: walkers.erase(w)
+		for p in people:
+			var s: Sprite2D = p.sp
+			p.bob = maxf(0.0, float(p.bob) - dt * 3.0)
+			var breathe := sin(t * 2.2 + float(p.ph)) * 0.01
+			s.scale = Vector2(float(p.sc), float(p.sc) * (1.0 + breathe))
+			s.position = Vector2(float(p.x), float(p.y) - absf(sin(float(p.bob) * PI * 2.0)) * 6.0)
 		_chat_t -= dt
 		if _chat_t <= 0.0:
-			_chat_t = 2.8
+			_chat_t = 2.6
+			var grp: Array = TALKS[_g]
+			var who: Array = grp[0]
+			var lines: Array = grp[1]
+			var k: int = _chat_i % lines.size()
+			var p: Dictionary = people[who[k % who.size()]]
+			p.bob = 1.0
+			# sesekali ganti pose (senang/melambai) saat bicara
+			_set_tex(p, p.alt if randf() < 0.35 and p.alt != p.tex and float(p.vis) >= 1.0 and str(SPEC[people.find(p)][0]).ends_with("chair") == false else p.tex)
+			bubble = {"p": Vector2(float(p.x), float(p.y) - float(p.h) - 6.0), "s": lines[k], "t": 2.4}
 			_chat_i += 1
-			var g: Array = TALKS[int(_chat_i / 4.0) % TALKS.size()]
-			var heads: Array = g[0]
-			var lines: Array = g[1]
-			bubble = {"p": heads[_chat_i % heads.size()], "s": lines[_chat_i % lines.size()], "t": 2.5}
+			if _chat_i >= lines.size():
+				_chat_i = 0
+				_g = (_g + 1) % TALKS.size()
+				_chat_t = 3.5
 		if not bubble.is_empty():
 			bubble.t -= dt
 			if bubble.t <= 0.0: bubble = {}
-		queue_redraw()
+		if _top: _top.queue_redraw()
 
-	func _add_walker() -> void:
-		var ch: String = WALK_CHARS.pick_random()
-		var d := 1
-		var f: Array = []
-		for k in ["walk", "walk2", "idle"]:
-			f.append(load("res://assets/chars/%s/%s_L.png" % [ch, k]))
-		walkers.append({"f": f, "x": -120.0, "dir": d, "stop": randf_range(160, 380), "pause": 0.0, "paused": false, "ph": randf()})
+	## Balon obrolan digambar paling atas (di atas semua pengunjung).
+	class _Top extends Node2D:
+		var life
+		func _draw() -> void:
+			life.draw_bubble(self)
 
-	func _draw() -> void:
-		for w in walkers:
-			var tex: Texture2D = w.f[2] if w.pause > 0.0 else w.f[int((t + w.ph) * 4.0) % 2]
-			var sc := 0.5
-			var sz := tex.get_size() * sc
-			var bob := 0.0 if w.pause > 0.0 else absf(sin((t + w.ph) * 12.0)) * 4.0
-			# Sprite _L menghadap kiri; balik bila berjalan ke kanan.
-			var r := Rect2(Vector2(w.x - sz.x / 2.0, PATH_Y - sz.y - bob), sz)
-			if w.dir > 0:
-				r.position.x += sz.x
-				r.size.x = -sz.x
-			draw_texture_rect(tex, r, false)
-		if not bubble.is_empty() and font:
-			var fs := 30
-			var tw := font.get_string_size(bubble.s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-			var a := clampf(bubble.t * 3.0, 0.0, 1.0)
-			var p: Vector2 = bubble.p
-			var box := Rect2(p.x - tw / 2.0 - 18, p.y - 74, tw + 36, 52)
-			box.position.x = clampf(box.position.x, 8, 1430 - box.size.x)
-			var sb := StyleBoxFlat.new()
-			sb.bg_color = Color(1, 0.98, 0.94, 0.95 * a)
-			sb.border_color = Color(0.36, 0.27, 0.2, a)
-			sb.set_border_width_all(3)
-			sb.set_corner_radius_all(22)
-			draw_colored_polygon(PackedVector2Array([p + Vector2(-12, -24), p + Vector2(12, -24), p + Vector2(0, -6)]), Color(1, 0.98, 0.94, 0.95 * a))
-			draw_style_box(sb, box)
-			draw_string(font, Vector2(box.position.x + 18, box.position.y + 36), bubble.s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.29, 0.21, 0.15, a))
+	func draw_bubble(c: CanvasItem) -> void:
+		if bubble.is_empty() or not font: return
+		var fs := 30
+		var tw := font.get_string_size(bubble.s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		var a := clampf(bubble.t * 3.0, 0.0, 1.0)
+		var p: Vector2 = bubble.p
+		var box := Rect2(p.x - tw / 2.0 - 18, p.y - 70, tw + 36, 52)
+		box.position.x = clampf(box.position.x, 8, 1430 - box.size.x)
+		box.position.y = maxf(box.position.y, 230)
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(1, 0.98, 0.94, 0.95 * a)
+		sb.border_color = Color(0.36, 0.27, 0.2, a)
+		sb.set_border_width_all(3)
+		sb.set_corner_radius_all(22)
+		c.draw_colored_polygon(PackedVector2Array([Vector2(clampf(p.x, box.position.x + 20, box.end.x - 20) - 12, box.end.y - 2), Vector2(clampf(p.x, box.position.x + 20, box.end.x - 20) + 12, box.end.y - 2), Vector2(p.x, box.end.y + 14)]), Color(1, 0.98, 0.94, 0.95 * a))
+		c.draw_style_box(sb, box)
+		c.draw_string(font, Vector2(box.position.x + 18, box.position.y + 36), bubble.s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.29, 0.21, 0.15, a))
 
 
 # ---------------- Lapangan Padel ----------------
