@@ -6519,6 +6519,8 @@ class _HubSign extends Node2D:
 	const L1 := 792.0
 	const R0 := 996.0
 	const R1 := 1405.0
+	const SKY := Color(0.82, 0.86, 0.82)
+	const VIS := [Vector2(0, L1), Vector2(R0, 1438)]   # area terlihat untuk benda bergerak (termasuk luar gedung)
 	var y0 := 0.0
 	var fy := 0.0
 
@@ -6534,12 +6536,18 @@ class _HubSign extends Node2D:
 		var c: Color = info.get("c", Color("6a8fb3"))
 		var k := String(info.get("n", "")).split(" ")[0]
 		var space := String(info.get("n", "")).find("Angkasa") >= 0
+		_outside(space, k)
 		for reg in [Vector2(L0, L1), Vector2(R0, R1)]:
 			var r := Rect2(reg.x, y0, reg.y - reg.x, fy - y0 + 18)
 			draw_rect(r, Color("1f2448") if space else c.lightened(0.62))
 			draw_rect(Rect2(reg.x, fy - 40, reg.y - reg.x, 58), Color("3b3f52") if space else Color("cfc6b8"))
 			draw_rect(Rect2(reg.x, y0, reg.y - reg.x, 16), c.darkened(0.2))
-			draw_rect(r, INK, false, 4)
+			draw_line(r.position, Vector2(r.end.x, r.position.y), INK, 4)
+			draw_line(Vector2(r.position.x, r.end.y), r.end, INK, 4)
+		# dinding luar gedung berlubang (jalur tembus)
+		for wx in [L0, R1]:
+			draw_rect(Rect2(wx - 8, y0, 16, 120), Color("c9a27e"))
+			draw_rect(Rect2(wx - 8, y0, 16, 120), INK, false, 3)
 		match k:
 			"Lobi": _parkir(c)
 			"Gerbang": _tol(c)
@@ -6558,6 +6566,38 @@ class _HubSign extends Node2D:
 		draw_style_box(sb, box)
 		if font:
 			draw_string(font, box.position + Vector2(0, 38), str(info.get("n", "")), HORIZONTAL_ALIGNMENT_CENTER, w, 28, Color.WHITE)
+
+	## Area di luar gedung (kiri & kanan): langit + jembatan layang yang menyambung ke dalam.
+	func _outside(space: bool, k: String) -> void:
+		for reg in [Vector2(0, L0), Vector2(R1, 1438)]:
+			var w: float = reg.y - reg.x
+			if w <= 0: continue
+			var r := Rect2(reg.x, y0, w, fy - y0 + 18)
+			draw_rect(r, Color("1f2448") if space else SKY)
+			if space:
+				for i in range(4):
+					draw_circle(Vector2(reg.x + fmod(i * 47.0, w), y0 + 40 + i * 70), 2.5, Color.WHITE)
+			elif k == "Helipad":
+				draw_circle(Vector2(reg.x + w * 0.5 + sin(t * 0.2) * 20, y0 + 120), 22, Color(1, 1, 1, 0.8))
+			# jembatan layang + tiang penyangga
+			if k != "Helipad":
+				draw_rect(Rect2(reg.x, fy - 40, w, 58), Color("8c8f94"))
+				draw_line(Vector2(reg.x, fy + 18), Vector2(reg.y, fy + 18), INK, 3)
+				draw_rect(Rect2(reg.x, fy - 52, w, 12), Color("b9bcc0"))
+				for px in range(int(reg.x) + 30, int(reg.y), 160):
+					draw_rect(Rect2(px, fy + 18, 22, 260), Color("a8abaf"))
+					draw_rect(Rect2(px, fy + 18, 22, 260), INK, false, 2)
+
+	## Gambar persegi panjang terpotong pada area terlihat (luar + dalam, kecuali kolom tangga).
+	func _clip_rect(r: Rect2, col: Color) -> void:
+		for v in VIS:
+			var q := r.intersection(Rect2(v.x, y0 - 400, v.y - v.x, 1200))
+			if q.size.x > 0: draw_rect(q, col)
+
+	func _visible_x(x: float, half: float) -> bool:
+		for v in VIS:
+			if x - half > v.x and x + half < v.y: return true
+		return false
 
 	# ---------- bagian umum ----------
 	func _box(r: Rect2, col: Color, bw := 3.0) -> void:
@@ -6604,19 +6644,21 @@ class _HubSign extends Node2D:
 		_lights()
 		var ty := fy - 92.0
 		# rel & dinding peron
+		_clip_rect(Rect2(0, ty + 40, 1438, 10), Color("6b6f73"))
+		for i in range(0, 1438, 34):
+			_clip_rect(Rect2(i, ty + 50, 14, 6), Color("8a6a4a"))
 		for reg in [Vector2(L0, L1), Vector2(R0, R1)]:
-			draw_rect(Rect2(reg.x, ty + 40, reg.y - reg.x, 10), Color("6b6f73"))
 			draw_rect(Rect2(reg.x, fy - 40, reg.y - reg.x, 8), Color("f2c14e"))
 		# kereta: datang dari kiri, berhenti, lalu lanjut ke kanan
 		var cyc := fmod(t, 16.0)
 		var x := 0.0
-		if cyc < 4.0: x = lerpf(-1400.0, 120.0, ease(cyc / 4.0, 0.4))
+		if cyc < 4.0: x = lerpf(-1500.0, 120.0, ease(cyc / 4.0, 0.4))
 		elif cyc < 9.0: x = 120.0
-		else: x = lerpf(120.0, 1900.0, ease((cyc - 9.0) / 7.0, 2.2))
+		else: x = lerpf(120.0, 2700.0, ease((cyc - 9.0) / 7.0, 2.2))
 		var cars := 4
 		for i in range(cars):
 			var cx := L0 + x - i * 330.0
-			for reg in [Vector2(L0, L1), Vector2(R0, R1)]:
+			for reg in VIS:
 				var body := Rect2(cx, ty - 110, 320, 140).intersection(Rect2(reg.x, y0, reg.y - reg.x, 400))
 				if body.size.x <= 0: continue
 				draw_rect(body, Color("eef2f5"))
@@ -6648,6 +6690,8 @@ class _HubSign extends Node2D:
 	func _parkir(c: Color) -> void:
 		_lights()
 		var cols := [Color("e0533d"), Color("3a6fb0"), Color("f2c14e"), Color("5fae4f"), Color("eceff3")]
+		# jalan masuk dari jembatan layang di luar (kiri)
+		_clip_rect(Rect2(0, fy - 40, L0 + 20, 58), Color("6b6f73"))
 		for i in range(4):
 			var x := L0 + 90 + i * 150
 			draw_line(Vector2(x - 75, fy - 40), Vector2(x - 75, fy + 14), Color.WHITE, 4)
@@ -6657,10 +6701,10 @@ class _HubSign extends Node2D:
 		var cyc := fmod(t, 12.0)
 		var px := L0 + 390.0
 		var mx := px
-		if cyc < 4.0: mx = lerpf(R1 + 120, px, ease(cyc / 4.0, 0.5))
-		elif cyc >= 9.0: mx = -999.0
-		if (mx > L0 + 60 and mx < L1 - 60) or (mx > R0 + 60 and mx < R1 - 60):
-			_car(Vector2(mx, fy - 2), cols[4], true, 0.95)
+		if cyc < 4.0: mx = lerpf(-160.0, px, ease(cyc / 4.0, 0.5))
+		elif cyc >= 9.0: mx = lerpf(px, -160.0, ease(clampf((cyc - 9.0) / 3.0, 0, 1), 2.0))
+		if _visible_x(mx, 60):
+			_car(Vector2(mx, fy - 2), cols[4], cyc >= 9.0, 0.95)
 		# pos tiket + palang
 		_box(Rect2(R0 + 220, fy - 150, 110, 150), Color("eceff3"))
 		_box(Rect2(R0 + 236, fy - 130, 78, 46), Color("8fb9d6"))
@@ -6677,9 +6721,8 @@ class _HubSign extends Node2D:
 	# ---------- Gerbang Tol ----------
 	func _tol(c: Color) -> void:
 		_lights()
-		draw_rect(Rect2(L0, fy - 40, L1 - L0, 58), Color("6b6f73"))
-		draw_rect(Rect2(R0, fy - 40, R1 - R0, 58), Color("6b6f73"))
-		for reg in [Vector2(L0, L1), Vector2(R0, R1)]:
+		_clip_rect(Rect2(0, fy - 40, 1438, 58), Color("6b6f73"))
+		for reg in VIS:
 			var x: float = reg.x
 			while x < reg.y:
 				draw_rect(Rect2(x, fy - 12, minf(40.0, reg.y - x), 6), Color.WHITE)
@@ -6696,8 +6739,8 @@ class _HubSign extends Node2D:
 			draw_line(Vector2(gx + 44, fy - 70), Vector2(gx + 44, fy - 70) + Vector2(cos(a), sin(a)) * 120, Color("e0533d"), 9)
 		# mobil lewat terus-menerus
 		for i in range(3):
-			var x2 := fmod(t * 160.0 + i * 520.0, 1700.0) - 150.0
-			if (x2 > L0 + 60 and x2 < L1 - 60) or (x2 > R0 + 60 and x2 < R1 - 60):
+			var x2 := fmod(t * 160.0 + i * 560.0, 1800.0) - 150.0
+			if _visible_x(x2, 60):
 				_car(Vector2(x2, fy + 6), [Color("3a6fb0"), Color("f2c14e"), Color("e0533d")][i], false, 0.85)
 		_box(Rect2(R0 + 80, y0 + 60, 250, 70), Color("2f7d4f"))
 		if font: draw_string(font, Vector2(R0 + 80, y0 + 105), "TOL LANGIT  Rp 12rb", HORIZONTAL_ALIGNMENT_CENTER, 250, 24, Color.WHITE)
