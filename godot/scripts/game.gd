@@ -5531,6 +5531,19 @@ func _handle_cli(args: PackedStringArray) -> void:
 				if a == "--watest": ui.update_hud())
 		elif a == "--monkey":
 			_monkey.call_deferred()
+		elif a == "--hubgal":
+			# Galeri debug: kelima Lobi Langit berdampingan.
+			var cl := CanvasLayer.new(); cl.layer = 50; add_child(cl)
+			var bgc := ColorRect.new(); bgc.color = Color("f3e6cf"); bgc.size = Vector2(D.IW, 2600); cl.add_child(bgc)
+			for i in range(5):
+				var hn := _HubSign.new()
+				hn.f = (i + 1) * 10
+				hn.font = font
+				hn.info = D.hub_info(hn.f)
+				hn.fixed = Rect2(0, 0, 140, 257)
+				hn.scale = Vector2.ONE * 2.0
+				hn.position = Vector2(220 + (i % 2) * 700, 200 + (i / 2) * 760)
+				cl.add_child(hn)
 		elif a == "--big24":
 			S.seen = true; S.tut = -1; ui.close_sheet()
 			S.lvl = 24; S.money = 200000000.0; S.speed = 2; W.turbo_min = 99999
@@ -6477,6 +6490,7 @@ func _refresh_hubs() -> void:
 ## Lobi Langit: ruang khusus di sisi tangga lantai hub (menggantikan slot fasilitas).
 class _HubSign extends Node2D:
 	var f := 10
+	var fixed := Rect2()
 	var font: Font
 	var info := {}
 	var rect := Rect2()
@@ -6489,7 +6503,7 @@ class _HubSign extends Node2D:
 	func _draw() -> void:
 		var c: Color = info.get("c", Color("6a8fb3"))
 		var ink := Color("4a3426")
-		var r := D.facil_draw_rect(f)
+		var r := fixed if fixed.size.x > 0 else D.facil_draw_rect(f)
 		var floor_y := r.position.y + r.size.y * D.FACIL_SVG_FLOOR
 		# pintu gerbang besar
 		var door := Rect2(r.position.x - 30, floor_y - 200, r.size.x + 60, 200)
@@ -6516,7 +6530,7 @@ class _HubSign extends Node2D:
 		var bob := sin(t * 2.0) * 3.0
 		match k:
 			"Lobi":   # mobil keluar-masuk
-				var x := fmod(t * 40.0, sky.size.x + 120) - 60
+				var x := 34.0 + fmod(t * 30.0, sky.size.x - 68.0)
 				var p := Vector2(sky.position.x + x, ic.y)
 				draw_rect(Rect2(p + Vector2(-34, -22), Vector2(68, 22)), Color("e0533d"))
 				draw_rect(Rect2(p + Vector2(-20, -38), Vector2(40, 17)), Color("e0533d"))
@@ -6540,17 +6554,19 @@ class _HubSign extends Node2D:
 				else:   # kereta lewat
 					var x2 := fmod(t * 90.0, sky.size.x + 320) - 160
 					var p2 := Vector2(sky.position.x + x2, ic.y)
-					draw_rect(Rect2(p2 + Vector2(-150, -60), Vector2(300, 56)), Color("5fae4f"))
+					var body := Rect2(p2 + Vector2(-150, -60), Vector2(300, 56)).intersection(sky)
+					if body.size.x > 0: draw_rect(body, Color("5fae4f"))
 					for i in range(5):
-						draw_rect(Rect2(p2 + Vector2(-136 + i * 58, -50), Vector2(40, 22)), Color("dff1ff"))
+						var wr := Rect2(p2 + Vector2(-136 + i * 58, -50), Vector2(40, 22)).intersection(sky)
+						if wr.size.x > 0: draw_rect(wr, Color("dff1ff"))
 			"Helipad":
 				draw_ellipse_h(ic + Vector2(0, -8), 60, 12, Color("d6d6d6"))
 				if font: draw_string(font, ic + Vector2(-12, -2), "H", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("e0533d"))
 				var hy := ic.y - 70 + bob
 				draw_rect(Rect2(ic.x - 30, hy, 60, 30), Color("e0533d"))
-				draw_line(Vector2(ic.x + 30, hy + 12), Vector2(ic.x + 70, hy + 8), Color("e0533d"), 6)
+				draw_line(Vector2(ic.x + 30, hy + 12), Vector2(ic.x + 52, hy + 8), Color("e0533d"), 6)
 				var a2 := t * 14.0
-				draw_line(Vector2(ic.x - 60 * cos(a2), hy - 8), Vector2(ic.x + 60 * cos(a2), hy - 8), ink, 4)
+				draw_line(Vector2(ic.x - 50 * cos(a2), hy - 8), Vector2(ic.x + 50 * cos(a2), hy - 8), ink, 4)
 		# papan nama di atas gerbang
 		var w := 260.0
 		var box := Rect2(door.get_center().x - w / 2.0, door.position.y - 62, w, 56)
