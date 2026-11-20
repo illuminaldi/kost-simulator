@@ -2,22 +2,22 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dwhlmi6ywxtkn"
-path="res://.godot/imported/taman.jpg-59f5615ac5d8517326a7381b5fa37612.ctex"
+uid="uid://htyj8jl2iouh"
+path="res://.godot/imported/taman.png-4e079448b8a8e3f7e0a8fffe28901c21.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/side/taman.jpg"
-dest_files=["res://.godot/imported/taman.jpg-59f5615ac5d8517326a7381b5fa37612.ctex"]
+source_file="res://assets/side/taman.png"
+dest_files=["res://.godot/imported/taman.png-4e079448b8a8e3f7e0a8fffe28901c21.ctex"]
 
 [params]
 
 compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.82
+compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

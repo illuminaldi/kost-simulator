@@ -999,7 +999,7 @@ class _Walk extends Node2D:
 	const INK := Color("4a3626")
 
 	func _ready() -> void:
-		_city = load("res://assets/side/kota.jpg" if theme == "kota" else "res://assets/side/taman.jpg")
+		_city = load("res://assets/side/kota.jpg" if theme == "kota" else "res://assets/side/taman.png")
 		var ci := _city.get_image()
 		_sky = ci.get_pixel(ci.get_width() / 2, 4)
 		ci.flip_x()
@@ -1079,9 +1079,40 @@ class _Walk extends Node2D:
 		draw_rect(Rect2(200, 2420, (W - 400) * clampf(t / dur, 0, 1), 18), Color("e98b7a"))
 
 	## Jalan kota bergambar (dari ilustrasi), disambung bergantian dengan cerminannya agar mulus.
+	## Taman: satu gambar utuh (tanpa cermin) diperbesar, digeser pelan sekali lintas.
+	## Langit transparan: awan & burung digambar di belakang pepohonan.
+	const PARK_S := 1.35
+	func _draw_park() -> void:
+		var W := float(D.IW)
+		var H := float(D.IH)
+		var tw := _city.get_width() * PARK_S
+		var th := _city.get_height() * PARK_S
+		var top := 2080.0 - 2150.0 * PARK_S   # kaki Maryam di trotoar (garis ubin kuning)
+		var k := clampf(t / dur, 0.0, 1.0)
+		# jalan ke kiri → pemandangan bergeser ke kanan
+		var x := lerpf(W - tw, 0.0, k) if dir < 0 else lerpf(0.0, W - tw, k)
+		var off := x * 3.0
+		var c0 := Color8(157, 222, 226)
+		var c1 := Color8(205, 236, 232)
+		for i in range(16):
+			draw_rect(Rect2(0, H * 0.45 * i / 16.0, W, H * 0.45 / 16.0 + 2), c0.lerp(c1, i / 15.0))
+		_draw_sky_life(off)
+		draw_texture_rect(_city, Rect2(x, top, tw, th), false)
+		if top + th < H: draw_rect(Rect2(0, top + th - 1, W, H - top - th + 1), Color8(82, 85, 90))
+		_draw_traffic(x, 2565.0, 60.0)
+		_draw_leaves(x)
+		var tex: Texture2D = _frames[int(t * 6.0) % 2]
+		var sz := tex.get_size() * 1.4
+		var bob := -absf(sin(t * 12.0)) * 8.0
+		draw_texture_rect(tex, Rect2(W / 2.0 - sz.x / 2.0, 2080.0 - sz.y + bob, sz.x, sz.y), false)
+		_label_draw()
+
 	func _draw_city(off: float) -> void:
 		var W := float(D.IW)
 		var kota := theme == "kota"
+		if not kota:
+			_draw_park()
+			return
 		var sc := 1.25 if kota else 1.0
 		var tw := _city.get_width() * sc
 		var th := _city.get_height() * sc
@@ -1112,14 +1143,14 @@ class _Walk extends Node2D:
 	const LEAF_COLS := [Color("7fae5a"), Color("9cc46a"), Color("6a9a4c"), Color("b7cf6e")]
 
 	func _init_park() -> void:
-		var pos := [Vector2(100, 460), Vector2(515, 290), Vector2(1020, 460), Vector2(1500, 360)]
+		var pos := [Vector2(100, 250), Vector2(515, 120), Vector2(1020, 300), Vector2(1500, 190)]
 		for i in range(4):
 			_clouds.append({"tex": load("res://assets/side/cloud%d.png" % (i % 3)), "x": pos[i].x, "y": pos[i].y, "v": randf_range(10, 22), "s": randf_range(0.85, 1.1)})
 		for i in range(16):
 			_leaves.append(_new_leaf(true))
 
 	func _new_leaf(anywhere: bool) -> Dictionary:
-		return {"x": randf_range(-100, D.IW + 200), "y": randf_range(700, 2000) if anywhere else randf_range(820, 1250),
+		return {"x": randf_range(-100, D.IW + 200), "y": randf_range(250, 2000) if anywhere else randf_range(250, 800),
 			"vx": randf_range(-70, -30), "vy": randf_range(40, 90), "r": randf() * TAU, "vr": randf_range(-2.5, 2.5),
 			"ph": randf() * TAU, "sz": randf_range(20, 34), "c": LEAF_COLS.pick_random()}
 
@@ -1133,7 +1164,7 @@ class _Walk extends Node2D:
 		# Kawanan burung: sayap mengepak (huruf V yang naik-turun)
 		for f in range(2):
 			var fx := fposmod(t * (90.0 + f * 30.0) + f * 900.0 + off * 0.1, W + 600) - 300
-			var fy := 700.0 + f * 120.0 + sin(t * 0.8 + f) * 25.0
+			var fy := 260.0 + f * 110.0 + sin(t * 0.8 + f) * 25.0
 			for b in range(4):
 				var p := Vector2(fx - b * 55 - (b % 2) * 20, fy + absf(b - 1.5) * 26)
 				var flap := sin(t * 9.0 + b * 1.3 + f) * 10.0
@@ -1143,7 +1174,7 @@ class _Walk extends Node2D:
 
 	func _draw_leaves(off: float) -> void:
 		var dt := get_process_delta_time()
-		var mv := 420.0 * float(-dir) * dt   # ikut bergeser bersama pemandangan
+		var mv := 120.0 * float(-dir) * dt   # ikut bergeser bersama pemandangan
 		for i in range(_leaves.size()):
 			var l: Dictionary = _leaves[i]
 			l.x = float(l.x) + (float(l.vx) + sin(t * 2.0 + float(l.ph)) * 40.0) * dt + mv * 0.9
@@ -1186,7 +1217,7 @@ class _Walk extends Node2D:
 			draw_rect(pr, Color("fbf3e6"))
 			draw_rect(pr, INK, false, 6)
 			draw_string(font, pr.position + Vector2(40, 68), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 52, INK)
-			draw_string(font, Vector2(W / 2.0 - 160, 2400), "Geser untuk lewati", HORIZONTAL_ALIGNMENT_LEFT, -1, 36, Color(INK, 0.7))
+			draw_string(font, Vector2(W / 2.0 - 160, 2400), "Geser untuk lewati", HORIZONTAL_ALIGNMENT_LEFT, -1, 36, (Color(1, 1, 1, 0.85) if theme != "kota" else Color(INK, 0.7)))
 		draw_rect(Rect2(200, 2460, W - 400, 18), Color(1, 1, 1, 0.6))
 		draw_rect(Rect2(200, 2460, (W - 400) * clampf(t / dur, 0, 1), 18), Color("e98b7a"))
 
