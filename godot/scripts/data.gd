@@ -354,7 +354,7 @@ const CHARS := {"kutu": "l", "kakek": "l", "siswi": "p", "flanel": "p", "nenek":
 const WORKER := {
 	"build": {"nama": "Pak Joko", "role": "Tukang", "char": "tukang", "map": {"walk": "walk", "stand": "hold", "job": ["repair", "repair", "carry"], "react": "hold"}, "mins": 240},
 	"fix": {"nama": "Dimas", "role": "Teknisi", "char": "teknisi", "map": {"walk": "walk", "stand": "idle", "job": ["idle", "fix", "fix"], "react": "happy"}, "mins": 90},
-	"deliver": {"nama": "Andi", "role": "Kurir", "char": "kurir", "map": {"walk": "carry", "stand": "idle", "job": "back", "react": "idle"}, "mins": 20},
+	"deliver": {"nama": "Bang Jali", "role": "Kurir", "char": "kurir", "map": {"walk": "carry", "stand": "idle", "job": "back", "react": "idle"}, "mins": 20},
 }
 ## "Ryan (Petugas Kebersihan)"
 static func staff_label(k: String) -> String:
@@ -367,9 +367,11 @@ static func worker_label(t: String) -> String:
 
 const TRUCK_X := 330.0
 const NAMES_P := ["Sari", "Dewi", "Putri", "Nadia", "Intan", "Citra", "Laras", "Ayu", "Tiara", "Wulan", "Mega", "Rina",
-	"Fitri", "Lina", "Salsa", "Anisa", "Dinda", "Maya"]
+	"Fitri", "Lina", "Salsa", "Anisa", "Dinda", "Maya",
+	"Alexandra", "Ani", "Camelia", "Dara", "Diana", "Elora", "Isabella", "Jamilah", "Juminten", "Karmila", "Kirana",
+	"Nina", "Nurlela", "Sephia", "Tatiana", "Widuri"]
 const NAMES_L := ["Andi", "Budi", "Rizky", "Fajar", "Yoga", "Bayu", "Dimas", "Reza", "Gilang", "Hendra", "Arif", "Joko",
-	"Eko", "Agus", "Bima", "Rafi", "Iqbal", "Dodi"]
+	"Eko", "Agus", "Bima", "Rafi", "Iqbal", "Dodi", "Arjuna", "Bento", "Jodi"]
 
 # Palet karakter (diambil dari warna ilustrasi).
 const SKINS := ["#f6d3b3", "#ecc29b", "#d6a378", "#b98058"]
@@ -617,7 +619,7 @@ static func short(n: float) -> String:
 
 # ---- Outsource: jasa luar yang bisa di-upgrade ----
 const OUTSRC := {
-	"kurir": {"nama": "Andi", "n": "Kurir Perabot", "pic": "kurir/idle", "lv": [
+	"kurir": {"nama": "Bang Jali", "n": "Kurir Perabot", "pic": "kurir/idle", "lv": [
 		{"n": "Kurir Motor", "cost": 0, "d": "Angkut 2 kotak sekali jalan. Barang tiba ± 45 menit."},
 		{"n": "Kurir Pickup", "cost": 750000, "d": "Angkut 3 kotak sekali jalan. Barang tiba ± 30 menit."},
 		{"n": "Ekspedisi Kilat", "cost": 2000000, "d": "Angkut 5 kotak sekaligus, barang tiba ± 15 menit, antar lebih cepat."}]},
@@ -625,7 +627,7 @@ const OUTSRC := {
 		{"n": "Depot Isi Ulang", "cost": 0, "d": "Antar air ke Kantin 2 hari sekali, Rp 20rb/galon."},
 		{"n": "Air Mineral Bermerek", "cost": 600000, "d": "Rp 25rb/galon, penghuni +2 kebahagiaan tiap antar."},
 		{"n": "Langganan Harian", "cost": 1500000, "d": "Antar tiap hari, penghuni +3 kebahagiaan."}]},
-	"ojol": {"nama": "Bang Ojol", "n": "Ojek Online", "pic": "ojol/thumb", "lv": [
+	"ojol": {"nama": "Bang Thoyib", "n": "Ojek Online", "pic": "ojol/thumb", "lv": [
 		{"n": "Ojol Biasa", "cost": 0, "d": "Kadang mengantar makanan pesanan penghuni (+4 senang)."},
 		{"n": "Ojol Prioritas", "cost": 500000, "d": "Lebih sering datang, penghuni +6 senang."},
 		{"n": "Mitra Resmi Kost", "cost": 1200000, "d": "Hampir tiap jam makan datang, penghuni +8 senang."}]},

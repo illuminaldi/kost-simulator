@@ -2289,7 +2289,7 @@ func _sheet_support() -> void:
 	var f := _card()
 	f.add_child(_label("Pertanyaan umum", 40))
 	for qa in [["Progres saya hilang?", "Data tersimpan di perangkat/browser ini. Jangan hapus data browser; fitur login & simpan cloud segera hadir."],
-			["Barang tidak diantar?", "Barang datang dengan pickup. Seret kotaknya ke kamar tujuan, lalu kurir Andi akan mengantar."],
+			["Barang tidak diantar?", "Barang datang dengan pickup. Seret kotaknya ke kamar tujuan, lalu kurir Bang Jali akan mengantar."],
 			["Kenapa Maryam tidak bisa jalan-jalan?", "Geser lobi ke kiri/kanan saat Maryam sedang berjaga di meja depan."]]:
 		f.add_child(_label(qa[0], 32, D.C_INK, true))
 		f.add_child(_text(qa[1], 30, D.C_MUTED))

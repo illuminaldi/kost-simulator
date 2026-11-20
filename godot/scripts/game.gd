@@ -2551,7 +2551,7 @@ var ojol_for := ""
 var _ojol_state := ""
 var _ojol_t := 0.0
 var galon: Npc = null
-const OJOL_NAMES := ["Bang Rizal", "Bang Udin", "Bang Joko", "Bang Fikri", "Bang Tono"]
+const OJOL_NAMES := ["Bang Thoyib", "Bang Thoyib", "Bang Rizal", "Bang Udin", "Bang Fikri", "Bang Tono"]
 const FOODS := ["nasi padang", "ayam geprek", "martabak", "bakso", "seblak", "kopi susu", "mie ayam"]
 
 
@@ -2594,7 +2594,7 @@ func spawn_ojol(t: Dictionary) -> void:
 		var rid := _room_of_tenant(str(t.id))
 		var who: Npc = npcs.get(str(t.id))
 		if who != null and is_instance_valid(who) and who.scene == "lobby":
-			ui.toast("Bang Ojol mengantar %s untuk %s" % [food, t.name])
+			ui.toast("%s mengantar %s untuk %s" % [str(m.get_meta("nama", "Bang Ojol")), food, t.name])
 		else:
 			# Penghuni di kamar: kantong ditaruh di lobi, seret ke kamar yang benar.
 			drop_bag(str(t.id), str(t.name), rid, food)
