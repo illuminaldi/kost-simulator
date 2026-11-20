@@ -6499,6 +6499,8 @@ func _refresh_hubs() -> void:
 			hn.info = D.hub_info(f)
 			hn.rect = D.rect_of("%dS" % f)
 			bld.add_child(hn)
+			if f - 1 < stair_nodes.size():
+				bld.move_child(hn, stair_nodes[f - 1].get_index())   # tangga hasil upgrade tetap di atas lobi
 			hub_nodes[f] = hn
 		elif not on and hub_nodes.has(f):
 			hub_nodes[f].queue_free()
@@ -6520,7 +6522,8 @@ class _HubSign extends Node2D:
 	const R0 := 996.0
 	const R1 := 1405.0
 	const SKY := Color(0.82, 0.86, 0.82)
-	const VIS := [Vector2(0, L1), Vector2(R0, 1438)]   # area terlihat untuk benda bergerak (termasuk luar gedung)
+	var VIS := [Vector2(0, L1), Vector2(R0, 1438)]   # area terlihat untuk benda tinggi (di luar badan tangga)
+	var quad := []   # 4 sudut badan tangga (dibiarkan terbuka agar tangga tetap terlihat)
 	var y0 := 0.0
 	var fy := 0.0
 
@@ -6536,7 +6539,9 @@ class _HubSign extends Node2D:
 		var c: Color = info.get("c", Color("6a8fb3"))
 		var k := String(info.get("n", "")).split(" ")[0]
 		var space := String(info.get("n", "")).find("Angkasa") >= 0
+		_calc_quad()
 		_outside(space, k)
+		_stair_col(space, c)
 		for reg in [Vector2(L0, L1), Vector2(R0, R1)]:
 			var r := Rect2(reg.x, y0, reg.y - reg.x, fy - y0 + 18)
 			draw_rect(r, Color("1f2448") if space else c.lightened(0.62))
@@ -6566,6 +6571,31 @@ class _HubSign extends Node2D:
 		draw_style_box(sb, box)
 		if font:
 			draw_string(font, box.position + Vector2(0, 38), str(info.get("n", "")), HORIZONTAL_ALIGNMENT_CENTER, w, 28, Color.WHITE)
+
+	## Sudut badan tangga lantai genap (gambar ruang tangga "3S").
+	func _calc_quad() -> void:
+		var src := D.rect_of("3S")
+		var sc := Vector2.ONE
+		if fixed.size.x <= 0:
+			sc = D.rect_of("%dS" % f).size / src.size
+		var ed := [Vector2(233, 0), Vector2(331, 0), Vector2(357, 277), Vector2(233, 277)]
+		quad = []
+		for e in ed:
+			quad.append(Vector2(src.position.x + e.x * sc.x, y0 + e.y * sc.y))
+		VIS = [Vector2(0, quad[0].x), Vector2(quad[2].x, 1438)]
+
+	## Ruang tangga ikut diwarnai lobi (lantai & dinding menyambung), badan tangga dibiarkan.
+	func _stair_col(space: bool, c: Color) -> void:
+		var bg := Color("1f2448") if space else c.lightened(0.62)
+		var yb := fy + 18.0
+		var q0: Vector2 = quad[0]; var q1: Vector2 = quad[1]; var q2: Vector2 = quad[2]; var q3: Vector2 = quad[3]
+		draw_rect(Rect2(L1 - 4, y0, q0.x - L1 + 4, yb - y0), bg)
+		draw_colored_polygon(PackedVector2Array([q1, Vector2(R0 + 4, y0), Vector2(R0 + 4, yb), Vector2(q2.x, yb), q2]), bg)
+		draw_rect(Rect2(q3.x, q3.y, q2.x - q3.x, yb - q3.y), bg)
+		draw_rect(Rect2(L1 - 4, fy - 40, R0 - L1 + 8, 58), Color("3b3f52") if space else Color("cfc6b8"))
+		draw_rect(Rect2(L1 - 4, y0, R0 - L1 + 8, 16), c.darkened(0.2))
+		draw_line(Vector2(L1, y0), Vector2(R0, y0), INK, 4)
+		draw_line(Vector2(L1, yb), Vector2(R0, yb), INK, 4)
 
 	## Area di luar gedung (kiri & kanan): langit + jembatan layang yang menyambung ke dalam.
 	func _outside(space: bool, k: String) -> void:
@@ -6644,11 +6674,10 @@ class _HubSign extends Node2D:
 		_lights()
 		var ty := fy - 92.0
 		# rel & dinding peron
-		_clip_rect(Rect2(0, ty + 40, 1438, 10), Color("6b6f73"))
+		draw_rect(Rect2(0, ty + 40, 1438, 10), Color("6b6f73"))
 		for i in range(0, 1438, 34):
-			_clip_rect(Rect2(i, ty + 50, 14, 6), Color("8a6a4a"))
-		for reg in [Vector2(L0, L1), Vector2(R0, R1)]:
-			draw_rect(Rect2(reg.x, fy - 40, reg.y - reg.x, 8), Color("f2c14e"))
+			draw_rect(Rect2(i, ty + 50, 14, 6), Color("8a6a4a"))
+		draw_rect(Rect2(L0, fy - 40, R1 - L0, 8), Color("f2c14e"))
 		# kereta: datang dari kiri, berhenti, lalu lanjut ke kanan
 		var cyc := fmod(t, 16.0)
 		var x := 0.0
@@ -6691,7 +6720,7 @@ class _HubSign extends Node2D:
 		_lights()
 		var cols := [Color("e0533d"), Color("3a6fb0"), Color("f2c14e"), Color("5fae4f"), Color("eceff3")]
 		# jalan masuk dari jembatan layang di luar (kiri)
-		_clip_rect(Rect2(0, fy - 40, L0 + 20, 58), Color("6b6f73"))
+		draw_rect(Rect2(0, fy - 40, L0 + 20, 58), Color("6b6f73"))
 		for i in range(4):
 			var x := L0 + 90 + i * 150
 			draw_line(Vector2(x - 75, fy - 40), Vector2(x - 75, fy + 14), Color.WHITE, 4)
@@ -6721,8 +6750,8 @@ class _HubSign extends Node2D:
 	# ---------- Gerbang Tol ----------
 	func _tol(c: Color) -> void:
 		_lights()
-		_clip_rect(Rect2(0, fy - 40, 1438, 58), Color("6b6f73"))
-		for reg in VIS:
+		draw_rect(Rect2(0, fy - 40, 1438, 58), Color("6b6f73"))
+		for reg in [Vector2(0, 1438)]:
 			var x: float = reg.x
 			while x < reg.y:
 				draw_rect(Rect2(x, fy - 12, minf(40.0, reg.y - x), 6), Color.WHITE)
@@ -6740,7 +6769,7 @@ class _HubSign extends Node2D:
 		# mobil lewat terus-menerus
 		for i in range(3):
 			var x2 := fmod(t * 160.0 + i * 560.0, 1800.0) - 150.0
-			if _visible_x(x2, 60):
+			if x2 > -80 and x2 < 1520:
 				_car(Vector2(x2, fy + 6), [Color("3a6fb0"), Color("f2c14e"), Color("e0533d")][i], false, 0.85)
 		_box(Rect2(R0 + 80, y0 + 60, 250, 70), Color("2f7d4f"))
 		if font: draw_string(font, Vector2(R0 + 80, y0 + 105), "TOL LANGIT  Rp 12rb", HORIZONTAL_ALIGNMENT_CENTER, 250, 24, Color.WHITE)
