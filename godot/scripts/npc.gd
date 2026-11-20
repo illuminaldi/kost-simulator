@@ -390,7 +390,19 @@ func tick(dt: float) -> void:
 	_refresh()
 
 
+## Di luar layar: logika tetap jalan, tapi gambar tidak diperbarui (hemat CPU).
+var culled := false
+func set_culled(c: bool) -> void:
+	if c == culled: return
+	culled = c
+	visible = not c
+	if not c:
+		_tex_key = ""
+		_refresh()
+
+
 func _refresh() -> void:
+	if culled: return
 	var frame := 0
 	if pose == "walk":
 		frame = int(anim * 6.0) % 2

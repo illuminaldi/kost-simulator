@@ -554,6 +554,34 @@ static func stair_top(f: int) -> float:
 	return float(ROWS[f].x) + 95.0
 
 
+# ---------- Lobi Langit: tiap 10 lantai ada pintu masuk sendiri ----------
+const HUB_EVERY := 10
+const HUBS := [
+	{"n": "Lobi Parkiran", "d": "Penghuni lantai atas parkir & masuk dari sini.", "c": Color("6a8fb3")},
+	{"n": "Gerbang Tol", "d": "Mobil & bus keluar-masuk lewat jalan layang.", "c": Color("d9a43a")},
+	{"n": "Stasiun Kereta", "d": "Kereta menembus gedung, penghuni turun langsung.", "c": Color("5fae4f")},
+	{"n": "Helipad", "d": "Helikopter antar-jemput penghuni lantai tinggi.", "c": Color("e0533d")},
+	{"n": "Stasiun Luar Angkasa", "d": "Roket ulang-alik untuk penghuni paling atas.", "c": Color("8a6ad9")},
+]
+
+
+static func is_hub(f: int) -> bool:
+	return f >= HUB_EVERY and f % HUB_EVERY == 0
+
+
+static func hub_info(f: int) -> Dictionary:
+	var i: int = f / HUB_EVERY - 1
+	var h: Dictionary = HUBS[i % HUBS.size()].duplicate()
+	var gen: int = i / HUBS.size()
+	if gen > 0: h.n = "%s %s" % [h.n, ["", "II", "III", "IV", "V", "VI"][mini(gen, 5)]]
+	return h
+
+
+static func hub_spot(f: int) -> Vector2:
+	if f <= 0: return Vector2(OUT_X, LOBBY_Y)
+	return Vector2(700, FEET[f])
+
+
 static func scene_pos(s: String) -> Vector2:
 	if s == "lobby":
 		return Vector2(LOBBY_X, LOBBY_Y)

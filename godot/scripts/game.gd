@@ -831,6 +831,7 @@ class _Lift extends Node2D:
 
 
 func _refresh_world() -> void:
+	_refresh_hubs()
 	_refresh_lift()
 	for id in D.ROOMS:
 		room_fx[id].dekor = dekor
@@ -1464,6 +1465,26 @@ func float_at(id: String, text: String, col: Color) -> void:
 
 # ================= Waktu & ekonomi =================
 var _beat_acc := 0.0
+var _cull_acc := 0.0
+
+
+## Hanya lantai yang terlihat (plus 1 di atas & bawah) yang digambar dan dianimasikan.
+func _cull() -> void:
+	if bld == null or OS.get_cmdline_user_args().has("--nocull"): return
+	var top := -scroll - 420.0
+	var bot := D.LOBBY_TOP - scroll + 420.0
+	for n in npcs.values():
+		if not is_instance_valid(n): continue
+		if n.scene == "lobby" or n.get_parent() == npc_lobby:
+			n.set_culled(false)
+			continue
+		var y: float = n.position.y
+		n.set_culled(y < top or y > bot)
+	for id in room_fx:
+		var fx: Node2D = room_fx[id]
+		var r: Rect2 = D.rect_of(id)
+		var on := r.end.y > top and r.position.y < bot
+		if fx.is_processing() != on: fx.set_process(on)
 var _probe := false
 var _probe_t := 0
 
@@ -1495,6 +1516,10 @@ func _process(dt: float) -> void:
 			for i in range(sp):
 				_step()
 	_drag_watchdog(dt)
+	_cull_acc += dt
+	if _cull_acc > 0.2:
+		_cull_acc = 0.0
+		_cull()
 	_separate_npcs()
 	_chat_tick(dt)
 	_thief_tick(dt)
@@ -2214,7 +2239,7 @@ func _greet() -> String:
 
 
 func _chatty(n: Npc) -> bool:
-	if n == null or not is_instance_valid(n) or not n.visible: return false
+	if n == null or not is_instance_valid(n) or not n.visible or n.culled: return false
 	if n.kind not in ["res", "cand", "staff", "keeper", "worker"]: return false
 	if n.leaving or n.fade_state != "" or n.chat_with != null: return false
 	if n.pose == "lie" or n.pose == "climb": return false
@@ -2789,7 +2814,7 @@ func renovate_floor(f: int) -> void:
 	dirty = true
 
 
-const RENOV_SECS := 24 * 3600
+const RENOV_SECS := 72 * 3600   # renovasi lantai: 3 hari waktu nyata
 const GAME_MIN_PER_SEC := 20.0   # 1x: 20 menit game per detik nyata
 
 
@@ -2805,9 +2830,9 @@ func fmt_real(secs: float) -> String:
 	return ("%dj %02dm" % [h, m]) if h > 0 else ("%dm %02ds" % [m, int(secs) % 60])
 
 
-## Biaya Diamond untuk mempercepat: renovasi 1 Diamond / 30 menit nyata.
+## Biaya Diamond untuk mempercepat renovasi lantai.
 func renov_speed_cost() -> int:
-	return maxi(1, ceili(renov_left() / 1800.0))
+	return maxi(1, ceili(renov_left() / 7200.0))   # 1 Diamond / 2 jam nyata (maks. 36)
 
 
 func renov_speedup() -> void:
@@ -3554,7 +3579,32 @@ func _leave(n: Npc) -> void:
 	n.goal_key = "out"
 	n.leaving = true
 	n.target = ""
+	var h := _hub_of_npc(n)
+	if h > 0:
+		# Penghuni lantai atas keluar lewat Lobi Langit di lantainya, bukan turun ke lobi bawah.
+		n.plan("S%d" % h, D.hub_spot(h), "stand", func(x: Npc):
+			x.fade_state = "out"
+			x.fade_to = x.scene
+			get_tree().create_timer(0.6).timeout.connect(func(): if is_instance_valid(x): _remove_npc(x)))
+		return
 	n.plan("lobby", Vector2(D.OUT_X, D.LOBBY_Y), "stand", func(x: Npc): _remove_npc(x))
+
+
+# ================= Lobi Langit (hub tiap 10 lantai) =================
+## Lantai hub terdekat di bawah/di lantai f yang sudah terbuka, 0 kalau tidak ada.
+func hub_for(f: int) -> int:
+	var h := (f / D.HUB_EVERY) * D.HUB_EVERY
+	while h >= D.HUB_EVERY:
+		if floor_open(h) and h <= D.TOP_FLOOR: return h
+		h -= D.HUB_EVERY
+	return 0
+
+
+func _hub_of_npc(n: Npc) -> int:
+	if n.kind != "res": return 0
+	for e in each_tenant():
+		if str(e[1].tenant.id) == str(n.id): return hub_for(D.fl(e[0]))
+	return 0
 
 
 func _remove_npc(n: Npc) -> void:
@@ -3576,7 +3626,7 @@ func _separate_npcs() -> void:
 	var dt := get_process_delta_time()
 	var list: Array = []
 	for n in npcs.values():
-		if is_instance_valid(n) and n.fade_state == "" and n.visible:
+		if is_instance_valid(n) and n.fade_state == "" and (n.visible or n.culled):
 			list.append(n)
 	# Hitung dulu semua keputusan dari keadaan frame sebelumnya, baru terapkan sekaligus,
 	# dan tahan keputusan minimal sebentar (histeresis) supaya tidak berkedip jalan/diam (gedek).
@@ -3679,7 +3729,15 @@ func _sync_npcs() -> void:
 			if str(g.key).begins_with("wait"):
 				keeper_say("Silakan tunggu di Ruang Tunggu ya~")
 				ui.toast("%s mengarahkan %s ke Ruang Tunggu (waiting list)" % [D.STAFF.resep.nama, w.p.name])
-			var n := _spawn(pid, w)
+			var hh := hub_for(D.fl(str(w.room))) if w.kind == "res" else 0
+			var n := _spawn(pid, w, D.hub_spot(hh) if hh > 0 else Vector2(D.OUT_X, D.LOBBY_Y))
+			if hh > 0:
+				n.scene = "S%d" % hh
+				n.k = Npc.K_ROOM
+				n.reparent(npc_layer, false)
+				n.modulate.a = 0.0
+				n.fade_state = "in"
+				n.fade_t = 0.0
 			_apply_goal(n, g)
 			_bubble_for(n, w)
 
@@ -6355,3 +6413,78 @@ class _FireFx extends Node2D:
 		for i in range(5):
 			var k := fmod(t * 0.3 + i * 0.2, 1.0)
 			draw_circle(Vector2(sz.x * (0.2 + 0.15 * i), sz.y * 0.6 - k * sz.y * 0.6), 20 + k * 40, Color(0.3, 0.3, 0.3, 0.4 * (1.0 - k)))
+
+
+var hub_nodes := {}
+
+
+func _refresh_hubs() -> void:
+	if bld == null: return
+	for f in range(D.HUB_EVERY, D.TOP_FLOOR + 1, D.HUB_EVERY):
+		var on := floor_open(f)
+		if on and not hub_nodes.has(f):
+			var hn := _HubSign.new()
+			hn.f = f
+			hn.font = font
+			hn.info = D.hub_info(f)
+			hn.rect = D.rect_of("%dS" % f)
+			bld.add_child(hn)
+			hub_nodes[f] = hn
+		elif not on and hub_nodes.has(f):
+			hub_nodes[f].queue_free()
+			hub_nodes.erase(f)
+
+
+## Papan & ikon Lobi Langit di ruang tengah lantai hub.
+class _HubSign extends Node2D:
+	var f := 10
+	var font: Font
+	var info := {}
+	var rect := Rect2()
+	var t := 0.0
+
+	func _process(dt: float) -> void:
+		t += dt
+		queue_redraw()
+
+	func _draw() -> void:
+		var c: Color = info.get("c", Color("6a8fb3"))
+		var ink := Color("4a3426")
+		var w := rect.size.x - 60.0
+		var box := Rect2(rect.position.x + 30, rect.position.y + 10, w, 64)
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = c
+		sb.border_color = ink
+		sb.set_border_width_all(5)
+		sb.set_corner_radius_all(16)
+		draw_style_box(sb, box)
+		if font:
+			draw_string(font, box.position + Vector2(76, 45), str(info.get("n", "")), HORIZONTAL_ALIGNMENT_LEFT, w - 90, 32, Color.WHITE)
+		var ic := box.position + Vector2(40, 32)
+		draw_circle(ic, 26, Color(1, 1, 1, 0.9))
+		var k := String(info.get("n", "")).split(" ")[0]
+		match k:
+			"Lobi":   # mobil
+				draw_rect(Rect2(ic + Vector2(-16, -2), Vector2(32, 12)), c)
+				draw_rect(Rect2(ic + Vector2(-9, -10), Vector2(18, 9)), c)
+				draw_circle(ic + Vector2(-9, 11), 4, ink)
+				draw_circle(ic + Vector2(9, 11), 4, ink)
+			"Gerbang":   # palang tol naik-turun
+				draw_rect(Rect2(ic + Vector2(-16, -14), Vector2(6, 28)), ink)
+				var a := -0.6 * absf(sin(t * 0.8))
+				draw_line(ic + Vector2(-12, -8), ic + Vector2(-12, -8) + Vector2(cos(a), sin(a)) * 30, Color("e0533d"), 5)
+			"Stasiun":
+				if String(info.get("n", "")).find("Angkasa") >= 0:   # roket
+					var y := -sin(t * 2.0) * 3.0
+					draw_colored_polygon(PackedVector2Array([ic + Vector2(0, -18 + y), ic + Vector2(7, 6 + y), ic + Vector2(-7, 6 + y)]), c)
+					draw_colored_polygon(PackedVector2Array([ic + Vector2(-4, 7 + y), ic + Vector2(4, 7 + y), ic + Vector2(0, 16 + y)]), Color("f2a33a"))
+				else:   # kereta
+					draw_rect(Rect2(ic + Vector2(-16, -10), Vector2(32, 20)), c)
+					draw_rect(Rect2(ic + Vector2(-11, -6), Vector2(8, 7)), Color.WHITE)
+					draw_rect(Rect2(ic + Vector2(3, -6), Vector2(8, 7)), Color.WHITE)
+					draw_line(ic + Vector2(-18, 14), ic + Vector2(18, 14), ink, 3)
+			"Helipad":
+				draw_string(font, ic + Vector2(-9, 11), "H", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, c)
+				var r := 20.0
+				var a2 := t * 12.0
+				draw_line(ic + Vector2(cos(a2), sin(a2) * 0.3) * -r + Vector2(0, -16), ic + Vector2(cos(a2), sin(a2) * 0.3) * r + Vector2(0, -16), ink, 2)
