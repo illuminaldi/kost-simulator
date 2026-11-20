@@ -6556,6 +6556,7 @@ class _HubSign extends Node2D:
 				"kereta": _a_kereta()
 				"heli": _a_heli()
 				"roket": _a_roket()
+			_people(key)
 			return
 		_stair_col(space, c)
 		for reg in [Vector2(L0, L1), Vector2(R0, R1)]:
@@ -6594,7 +6595,7 @@ class _HubSign extends Node2D:
 	static var _texc := {}
 	func _tex(n: String) -> Texture2D:
 		if not _texc.has(n):
-			var path := "res://assets/hub/%s.png" % n
+			var path := ("res://assets/chars/%s_L.png" % n) if n.contains("/") else ("res://assets/hub/%s.png" % n)
 			_texc[n] = load(path) if ResourceLoader.exists(path) else null
 		return _texc[n]
 
@@ -6630,6 +6631,46 @@ class _HubSign extends Node2D:
 				draw_set_transform(Vector2.ZERO)
 			else:
 				draw_texture_rect_region(tx, dst, src, Color(1, 1, 1, a))
+
+	## Orang-orang di lobi (penumpang, pengunjung, petugas).
+	func _walker(ch: String, x0: float, x1: float, cy: float, period: float, off := 0.0) -> void:
+		var u := fmod(t + off, period) / period
+		var k := u * 2.0 if u < 0.5 else (1.0 - u) * 2.0   # bolak-balik
+		var x := lerpf(x0, x1, k)
+		var fr := "walk" if fmod(t * 4.0, 2.0) < 1.0 else "walk2"
+		_spr("%s/%s" % [ch, fr], Vector2(x, Y(cy)), 150, u >= 0.5, true)
+
+	func _stand(ch: String, pose: String, x: float, cy: float, flip := false) -> void:
+		_spr("%s/%s" % [ch, pose], Vector2(x, Y(cy)), 150, flip, true)
+
+	func _people(key: String) -> void:
+		match key:
+			"parkir":
+				_walker("kupluk", 330, 760, 400, 14.0)
+				_stand("satpam", "idle", 1180, 404, true)
+				_walker("siswi", 980, 1180, 410, 10.0, 3.0)
+			"tol":
+				_stand("satpam", "inspect", 430, 330)
+				_walker("flanel", 980, 1100, 336, 9.0)
+			"kereta":
+				var cyc := fmod(t, 16.0)
+				if cyc < 4.5 or cyc > 9.0:   # penumpang menunggu; saat kereta berhenti mereka naik
+					_stand("nenek", "idle", 300, 402)
+					_stand("kutu", "idle", 420, 404, true)
+					_stand("siswi", "happy", 620, 400)
+				else:
+					_walker("kakek", 980, 1150, 404, 8.0)
+				_stand("flanel", "idle", 1350, 404, true)
+			"heli":
+				_stand("kakek", "idle", 260, 404)
+				_stand("siswi", "idle", 700, 404, true)
+				var cyc2 := fmod(t, 14.0)
+				if cyc2 > 4.5 and cyc2 < 8.5:
+					_walker("kupluk", 980, 1110, 404, 8.0, 0.0)
+			"roket":
+				_stand("teknisi", "idle", 1090, 404, false)
+				_stand("teknisi", "fix", 1250, 404, true)
+				_walker("kutu", 160, 330, 404, 9.0)
 
 	func _a_parkir() -> void:
 		# mobil datang dari kanan, berhenti di depan palang, lalu mundur keluar

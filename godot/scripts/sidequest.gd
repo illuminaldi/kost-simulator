@@ -1301,7 +1301,7 @@ func _opose(p: String, secs: float = 0.0) -> void:
 ## Ganti pose Maryam (tampak belakang), kembali ke "ready" setelah `secs`.
 ## Pose lawan saat kehilangan poin: menunduk (bukan duduk di bangku).
 func _foe_lose() -> String:
-	return "run" if FOES[foe][2] == "padel_aji" else "ready"
+	return "tired"   # lawan kalah: menunduk kelelahan
 
 
 func _mpose(p: String, secs: float = 0.0) -> void:
