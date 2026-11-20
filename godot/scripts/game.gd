@@ -220,10 +220,11 @@ func _bagdrag_test() -> void:
 ## Uji acak: ketuk & seret di sembarang tempat, laporkan kalau waktu game berhenti.
 func _monkey() -> void:
 	await get_tree().create_timer(1.0).timeout
-	S.lvl = 12
-	S.money = 50000000.0
-	S.fac["lift"] = true
-	_refresh_lift()
+	if not OS.get_cmdline_user_args().has("--big24"):
+		S.lvl = 12
+		S.money = 50000000.0
+		S.fac["lift"] = true
+		_refresh_lift()
 	var last_min := int(S.min) + int(S.day) * 1440
 	var stuck := 0
 	for i in range(900):
@@ -1457,7 +1458,22 @@ func float_at(id: String, text: String, col: Color) -> void:
 
 
 # ================= Waktu & ekonomi =================
+var _beat_acc := 0.0
+var _probe := false
+var _probe_t := 0
+
+
 func _process(dt: float) -> void:
+	if _probe:
+		var now := Time.get_ticks_msec()
+		if now / 5000 != _probe_t / 5000: print("MEM static ", int(OS.get_static_memory_usage() / 1048576), "MB tex ", int(Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED) / 1048576), "MB objs ", Performance.get_monitor(Performance.OBJECT_COUNT), " nodes ", Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+		if _probe_t > 0 and now - _probe_t > 400: print("SLOW frame ", now - _probe_t, "ms at ", int(S.min) / 60, ":", int(S.min) % 60, " day ", S.day, " npcs ", npcs.size())
+		_probe_t = now
+	# Detak untuk penjaga di halaman web: kalau game berhenti total, halaman dimuat ulang.
+	_beat_acc += dt
+	if _beat_acc > 1.0 and OS.has_feature("web"):
+		_beat_acc = 0.0
+		JavaScriptBridge.eval("window.__gdbeat=Date.now()", true)
 	_renov_acc += dt
 	if _renov_acc > 1.0:
 		_renov_acc = 0.0
@@ -5381,6 +5397,23 @@ func _handle_cli(args: PackedStringArray) -> void:
 				if a == "--watest": ui.update_hud())
 		elif a == "--monkey":
 			_monkey.call_deferred()
+		elif a == "--big24":
+			S.seen = true; S.tut = -1; ui.close_sheet()
+			S.lvl = 24; S.money = 200000000.0; S.speed = 2; W.turbo_min = 99999
+			S.open_floor = 12
+			for k in D.STAFF: S.staff[k] = true
+			for k in D.FAC: S.fac[k] = true
+			var fi := 1
+			for k in D.FACIL_ORDER:
+				if fi <= D.TOP_FLOOR: S.facil[str(fi)] = k; fi += 1
+			for id in D.ROOMS:
+				S.rooms[id].built = true
+				S.rooms[id].furn = {"kasur": 2, "lampu": 2, "kipas": 2, "tanaman": 1}
+				S.rooms[id].tenant = gen_person(["p", "l"].pick_random())
+			S.stair_lv = 4
+			_refresh_stairs(); _refresh_lift(); _refresh_world(); _sync_npcs()
+			season = Season.new(self); season.start("hujan")
+			_probe = true
 		elif a == "--codetest":
 			var c := export_code()
 			var parts := c.split(":")

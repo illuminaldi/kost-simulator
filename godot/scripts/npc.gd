@@ -200,6 +200,10 @@ func _art_tex(p: String) -> Texture2D:
 			"mood": base = mood
 	if not _has(base):
 		base = "idle"
+		for fb in ["idle", "happy", "stand", "walk"]:
+			if _has(fb):
+				base = fb
+				break
 	# Siklus langkah: bergantian kaki depan & kaki berpapasan.
 	if (p == "walk" or p == "climb") and _has(base + "2") and int(anim * (4.0 if p == "walk" else 3.0)) % 2 == 1:
 		base = base + "2"
@@ -390,6 +394,7 @@ func _refresh() -> void:
 			t = _art_tex(pose)
 		else:
 			t = Spr.tex(look, pose, frame, k if pose != "lie" else 0.95)
+		if t == null: return
 		_sp.texture = t
 		var sz := t.get_size()
 		_sp.offset = Vector2(-sz.x / 2.0, -sz.y)

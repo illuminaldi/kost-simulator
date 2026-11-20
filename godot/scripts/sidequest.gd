@@ -842,6 +842,7 @@ func _ray_say(t: String) -> void:
 
 
 func _new_match() -> void:
+	if not is_instance_valid(_foe_lbl) or view != "padel": return
 	pts = [0, 0]
 	_rally = 0
 	_foe_lbl.text = FOES[foe][0]
