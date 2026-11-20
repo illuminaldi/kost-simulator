@@ -5540,9 +5540,8 @@ func _handle_cli(args: PackedStringArray) -> void:
 				hn.f = (i + 1) * 10
 				hn.font = font
 				hn.info = D.hub_info(hn.f)
-				hn.fixed = Rect2(0, 0, 140, 257)
-				hn.scale = Vector2.ONE * 2.0
-				hn.position = Vector2(220 + (i % 2) * 700, 200 + (i / 2) * 760)
+				hn.fixed = Rect2(0, 0, 10, 367)
+				hn.position = Vector2(0, 40 + i * 470)
 				cl.add_child(hn)
 		elif a == "--big24":
 			S.seen = true; S.tut = -1; ui.close_sheet()
@@ -6463,6 +6462,25 @@ func _refresh_hubs() -> void:
 	if bld == null: return
 	for f in range(D.HUB_EVERY, D.TOP_FLOOR + 1, D.HUB_EVERY):
 		var on := floor_open(f)
+		if on:
+			for side in ["L", "R"]:
+				var hid := "%d%s" % [f, side]
+				var hr: Dictionary = S.rooms.get(hid, {})
+				if hr.is_empty() or not hr.get("built", false): continue
+				var tn = hr.get("tenant")
+				hr.built = false
+				hr.tenant = null
+				hr.furn = {}
+				S.money = float(S.money) + build_cost()
+				if tn != null:
+					var moved := false
+					for id2 in D.ROOMS:
+						var r2: Dictionary = S.rooms[id2]
+						if r2.built and r2.tenant == null:
+							r2.tenant = tn; moved = true; break
+					if not moved:
+						S.queue.push_front(tn)
+				ui.toast("Kamar %s dibongkar untuk %s (biaya dikembalikan)." % [hid, D.hub_info(f).n])
 		if on and S.facil.has(str(f)):
 			var k: String = S.facil[str(f)]
 			S.facil.erase(str(f))
@@ -6487,7 +6505,8 @@ func _refresh_hubs() -> void:
 			hub_nodes.erase(f)
 
 
-## Lobi Langit: ruang khusus di sisi tangga lantai hub (menggantikan slot fasilitas).
+## Lobi Langit: satu lantai penuh (tanpa kamar) berisi stasiun/parkiran/tol/helipad/roket.
+## Kolom tangga dibiarkan terlihat supaya penghuni tetap naik-turun lewat tangga.
 class _HubSign extends Node2D:
 	var f := 10
 	var fixed := Rect2()
@@ -6495,89 +6514,279 @@ class _HubSign extends Node2D:
 	var info := {}
 	var rect := Rect2()
 	var t := 0.0
+	const INK := Color("4a3426")
+	const L0 := 131.0
+	const L1 := 792.0
+	const R0 := 996.0
+	const R1 := 1405.0
+	var y0 := 0.0
+	var fy := 0.0
 
 	func _process(dt: float) -> void:
 		t += dt
 		queue_redraw()
 
 	func _draw() -> void:
+		if fixed.size.x > 0:
+			y0 = fixed.position.y; fy = y0 + 349.0
+		else:
+			y0 = D.ROWS[f].x; fy = D.FEET[f]
 		var c: Color = info.get("c", Color("6a8fb3"))
-		var ink := Color("4a3426")
-		var r := fixed if fixed.size.x > 0 else D.facil_draw_rect(f)
-		var floor_y := r.position.y + r.size.y * D.FACIL_SVG_FLOOR
-		# pintu gerbang besar
-		var door := Rect2(r.position.x - 30, floor_y - 200, r.size.x + 60, 200)
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = c.darkened(0.15)
-		sb.border_color = ink
-		sb.set_border_width_all(5)
-		sb.corner_radius_top_left = 70
-		sb.corner_radius_top_right = 70
-		draw_style_box(sb, door)
-		var inner := door.grow(-16)
-		inner.size.y += 16
-		var sb2 := StyleBoxFlat.new()
-		sb2.bg_color = Color("2e3a4a")
-		sb2.corner_radius_top_left = 56
-		sb2.corner_radius_top_right = 56
-		draw_style_box(sb2, inner)
-		# pemandangan di balik gerbang (langit + kendaraan)
-		var sky := Rect2(inner.position + Vector2(8, 20), inner.size - Vector2(16, 28))
-		draw_rect(sky, Color("9fc7e6"))
-		draw_rect(Rect2(sky.position.x, sky.end.y - 26, sky.size.x, 26), Color("8c8f94"))
-		var ic := Vector2(sky.get_center().x, sky.end.y - 30)
 		var k := String(info.get("n", "")).split(" ")[0]
-		var bob := sin(t * 2.0) * 3.0
+		var space := String(info.get("n", "")).find("Angkasa") >= 0
+		for reg in [Vector2(L0, L1), Vector2(R0, R1)]:
+			var r := Rect2(reg.x, y0, reg.y - reg.x, fy - y0 + 18)
+			draw_rect(r, Color("1f2448") if space else c.lightened(0.62))
+			draw_rect(Rect2(reg.x, fy - 40, reg.y - reg.x, 58), Color("3b3f52") if space else Color("cfc6b8"))
+			draw_rect(Rect2(reg.x, y0, reg.y - reg.x, 16), c.darkened(0.2))
+			draw_rect(r, INK, false, 4)
 		match k:
-			"Lobi":   # mobil keluar-masuk
-				var x := 34.0 + fmod(t * 30.0, sky.size.x - 68.0)
-				var p := Vector2(sky.position.x + x, ic.y)
-				draw_rect(Rect2(p + Vector2(-34, -22), Vector2(68, 22)), Color("e0533d"))
-				draw_rect(Rect2(p + Vector2(-20, -38), Vector2(40, 17)), Color("e0533d"))
-				draw_rect(Rect2(p + Vector2(-14, -34), Vector2(28, 10)), Color("cfe8f7"))
-				draw_circle(p + Vector2(-20, 2), 8, ink)
-				draw_circle(p + Vector2(20, 2), 8, ink)
-			"Gerbang":   # palang tol
-				draw_rect(Rect2(ic + Vector2(-60, -70), Vector2(14, 70)), Color("f2c14e"))
-				var a := -1.2 * clampf(sin(t * 0.9) * 1.5, 0.0, 1.0)
-				draw_line(ic + Vector2(-53, -50), ic + Vector2(-53, -50) + Vector2(cos(a), sin(a)) * 110, Color("e0533d"), 8)
-				draw_rect(Rect2(ic + Vector2(10, -40), Vector2(60, 40)), Color("3a6fb0"))
+			"Lobi": _parkir(c)
+			"Gerbang": _tol(c)
 			"Stasiun":
-				if String(info.get("n", "")).find("Angkasa") >= 0:   # roket
-					draw_rect(sky, Color("1f2448"))
-					for i in range(8):
-						draw_circle(sky.position + Vector2(fmod(i * 37.0, sky.size.x), fmod(i * 53.0, sky.size.y * 0.7)), 2, Color.WHITE)
-					var y := ic.y - 40 - absf(sin(t * 0.7)) * 30
-					draw_colored_polygon(PackedVector2Array([Vector2(ic.x, y - 60), Vector2(ic.x + 20, y), Vector2(ic.x - 20, y)]), Color("eceff3"))
-					draw_rect(Rect2(ic.x - 20, y, 40, 40), Color("eceff3"))
-					draw_colored_polygon(PackedVector2Array([Vector2(ic.x - 12, y + 40), Vector2(ic.x + 12, y + 40), Vector2(ic.x, y + 70 + bob * 3)]), Color("f2a33a"))
-				else:   # kereta lewat
-					var x2 := fmod(t * 90.0, sky.size.x + 320) - 160
-					var p2 := Vector2(sky.position.x + x2, ic.y)
-					var body := Rect2(p2 + Vector2(-150, -60), Vector2(300, 56)).intersection(sky)
-					if body.size.x > 0: draw_rect(body, Color("5fae4f"))
-					for i in range(5):
-						var wr := Rect2(p2 + Vector2(-136 + i * 58, -50), Vector2(40, 22)).intersection(sky)
-						if wr.size.x > 0: draw_rect(wr, Color("dff1ff"))
-			"Helipad":
-				draw_ellipse_h(ic + Vector2(0, -8), 60, 12, Color("d6d6d6"))
-				if font: draw_string(font, ic + Vector2(-12, -2), "H", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("e0533d"))
-				var hy := ic.y - 70 + bob
-				draw_rect(Rect2(ic.x - 30, hy, 60, 30), Color("e0533d"))
-				draw_line(Vector2(ic.x + 30, hy + 12), Vector2(ic.x + 52, hy + 8), Color("e0533d"), 6)
-				var a2 := t * 14.0
-				draw_line(Vector2(ic.x - 50 * cos(a2), hy - 8), Vector2(ic.x + 50 * cos(a2), hy - 8), ink, 4)
-		# papan nama di atas gerbang
-		var w := 260.0
-		var box := Rect2(door.get_center().x - w / 2.0, door.position.y - 62, w, 56)
-		var sb3 := StyleBoxFlat.new()
-		sb3.bg_color = c
-		sb3.border_color = ink
-		sb3.set_border_width_all(4)
-		sb3.set_corner_radius_all(14)
-		draw_style_box(sb3, box)
+				if space: _roket(c)
+				else: _kereta(c)
+			"Helipad": _heli(c)
+		# papan nama
+		var w := 330.0
+		var box := Rect2((L0 + L1) / 2.0 - w / 2.0, y0 + 26, w, 54)
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = c
+		sb.border_color = INK
+		sb.set_border_width_all(4)
+		sb.set_corner_radius_all(14)
+		draw_style_box(sb, box)
 		if font:
-			draw_string(font, box.position + Vector2(0, 38), str(info.get("n", "")), HORIZONTAL_ALIGNMENT_CENTER, w, 24, Color.WHITE)
+			draw_string(font, box.position + Vector2(0, 38), str(info.get("n", "")), HORIZONTAL_ALIGNMENT_CENTER, w, 28, Color.WHITE)
+
+	# ---------- bagian umum ----------
+	func _box(r: Rect2, col: Color, bw := 3.0) -> void:
+		draw_rect(r, col)
+		draw_rect(r, INK, false, bw)
+
+	func _car(p: Vector2, col: Color, flip := false, sc := 1.0) -> void:
+		var d := -1.0 if flip else 1.0
+		_box(Rect2(p + Vector2(-60, -34) * sc, Vector2(120, 30) * sc), col)
+		var top := PackedVector2Array([p + Vector2(-38 * d, -34) * sc, p + Vector2(-26 * d, -58) * sc, p + Vector2(22 * d, -58) * sc, p + Vector2(40 * d, -34) * sc])
+		draw_colored_polygon(top, col)
+		top.append(top[0]); draw_polyline(top, INK, 3)
+		draw_rect(Rect2(p + Vector2(-22, -54) * sc, Vector2(40, 16) * sc), Color("cfe8f7"))
+		draw_circle(p + Vector2(-34, -4) * sc, 13 * sc, INK)
+		draw_circle(p + Vector2(34, -4) * sc, 13 * sc, INK)
+		draw_circle(p + Vector2(-34, -4) * sc, 5 * sc, Color("bbbbbb"))
+		draw_circle(p + Vector2(34, -4) * sc, 5 * sc, Color("bbbbbb"))
+		draw_rect(Rect2(p + Vector2(54 * d - 4, -28) * sc, Vector2(8, 8) * sc), Color("ffe08a"))
+
+	func _person(p: Vector2, col: Color, sc := 1.0) -> void:
+		draw_rect(Rect2(p + Vector2(-9, -50) * sc, Vector2(18, 34) * sc), col)
+		draw_circle(p + Vector2(0, -60) * sc, 11 * sc, Color("f1c9a5"))
+		draw_rect(Rect2(p + Vector2(-8, -16) * sc, Vector2(6, 16) * sc), Color("3b3f52"))
+		draw_rect(Rect2(p + Vector2(2, -16) * sc, Vector2(6, 16) * sc), Color("3b3f52"))
+
+	func _bench(x: float) -> void:
+		_box(Rect2(x - 50, fy - 34, 100, 10), Color("b98a5c"), 2)
+		draw_rect(Rect2(x - 44, fy - 24, 6, 24), INK)
+		draw_rect(Rect2(x + 38, fy - 24, 6, 24), INK)
+
+	func _plant(x: float) -> void:
+		_box(Rect2(x - 16, fy - 34, 32, 34), Color("d07a4f"), 2)
+		for i in range(5):
+			var a := -PI / 2 + (i - 2) * 0.45
+			draw_line(Vector2(x, fy - 34), Vector2(x, fy - 34) + Vector2(cos(a), sin(a)) * 40, Color("5d8a4a"), 8)
+
+	func _lights() -> void:
+		for x in [L0 + 80, L0 + 330, L0 + 580, R0 + 100, R0 + 300]:
+			draw_line(Vector2(x, y0 + 16), Vector2(x, y0 + 34), INK, 2)
+			draw_rect(Rect2(x - 26, y0 + 34, 52, 8), Color("fff3c4"))
+
+	# ---------- Stasiun Kereta: kereta menembus gedung ----------
+	func _kereta(c: Color) -> void:
+		_lights()
+		var ty := fy - 92.0
+		# rel & dinding peron
+		for reg in [Vector2(L0, L1), Vector2(R0, R1)]:
+			draw_rect(Rect2(reg.x, ty + 40, reg.y - reg.x, 10), Color("6b6f73"))
+			draw_rect(Rect2(reg.x, fy - 40, reg.y - reg.x, 8), Color("f2c14e"))
+		# kereta: datang dari kiri, berhenti, lalu lanjut ke kanan
+		var cyc := fmod(t, 16.0)
+		var x := 0.0
+		if cyc < 4.0: x = lerpf(-1400.0, 120.0, ease(cyc / 4.0, 0.4))
+		elif cyc < 9.0: x = 120.0
+		else: x = lerpf(120.0, 1900.0, ease((cyc - 9.0) / 7.0, 2.2))
+		var cars := 4
+		for i in range(cars):
+			var cx := L0 + x - i * 330.0
+			for reg in [Vector2(L0, L1), Vector2(R0, R1)]:
+				var body := Rect2(cx, ty - 110, 320, 140).intersection(Rect2(reg.x, y0, reg.y - reg.x, 400))
+				if body.size.x <= 0: continue
+				draw_rect(body, Color("eef2f5"))
+				var stripe := Rect2(cx, ty - 20, 320, 16).intersection(body)
+				if stripe.size.x > 0: draw_rect(stripe, c)
+				for wdx in range(4):
+					var wr := Rect2(cx + 22 + wdx * 74, ty - 92, 54, 44).intersection(body)
+					if wr.size.x > 0: draw_rect(wr, Color("8fb9d6"))
+				var door := Rect2(cx + 140, ty - 92, 40, 106).intersection(body)
+				if door.size.x > 0 and cyc > 4.0 and cyc < 9.0: draw_rect(door, Color("2e3a4a"))
+				draw_rect(body, INK, false, 3)
+		# penumpang menunggu & bangku
+		if cyc < 4.5 or cyc > 9.0:
+			_person(Vector2(L0 + 260, fy - 4), Color("e07a5f"), 0.9)
+			_person(Vector2(L0 + 300, fy - 4), Color("5b8e7d"), 0.9)
+		_bench(R0 + 120)
+		_bench(R0 + 290)
+		# papan jadwal & jam
+		_box(Rect2(R0 + 70, y0 + 60, 270, 70), Color("2e3a4a"))
+		if font:
+			draw_string(font, Vector2(R0 + 84, y0 + 92), "KRL  08:15  Tepat", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("ffd36b"))
+			draw_string(font, Vector2(R0 + 84, y0 + 120), "Ekspres  08:30", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("9fe0a5"))
+		draw_circle(Vector2(L1 - 60, y0 + 110), 30, Color.WHITE)
+		draw_arc(Vector2(L1 - 60, y0 + 110), 30, 0, TAU, 24, INK, 3)
+		draw_line(Vector2(L1 - 60, y0 + 110), Vector2(L1 - 60, y0 + 88), INK, 3)
+		draw_line(Vector2(L1 - 60, y0 + 110), Vector2(L1 - 60, y0 + 110) + Vector2(cos(t * 0.5), sin(t * 0.5)) * 18, INK, 3)
+
+	# ---------- Lobi Parkiran ----------
+	func _parkir(c: Color) -> void:
+		_lights()
+		var cols := [Color("e0533d"), Color("3a6fb0"), Color("f2c14e"), Color("5fae4f"), Color("eceff3")]
+		for i in range(4):
+			var x := L0 + 90 + i * 150
+			draw_line(Vector2(x - 75, fy - 40), Vector2(x - 75, fy + 14), Color.WHITE, 4)
+			if i != 2: _car(Vector2(x, fy - 2), cols[i], i % 2 == 1, 0.95)
+		draw_line(Vector2(L0 + 90 + 4 * 150 - 75, fy - 40), Vector2(L0 + 90 + 4 * 150 - 75, fy + 14), Color.WHITE, 4)
+		# mobil masuk ke slot kosong
+		var cyc := fmod(t, 12.0)
+		var px := L0 + 390.0
+		var mx := px
+		if cyc < 4.0: mx = lerpf(R1 + 120, px, ease(cyc / 4.0, 0.5))
+		elif cyc >= 9.0: mx = -999.0
+		if (mx > L0 + 60 and mx < L1 - 60) or (mx > R0 + 60 and mx < R1 - 60):
+			_car(Vector2(mx, fy - 2), cols[4], true, 0.95)
+		# pos tiket + palang
+		_box(Rect2(R0 + 220, fy - 150, 110, 150), Color("eceff3"))
+		_box(Rect2(R0 + 236, fy - 130, 78, 46), Color("8fb9d6"))
+		if font: draw_string(font, Vector2(R0 + 228, fy - 160), "P · TIKET", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, INK)
+		var a := -1.3 * clampf(sin(t * 0.8) * 2.0, 0.0, 1.0)
+		draw_line(Vector2(R0 + 210, fy - 70), Vector2(R0 + 210, fy - 70) + Vector2(-cos(a), sin(a)) * 180, Color("e0533d"), 10)
+		draw_line(Vector2(R0 + 210, fy - 70), Vector2(R0 + 210, fy - 70) + Vector2(-cos(a), sin(a)) * 180, Color.WHITE, 3)
+		_plant(R1 - 40)
+		# panah jalur
+		for i in range(3):
+			var ax := R0 + 40 + i * 50 + fmod(t * 30.0, 50.0)
+			draw_colored_polygon(PackedVector2Array([Vector2(ax, fy + 2), Vector2(ax + 22, fy + 8), Vector2(ax, fy + 14)]), Color.WHITE)
+
+	# ---------- Gerbang Tol ----------
+	func _tol(c: Color) -> void:
+		_lights()
+		draw_rect(Rect2(L0, fy - 40, L1 - L0, 58), Color("6b6f73"))
+		draw_rect(Rect2(R0, fy - 40, R1 - R0, 58), Color("6b6f73"))
+		for reg in [Vector2(L0, L1), Vector2(R0, R1)]:
+			var x: float = reg.x
+			while x < reg.y:
+				draw_rect(Rect2(x, fy - 12, minf(40.0, reg.y - x), 6), Color.WHITE)
+				x += 80
+		# dua gardu tol
+		for i in range(2):
+			var gx := L0 + 200 + i * 300
+			_box(Rect2(gx - 40, fy - 200, 80, 160), Color("eceff3"))
+			_box(Rect2(gx - 30, fy - 180, 60, 50), Color("8fb9d6"))
+			_box(Rect2(gx - 70, fy - 236, 140, 36), c)
+			if font: draw_string(font, Vector2(gx - 70, fy - 210), "e-TOL" if i == 0 else "TUNAI", HORIZONTAL_ALIGNMENT_CENTER, 140, 24, Color.WHITE)
+			var open := clampf(sin(t * 0.9 + i * 2.0) * 2.0, 0.0, 1.0)
+			var a := -1.3 * open
+			draw_line(Vector2(gx + 44, fy - 70), Vector2(gx + 44, fy - 70) + Vector2(cos(a), sin(a)) * 120, Color("e0533d"), 9)
+		# mobil lewat terus-menerus
+		for i in range(3):
+			var x2 := fmod(t * 160.0 + i * 520.0, 1700.0) - 150.0
+			if (x2 > L0 + 60 and x2 < L1 - 60) or (x2 > R0 + 60 and x2 < R1 - 60):
+				_car(Vector2(x2, fy + 6), [Color("3a6fb0"), Color("f2c14e"), Color("e0533d")][i], false, 0.85)
+		_box(Rect2(R0 + 80, y0 + 60, 250, 70), Color("2f7d4f"))
+		if font: draw_string(font, Vector2(R0 + 80, y0 + 105), "TOL LANGIT  Rp 12rb", HORIZONTAL_ALIGNMENT_CENTER, 250, 24, Color.WHITE)
+
+	# ---------- Helipad ----------
+	func _heli(c: Color) -> void:
+		_lights()
+		# dinding kaca kanan: langit + landasan
+		var sky := Rect2(R0 + 8, y0 + 20, R1 - R0 - 16, fy - y0 - 60)
+		draw_rect(sky, Color("9fc7e6"))
+		for i in range(3):
+			draw_circle(Vector2(R0 + 60 + i * 110 + fmod(t * 8.0, 50.0), y0 + 80 + (i % 2) * 30), 24, Color(1, 1, 1, 0.8))
+		draw_rect(Rect2(R0, fy - 40, R1 - R0, 58), Color("8c8f94"))
+		var pc := Vector2((R0 + R1) / 2.0, fy - 14)
+		draw_ellipse_h(pc, 150, 22, Color("d6d6d6"))
+		var ring := PackedVector2Array()
+		for i in range(33):
+			var an := TAU * i / 32.0
+			ring.append(pc + Vector2(cos(an) * 120, sin(an) * 16))
+		draw_polyline(ring, Color("f2c14e"), 4)
+		if font: draw_string(font, pc + Vector2(-16, 12), "H", HORIZONTAL_ALIGNMENT_LEFT, -1, 34, Color("e0533d"))
+		var cyc := fmod(t, 14.0)
+		var hy := 0.0
+		if cyc < 4.0: hy = lerpf(-260.0, 0.0, ease(cyc / 4.0, 0.4))
+		elif cyc < 9.0: hy = 0.0
+		else: hy = lerpf(0.0, -320.0, ease((cyc - 9.0) / 5.0, 2.0))
+		var hp := pc + Vector2(0, -40 + hy)
+		if hp.y > y0 + 40:
+			_box(Rect2(hp + Vector2(-60, -50), Vector2(120, 56)), c)
+			_box(Rect2(hp + Vector2(-34, -42), Vector2(44, 28)), Color("cfe8f7"), 2)
+			draw_line(hp + Vector2(60, -30), hp + Vector2(130, -36), c, 10)
+			draw_line(hp + Vector2(-50, 12), hp + Vector2(50, 12), INK, 4)
+			var a2 := t * (14.0 if cyc < 4.0 or cyc > 8.0 else 3.0)
+			draw_line(hp + Vector2(-120 * cos(a2), -60), hp + Vector2(120 * cos(a2), -60), INK, 5)
+			draw_line(hp + Vector2(0, -50), hp + Vector2(0, -60), INK, 4)
+		# windsock
+		draw_line(Vector2(R1 - 40, fy - 40), Vector2(R1 - 40, y0 + 120), INK, 4)
+		draw_colored_polygon(PackedVector2Array([Vector2(R1 - 40, y0 + 120), Vector2(R1 - 100, y0 + 128 + sin(t * 3.0) * 6), Vector2(R1 - 100, y0 + 146 + sin(t * 3.0) * 6), Vector2(R1 - 40, y0 + 144)]), Color("f28c3a"))
+		# ruang tunggu kiri
+		_bench(L0 + 120); _bench(L0 + 260); _bench(L0 + 400)
+		_person(Vector2(L0 + 110, fy - 30), Color("8a6ad9"), 0.85)
+		_box(Rect2(L0 + 390, y0 + 100, 240, 90), Color("2e3a4a"))
+		if font:
+			draw_string(font, Vector2(L0 + 404, y0 + 136), "Heli 01 · Bandara", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("ffd36b"))
+			draw_string(font, Vector2(L0 + 404, y0 + 168), "Heli 02 · Puncak", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("9fe0a5"))
+		_plant(L1 - 40)
+
+	# ---------- Stasiun Luar Angkasa ----------
+	func _roket(c: Color) -> void:
+		for reg in [Vector2(L0, L1), Vector2(R0, R1)]:
+			for i in range(14):
+				var sx: float = reg.x + fmod(i * 97.0, reg.y - reg.x)
+				var sy := y0 + 30 + fmod(i * 61.0, fy - y0 - 90)
+				draw_circle(Vector2(sx, sy), 2.0 + (1.0 if fmod(t + i, 2.0) < 1.0 else 0.0), Color.WHITE)
+		draw_circle(Vector2(R1 - 90, y0 + 110), 44, Color("e5a96b"))
+		draw_arc(Vector2(R1 - 90, y0 + 110), 64, -0.3, PI + 0.3, 24, Color("f1d3a8"), 5)
+		# landasan + menara
+		var rx := L0 + 330.0
+		_box(Rect2(rx - 120, fy - 40, 240, 30), Color("6b6f73"))
+		draw_rect(Rect2(rx + 90, y0 + 90, 16, fy - y0 - 130), Color("c9ced2"))
+		for i in range(6):
+			draw_line(Vector2(rx + 90, y0 + 100 + i * 40), Vector2(rx + 106, y0 + 120 + i * 40), INK, 2)
+		var cyc := fmod(t, 15.0)
+		var ry := 0.0
+		var a := 1.0
+		if cyc > 8.0: ry = -pow((cyc - 8.0) * 1.6, 2.2) * 10.0
+		if cyc > 13.0: a = 0.0
+		if cyc < 1.0: a = cyc
+		var base := Vector2(rx, fy - 40 + ry)
+		if a > 0.0 and base.y - 220 > y0 - 40:
+			var col := Color(1, 1, 1, a)
+			draw_colored_polygon(PackedVector2Array([base + Vector2(0, -230), base + Vector2(30, -170), base + Vector2(-30, -170)]), c * col)
+			draw_rect(Rect2(base + Vector2(-30, -170), Vector2(60, 150)), Color("eceff3") * col)
+			draw_circle(base + Vector2(0, -130), 14, Color("8fb9d6") * col)
+			draw_colored_polygon(PackedVector2Array([base + Vector2(-30, -60), base + Vector2(-56, -10), base + Vector2(-30, -20)]), c * col)
+			draw_colored_polygon(PackedVector2Array([base + Vector2(30, -60), base + Vector2(56, -10), base + Vector2(30, -20)]), c * col)
+			if cyc > 7.0:
+				var fl := 40.0 + sin(t * 30.0) * 10.0
+				draw_colored_polygon(PackedVector2Array([base + Vector2(-20, -20), base + Vector2(20, -20), base + Vector2(0, -20 + fl + 30)]), Color("f2a33a"))
+				for i in range(4):
+					draw_circle(Vector2(rx - 120 + i * 80, fy - 50) + Vector2(sin(t * 5 + i) * 10, 0), 30 + (cyc - 7.0) * 4, Color(1, 1, 1, 0.35))
+		# panel kendali di kanan
+		for i in range(3):
+			var px := R0 + 40 + i * 110
+			_box(Rect2(px, fy - 120, 90, 80), Color("2e3a4a"))
+			for j in range(6):
+				var on := fmod(t * 2.0 + i + j * 0.7, 2.0) < 1.0
+				draw_circle(Vector2(px + 16 + (j % 3) * 28, fy - 100 + (j / 3) * 26), 7, Color("5fd38a") if on else Color("e0533d"))
+		if font: draw_string(font, Vector2(R0 + 40, fy - 140), "T-%02d" % int(maxf(0.0, 8.0 - cyc)), HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color("ffd36b"))
 
 	func draw_ellipse_h(cn: Vector2, rx: float, ry: float, col: Color) -> void:
 		var pts := PackedVector2Array()

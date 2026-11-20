@@ -35,10 +35,12 @@ static func setup_floors(top: int) -> void:
 		LAMPS["%dR" % f] = BASE_LAMPS["3R"]
 	ROOMS = []
 	for f in range(TOP_FLOOR, 0, -1):
+		if is_hub(f): continue   # lantai Lobi Langit: satu lantai penuh, tanpa kamar
 		ROOMS.append("%dL" % f)
 		ROOMS.append("%dR" % f)
 	EDGES = [["lobby", "S1"]]
 	for f in range(1, TOP_FLOOR + 1):
+		if is_hub(f): continue
 		EDGES.append(["S%d" % f, "%dL" % f])
 		EDGES.append(["S%d" % f, "%dR" % f])
 		if f < TOP_FLOOR: EDGES.append(["S%d" % f, "S%d" % (f + 1)])
@@ -579,7 +581,8 @@ static func hub_info(f: int) -> Dictionary:
 
 static func hub_spot(f: int) -> Vector2:
 	if f <= 0: return Vector2(OUT_X, LOBBY_Y)
-	return Vector2(facil_center_x(f), FEET[f] - FACIL_BACK)
+	# pintu peron/gerbang di sisi kiri lantai hub
+	return Vector2(300, FEET[f])
 
 
 static func scene_pos(s: String) -> Vector2:
