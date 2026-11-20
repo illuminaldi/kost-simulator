@@ -896,6 +896,8 @@ func open_sheet(k: String, a: String = "") -> void:
 		tab = "kmr"
 	elif k == "paint":
 		paint_sel = game.S.rooms[a].get("paint", {}).duplicate()
+	elif k == "hpaint":
+		paint_sel = game.S.get("hall_paint", {}).get(a, {}).duplicate()
 	overlay.visible = true
 	_opened_at = Time.get_ticks_msec()
 	sheet.position.y = D.IH
@@ -906,6 +908,9 @@ func open_sheet(k: String, a: String = "") -> void:
 func close_sheet() -> void:
 	if kind == "paint":
 		game.clear_paint_preview()
+	if kind == "hpaint":
+		game.hall_preview.clear()
+		game._refresh_hall_paint()
 	kind = ""
 	overlay.visible = false
 
@@ -921,6 +926,7 @@ func refresh_sheet(keep: bool = true) -> void:
 		"welcome": _sheet_welcome()
 		"rename": _sheet_rename()
 		"preman": _sheet_preman()
+		"fire": _sheet_fire()
 		"toko": _sheet_toko()
 		"floors": _sheet_floors()
 		"beli": _sheet_beli()
@@ -931,6 +937,7 @@ func refresh_sheet(keep: bool = true) -> void:
 		"manage": _sheet_manage()
 		"facil": _sheet_facil()
 		"paint": _sheet_paint()
+		"hpaint": _sheet_hpaint()
 		"funny": _sheet_funny()
 		"support": _sheet_support()
 		"devnote": _sheet_devnote()
@@ -1307,13 +1314,28 @@ func _sheet_preman() -> void:
 	var opts := [
 		["Bayar " + D.short(amt), D.C_YELLOW, "pay", "Aman untuk sekarang, tapi preman akan datang lagi lebih sering & minta lebih banyak."],
 		["Tolak", D.C_CREAM, "refuse", "Aji (Satpam) akan mengusirnya." if on else "Tanpa Satpam, preman marah & menakuti penghuni."],
-		["Lapor polisi · Rp 50rb", D.C_GREEN, "police", "Preman ditangkap & tidak datang lama. Rating naik."],
+		["Panggil Pak Bambang · gratis" if game.out_lv("polisi") >= 1 else "Lapor polisi · Rp 50rb", D.C_GREEN, "police", "Polisi datang & menyeret preman ke kantor." if game.out_lv("polisi") >= 1 else "Preman ditangkap & tidak datang lama. Rating naik. Langganan Polisi di menu Outsource."],
 	]
 	for o in opts:
 		var v := _card()
 		var arg: String = o[2]
 		v.add_child(_btn(o[0], o[1], func(): _do("preman", arg)))
 		v.add_child(_text(o[3], 30, D.C_MUTED))
+
+
+func _sheet_fire() -> void:
+	var rid: String = arg
+	_header("Kebakaran di Kamar %s!" % D.room_name(rid))
+	var tr := TextureRect.new()
+	tr.texture = load("res://assets/chars/damkar/spray_L.png")
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.custom_minimum_size = Vector2(0, 300)
+	box.add_child(tr)
+	box.add_child(_text("Api bisa menjalar ke kamar sebelah, atas, atau bawah kalau terlalu lama. Segera panggil pemadam!", 32, D.C_INK))
+	var v := _card()
+	v.add_child(_btn("Panggil Damkar · Rp 500rb", D.C_RED, func(): game.call_damkar_paid(rid)))
+	v.add_child(_text("Langganan Damkar (menu Karyawan → Outsource) membuat damkar datang otomatis & gratis.", 28, D.C_MUTED))
 
 
 func _sheet_rename() -> void:
@@ -1620,8 +1642,11 @@ func _staff_outsource() -> void:
 		if lv < o.lv.size() - 1:
 			var nx: Dictionary = o.lv[lv + 1]
 			col.add_child(_text("Berikutnya · %s: %s" % [nx.n, nx.d], 28, Color("3f6f96")))
-			var label: String = ("Langganan · " if k == "sampah" and lv == 0 else "Upgrade · ") + D.short(float(nx.cost))
-			col.add_child(_btn(label, D.C_YELLOW, func(): _do("out_up", k), float(S.money) < float(nx.cost), false, money_why(float(nx.cost))))
+			if D.OUTSRC[k].get("dia", false):
+				col.add_child(_btn("Upgrade · %d Diamond" % int(nx.cost), Color("8fd3f4"), func(): _do("out_up", k)))
+			else:
+				var label: String = ("Langganan · " if k in ["sampah", "polisi", "damkar"] and lv == 0 else "Upgrade · ") + D.short(float(nx.cost))
+				col.add_child(_btn(label, D.C_YELLOW, func(): _do("out_up", k), float(S.money) < float(nx.cost), false, money_why(float(nx.cost))))
 		else:
 			col.add_child(_label("Layanan terbaik sudah aktif", 30, Color("2f7a2a"), true))
 
@@ -1679,50 +1704,166 @@ func _staff_list() -> void:
 			f.add_child(_btn("Rekrut", D.C_YELLOW, func(): _do("hire", k)))
 
 
+## Ruang tengah (tangga + fasilitas tambahan) seperti halaman kamar: foto, isi, keuntungan, dan upgrade.
 func _sheet_facil() -> void:
 	var S: Dictionary = game.S
 	var f := int(arg)
 	var k: String = S.facil.get(arg, "")
 	var j: Dictionary = game.job_for("S%d" % f, "fbuild")
+	_header("Ruang Tengah · Lantai %d" % f)
+	_hall_live(box, f, 1.55)
+	# --- Fasilitas tambahan ---
+	var v := _card()
 	if k != "":
 		var fc: Dictionary = D.FACIL[k]
-		_header("%s · lantai %d" % [fc.n, f])
-		_fac_pic(box, k, 520)
-		var v := _card()
-		v.add_child(_text(fc.d, 34, D.C_MUTED))
-		if int(fc.happy) > 0: v.add_child(_text("+%d kebahagiaan harian untuk semua penghuni" % int(fc.happy), 32, Color("2f7a2a")))
+		var lv: int = game.facil_lv(arg)
+		_row(v, _label("%s · Lv %d/%d" % [fc.n, lv, game.FACIL_LV_MAX], 42), _label("Fasilitas", 30, D.C_MUTED, true))
+		v.add_child(_text(fc.d, 32, D.C_MUTED))
+		var inc: float = game.facil_income(k)
+		var lines := []
+		lines.append("+%d kebahagiaan harian semua penghuni" % (int(fc.happy) + lv - 1))
+		lines.append("Kapasitas: %d%% penghuni mampir di jam ramai" % game.FACIL_LV_CAP[lv])
+		if float(fc.inc) > 0: lines.append("Pemasukan: %s/hari (%s per penghuni ×%.1f)" % [D.rp(inc), D.short(float(fc.inc)), game.FACIL_LV_INC[lv]])
+		lines.append("+4% harga sewa semua kamar")
+		for ln in lines: v.add_child(_text("• " + ln, 30, Color("2f7a2a")))
 		if fc.has("staff"):
 			var st: Dictionary = D.STAFF[fc.staff]
 			var on: bool = S.staff.get(fc.staff, false)
-			_row(v, _label("%s · %s" % [st.nama, st.n], 36), _label("Sedang bekerja", 32, Color("2f7a2a"), true) if on else _btn("Rekrut " + D.short(st.sal) + "/hari", D.C_YELLOW, func(): _do("hire", fc.staff)))
-		return
-	if not j.is_empty():
-		_header("Lantai %d · sedang dibangun" % f)
-		_fac_pic(box, str(j.item), 520)
-		box.add_child(_text("%s sedang membangun %s." % [D.worker_label("build"), D.FACIL[j.item].n], 36, D.C_MUTED))
-		var fjc: int = game.job_speed_cost(j)
-		box.add_child(_btn("Selesaikan sekarang · %d Diamond" % fjc, Color("bfe3f5"), func(): game.job_speedup("S%d" % f, "fbuild"), int(game.W.diamonds) < fjc, false, "Diamond tidak cukup (punya %d, butuh %d)" % [int(game.W.diamonds), fjc]))
-		return
-	_header("Sisi tangga lantai %d" % f)
-	box.add_child(_text("Bangun satu ruang fasilitas di sini. Bisa juga diseret dari menu Beli.", 34, D.C_MUTED))
-	for key in D.FACIL_ORDER:
-		var fc2: Dictionary = D.FACIL[key]
-		if game.has_facil(key): continue
-		var v2 := _card()
-		var hb := HBoxContainer.new()
-		hb.add_theme_constant_override("separation", 20)
-		_fac_pic(hb, key, 170)
-		var col := VBoxContainer.new()
-		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		col.add_child(_label(fc2.n, 40))
-		col.add_child(_text(fc2.d, 30, D.C_MUTED))
-		var why: String = game.facil_ok(f, key)
-		if int(S.lvl) < int(fc2.lv):
-			col.add_child(_label("Terbuka di Level %d" % int(fc2.lv), 32, D.C_MUTED, true))
+			_row(v, _label("%s · %s" % [st.nama, st.n], 34), _label("Sedang bekerja", 30, Color("2f7a2a"), true) if on else _btn("Rekrut " + D.short(st.sal) + "/hari", D.C_YELLOW, func(): _do("hire", fc.staff)))
+		if lv < game.FACIL_LV_MAX:
+			var uc: float = game.facil_up_cost(arg)
+			v.add_child(_text("Lv %d: kapasitas %d%%, pemasukan ×%.1f, +1 kebahagiaan" % [lv + 1, game.FACIL_LV_CAP[lv + 1], game.FACIL_LV_INC[lv + 1]], 28, Color("3f6f96")))
+			v.add_child(_btn("Upgrade ke Lv %d · %s" % [lv + 1, D.short(uc)], D.C_YELLOW, func(): _do("facil_up", arg), float(S.money) < uc, false, money_why(uc)))
 		else:
-			col.add_child(_btn("Bangun " + D.short(fc2.cost), D.C_GREEN, func(): _do("facil_build", "%d|%s" % [f, key]), why != ""))
-		hb.add_child(col)
-		v2.add_child(hb)
+			v.add_child(_label("Level maksimal", 30, Color("2f7a2a"), true))
+		v.add_child(_label("Ganti dengan fasilitas lain", 34))
+		for key in D.FACIL_ORDER:
+			if game.has_facil(key): continue
+			var fc2: Dictionary = D.FACIL[key]
+			var okl: bool = int(S.lvl) >= int(fc2.lv)
+			_row(v, _label(fc2.n, 32), _btn("Ganti · " + D.short(fc2.cost), D.C_CREAM, func(): _do("facil_swap", "%s|%s" % [arg, key]), not okl or float(S.money) < float(fc2.cost), false, ("Terbuka di Level %d" % int(fc2.lv)) if not okl else money_why(float(fc2.cost))))
+	elif not j.is_empty():
+		v.add_child(_label("%s sedang dibangun" % D.FACIL[j.item].n, 40))
+		v.add_child(_text("%s sedang bekerja." % D.worker_label("build"), 32, D.C_MUTED))
+		var fjc: int = game.job_speed_cost(j)
+		v.add_child(_btn("Selesaikan sekarang · %d Diamond" % fjc, Color("bfe3f5"), func(): game.job_speedup("S%d" % f, "fbuild"), int(game.W.diamonds) < fjc, false, "Diamond tidak cukup (punya %d, butuh %d)" % [int(game.W.diamonds), fjc]))
+	else:
+		v.add_child(_label("Belum ada fasilitas", 40))
+		v.add_child(_text("Bangun satu fasilitas tambahan di samping tangga. Fasilitas menambah kebahagiaan, harga sewa, dan pemasukan.", 30, D.C_MUTED))
+		for key in D.FACIL_ORDER:
+			var fc3: Dictionary = D.FACIL[key]
+			if game.has_facil(key): continue
+			var hb := HBoxContainer.new()
+			hb.add_theme_constant_override("separation", 20)
+			_fac_pic(hb, key, 150)
+			var col := VBoxContainer.new()
+			col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			col.add_child(_label(fc3.n, 36))
+			col.add_child(_text(fc3.d, 28, D.C_MUTED))
+			var why: String = game.facil_ok(f, key)
+			if int(S.lvl) < int(fc3.lv):
+				col.add_child(_label("Terbuka di Level %d" % int(fc3.lv), 30, D.C_MUTED, true))
+			else:
+				col.add_child(_btn("Bangun " + D.short(fc3.cost), D.C_GREEN, func(): _do("facil_build", "%d|%s" % [f, key]), why != "", false, why))
+			hb.add_child(col)
+			v.add_child(hb)
+	# --- Tangga ---
+	var tv := _card()
+	var slv: int = game.stair_lv()
+	_row(tv, _label("Tangga · %s" % D.STAIRS[slv].n, 40), _label("Lv %d/%d" % [slv, D.STAIRS.size() - 1], 30, D.C_MUTED, true))
+	tv.add_child(_text("Berlaku untuk semua lantai. Sewa semua kamar +%d%%." % roundi(float(D.STAIRS[slv].bonus) * 100.0), 30, D.C_MUTED))
+	if slv < D.STAIRS.size() - 1:
+		var nx: Dictionary = D.STAIRS[slv + 1]
+		var okl2: bool = int(S.lvl) >= int(nx.lv)
+		tv.add_child(_text("%s: %s" % [nx.n, nx.d], 28, Color("3f6f96")))
+		tv.add_child(_btn("Upgrade ke %s · %s" % [nx.n, D.short(float(nx.cost))], D.C_YELLOW, func(): game.stair_upgrade(); refresh_sheet(), not okl2 or float(S.money) < float(nx.cost), false, ("Terbuka di Level %d" % int(nx.lv)) if not okl2 else money_why(float(nx.cost))))
+	# --- Dinding & lantai ---
+	var dv := _card()
+	var hp: Dictionary = S.get("hall_paint", {}).get(arg, {})
+	_row(dv, _label("Dinding & Lantai", 40), _label("%s · %s · %s" % [D.PAINTS[hp.get("wall", "asli")].n, D.MOTIFS[hp.get("motif", "polos")].n, D.FLOORS[hp.get("floor", "asli")].n], 28, D.C_MUTED, true))
+	dv.add_child(_text("Ruang tengah yang cantik menaikkan reputasi kost.", 28, D.C_MUTED))
+	dv.add_child(_btn("Cat Dinding & Ganti Lantai", Color("cfe6f5"), func(): open_sheet("hpaint", arg)))
+
+
+func _hall_live(parent: Control, f: int, sc: float) -> void:
+	var src := D.rect_of(game.hall_tpl(f))
+	var holder := CenterContainer.new()
+	var c := Control.new()
+	c.custom_minimum_size = src.size * sc
+	var at := AtlasTexture.new()
+	at.atlas = game.art
+	at.region = src
+	var bg := TextureRect.new()
+	bg.texture = at
+	bg.size = src.size * sc
+	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	var pp: Dictionary = paint_sel if kind == "hpaint" else game.S.get("hall_paint", {}).get(str(f), {})
+	if not pp.is_empty():
+		bg.material = D.paint_mat(game.hall_tpl(f), pp, game.art.get_size())
+	c.add_child(bg)
+	var st: Node2D = game.stair_nodes[0].duplicate() if not game.stair_nodes.is_empty() else null
+	if st:
+		st.set("variant", 1 if f % 2 == 1 else 3)
+		st.set("lv", game.stair_lv())
+		st.position = Vector2.ZERO
+		st.scale = Vector2(sc, sc)
+		c.add_child(st)
+	var k: String = game.S.facil.get(str(f), "")
+	if k != "":
+		var fr := D.facil_draw_rect(f)
+		var dst := D.rect_of("%dS" % f)
+		var tr := TextureRect.new()
+		tr.texture = load("res://assets/facil/%s.png" % k)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.position = (fr.position - dst.position) * (src.size / dst.size) * sc
+		tr.size = fr.size * (src.size / dst.size) * sc
+		c.add_child(tr)
+	var frame := Panel.new()
+	frame.add_theme_stylebox_override("panel", _sb(Color(0, 0, 0, 0), 6, 18, 0, 0, D.C_LINE))
+	frame.size = src.size * sc
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.add_child(frame)
+	holder.add_child(c)
+	parent.add_child(holder)
+
+
+func _sheet_hpaint() -> void:
+	var f := int(arg)
+	var S: Dictionary = game.S
+	_header("Dekorasi Ruang Tengah Lt %d" % f)
+	_hall_live(box, f, 1.45)
+	var cur: Dictionary = S.get("hall_paint", {}).get(arg, {})
+	var sel := paint_sel
+	var pick := func(key: String, val: String):
+		paint_sel[key] = val
+		game.hall_preview[f] = paint_sel.duplicate()
+		game._refresh_hall_paint()
+		refresh_sheet()
+	var v := _card()
+	_row(v, _label("Warna Cat", 40), _label("Rp 150rb", 32, D.C_MUTED, true))
+	var fl := _flow(v)
+	for k in D.PAINT_ORDER:
+		fl.add_child(_swatch(D.PAINTS[k].n, Color(D.PAINTS[k].c), sel.get("wall", "asli") == k, pick.bind("wall", k)))
+	var v2 := _card()
+	v2.add_child(_label("Motif Dinding", 40))
+	var f2 := _flow(v2)
+	for k in D.MOTIF_ORDER:
+		var mp: int = int(D.MOTIFS[k].p)
+		f2.add_child(_swatch("%s%s" % [D.MOTIFS[k].n, ("\n+" + D.short(mp)) if mp > 0 else ""], Color("fbf4e8"), sel.get("motif", "polos") == k, pick.bind("motif", k)))
+	var v3 := _card()
+	v3.add_child(_label("Lantai", 40))
+	var f3 := _flow(v3)
+	for k in D.FLOOR_ORDER:
+		var fd: Dictionary = D.FLOORS[k]
+		f3.add_child(_swatch("%s%s" % [fd.n, ("\n" + D.short(float(fd.p))) if float(fd.p) > 0 else ""], Color(fd.c), sel.get("floor", "asli") == k, pick.bind("floor", k), 340.0))
+	var c: float = game.hall_paint_cost(f, sel)
+	var tv := _card()
+	_row(tv, _label("Total", 40), _label(D.rp(c), 42))
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 26)
+	h.add_child(_btn("Kembali", D.C_CREAM, func(): open_sheet("facil", arg), false, true))
+	h.add_child(_btn("Beli & Pasang", D.C_GREEN, func(): game.buy_hall_paint(f, sel); open_sheet("facil", arg), c <= 0.0 or float(S.money) < c, true, "Belum ada yang diubah." if c <= 0.0 else money_why(c)))
+	tv.add_child(h)
 
 
 func _fac_pic(parent: Control, k: String, h: float) -> void:

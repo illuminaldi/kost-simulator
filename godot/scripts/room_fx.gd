@@ -163,7 +163,7 @@ func refresh(r: Dictionary, player_lv: int, cost: float, font: Font) -> void:
 	_stars.queue_redraw()
 	var tp: PanelContainer = _tag.get_meta("panel")
 	tp.visible = _built
-	_tag.text = D.room_name(rid)
+	_tag.text = D.room_name(rid) + ((" · " + str(r.tenant.name)) if r.tenant != null else "")
 	var has_tenant: bool = r.tenant != null
 	_empty.visible = _built and not has_tenant
 	var el: Label = _empty.get_child(0)

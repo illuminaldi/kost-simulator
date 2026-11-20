@@ -36,6 +36,7 @@ var gender := "l"
 var suitcase := false
 var char_id := "kutu"
 var art_map := {}        # pose -> nama file khusus (pekerja)
+var size_mul := 1.0
 static var stair_mul := 1.0     # tangga lebih bagus = naik-turun lebih cepat
 static var escalator := false
 static var _exists := {}  # karakter ilustrasi (folder di assets/chars)
@@ -418,6 +419,7 @@ func _refresh() -> void:
 		_sp.scale = Vector2.ONE
 	if pose == "lie" and use_art:
 		_sp.scale = Vector2(1.45, 1.45)
+	_sp.scale *= size_mul
 	_zz.visible = pose == "lie" and not use_art
 	if _zz.visible:
 		_zz.position = Vector2(-20, -100 + sin(anim * 2.0) * 8.0)

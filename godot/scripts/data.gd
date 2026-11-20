@@ -224,20 +224,25 @@ const FACIL_W := 140.0
 const FACIL_SVG_FLOOR := 0.78   # posisi alas perabot pada gambar (0..1)
 
 
+## Tengah-tengah antara tangga dan tembok samping.
 static func facil_center_x(f: int) -> float:
-	return 850.0 if f % 2 == 1 else 680.0
+	return 850.0 if f % 2 == 1 else 712.0
+
+
+const FACIL_BACK := 30.0       # digeser ke arah tembok belakang (lebih jauh dari kamera)
 
 
 ## Kotak gambar fasilitas (diperkecil & digeser menjauhi pintu), alas perabot tetap di lantai.
 static func facil_draw_rect(f: int) -> Rect2:
 	var r := rect_of("%dS" % f)
-	var h := FACIL_W * 367.0 / 200.0
-	var floor_y := r.position.y + r.size.y * FACIL_SVG_FLOOR
-	return Rect2(facil_center_x(f) - FACIL_W / 2.0, floor_y - h * FACIL_SVG_FLOOR, FACIL_W, h)
+	var w := FACIL_W * 0.92
+	var h := w * 367.0 / 200.0
+	var floor_y := r.position.y + r.size.y * FACIL_SVG_FLOOR - FACIL_BACK
+	return Rect2(facil_center_x(f) - w / 2.0, floor_y - h * FACIL_SVG_FLOOR, w, h)
 
 
 static func facil_spot(f: int) -> Vector2:
-	return Vector2(facil_center_x(f), FEET[f])
+	return Vector2(facil_center_x(f), FEET[f] - FACIL_BACK)
 
 
 # ---------- Screening calon penyewa ----------
@@ -391,7 +396,7 @@ const EXTRA_PITCH := 392
 
 # ---- Dekorasi kamar: cat tembok, motif, lantai ----
 # Garis lantai (px dari atas kotak kamar) tiap gambar kamar acuan.
-const ROOM_FLOOR_Y := {"4L": 272, "4R": 272, "3L": 256, "3R": 256, "2L": 243, "2R": 243, "1L": 232, "1R": 232}
+const ROOM_FLOOR_Y := {"1S": 206, "3S": 229, "4L": 272, "4R": 272, "3L": 256, "3R": 256, "2L": 243, "2R": 243, "1L": 232, "1R": 232}
 const PAINTS := {
 	"asli": {"n": "Krem Asli", "c": "f2dcc0"},
 	"putih": {"n": "Putih Susu", "c": "f7f3ea"},
@@ -605,5 +610,17 @@ const OUTSRC := {
 		{"n": "Angkut 3 Hari Sekali", "cost": 250000, "fee": 15000, "d": "Kamar kotor normal. Iuran Rp 15rb/hari."},
 		{"n": "Angkut Harian", "cost": 600000, "fee": 25000, "d": "Kamar 15% lebih lambat kotor. Iuran Rp 25rb/hari."},
 		{"n": "Pilah & Daur Ulang", "cost": 1500000, "fee": 35000, "d": "Kamar 25% lebih lambat kotor, penghuni +1 senang tiap hari. Iuran Rp 35rb/hari."}]},
+	"tukang": {"nama": "Pak Joko", "n": "Tukang Bangunan", "pic": "tukang/hold", "dia": true, "lv": [
+		{"n": "Tukang Harian", "cost": 0, "d": "Bangun kamar & ruang fasilitas dengan kecepatan normal."},
+		{"n": "Tukang + Kenek", "cost": 25, "d": "Pembangunan 60% lebih cepat."},
+		{"n": "Kontraktor Profesional", "cost": 80, "d": "Pembangunan 2,5x lebih cepat."}]},
+	"polisi": {"nama": "Pak Bambang", "n": "Polisi Patroli", "pic": "polisi/idle", "lv": [
+		{"n": "Belum Kerja Sama", "cost": 0, "d": "Lapor polisi manual (Rp 50rb) saat ada preman. Maling tidak ditangkap."},
+		{"n": "Patroli Rutin", "cost": 800000, "d": "Polisi otomatis datang menyeret preman. Lapor gratis."},
+		{"n": "Pos Polisi Dekat Kost", "cost": 2500000, "d": "Preman jarang datang, maling langsung ditangkap & barang kembali."}]},
+	"damkar": {"nama": "Bu Rina", "n": "Pemadam Kebakaran", "pic": "damkar/idle", "lv": [
+		{"n": "Panggil Darurat", "cost": 0, "d": "Kebakaran harus dilaporkan manual (Rp 500rb), damkar tiba agak lama."},
+		{"n": "Langganan Damkar", "cost": 1000000, "d": "Damkar otomatis datang cepat & gratis saat kebakaran."},
+		{"n": "Alarm & Sprinkler", "cost": 3000000, "d": "Api padam sendiri lebih lambat menjalar; damkar tiba sangat cepat."}]},
 }
-const OUTSRC_ORDER := ["kurir", "galon", "ojol", "sampah"]
+const OUTSRC_ORDER := ["kurir", "galon", "ojol", "sampah", "tukang", "polisi", "damkar"]

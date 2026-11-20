@@ -534,7 +534,7 @@ class _Mug extends Node2D:
 
 # ---------------- Lapangan Padel ----------------
 # Maryam melawan Ryan atau Aji; Kak Ray jadi pelatih di pinggir lapangan.
-const FOES := [["Ryan", 0.55, "kebersihan", "happy", "wring"], ["Aji", 0.75, "satpam", "idle", "help"]]
+const FOES := [["Ryan", 0.55, "padel_ryan"], ["Aji", 0.75, "padel_aji"]]
 var foe := 0
 var pts := [0, 0]
 var _score_lbl: Label
@@ -566,7 +566,7 @@ func _show_padel() -> void:
 	_clear()
 	view = "padel"
 	_bg("res://assets/side/padel.jpg")
-	_opp = _sprite("res://assets/chars/%s/%s_L.png" % [FOES[foe][2], FOES[foe][3]], 0.62, Vector2(800, 1060))
+	_opp = _sprite("res://assets/chars/%s/ready_L.png" % FOES[foe][2], 0.6, Vector2(800, 1060))
 	_ball = _Ball.new()
 	_layer.add_child(_ball)
 	_ray = _sprite("res://assets/chars/trainer/clip_L.png", 1.15, Vector2(185, 2140))
@@ -616,7 +616,7 @@ func _show_padel() -> void:
 	_bottom([["Balik ke Kost", D.C_GREEN, func(): _walk(-1)],
 		["Ganti Lawan", D.C_PINK, func():
 			foe = (foe + 1) % FOES.size()
-			_opp.texture = load("res://assets/chars/%s/%s_L.png" % [FOES[foe][2], FOES[foe][3]])
+			_opose("ready")
 			_ray_say("Lawan baru: %s! %s" % [FOES[foe][0], "Dia santai, cocok buat pemanasan." if foe == 0 else "Pak Aji pukulannya keras, fokus ya!"])
 			_new_match()],
 		["Main Lagi", D.C_YELLOW, func():
@@ -667,6 +667,13 @@ func _say(t: String) -> void:
 
 func _process(_dt: float) -> void:
 	if view != "padel" or _ball == null: return
+	if _op_t > 0.0:
+		_op_t -= _dt
+		if _op_t <= 0.0: _opose("ready")
+	elif _ball.state == "out" and _ball.t > _ball.dur * 0.55 and _opp.texture.resource_path.find("swing") < 0:
+		_opose("swing", 0.5)
+	elif _ball.state == "idle" and _ball._wait > 0.0 and _ball._wait < 0.6 and _opp.texture.resource_path.find("serve") < 0 and ResourceLoader.exists("res://assets/chars/%s/serve_L.png" % FOES[foe][2]):
+		_opose("serve", 0.7)
 	if _mp_t > 0.0:
 		_mp_t -= _dt
 		if _mp_t <= 0.0: _mpose("ready")
@@ -716,6 +723,16 @@ func _on_hit() -> void:
 
 
 var _mp_t := 0.0
+var _op_t := 0.0
+
+
+func _opose(p: String, secs: float = 0.0) -> void:
+	var tex: Texture2D = load("res://assets/chars/%s/%s_L.png" % [FOES[foe][2], p])
+	var feet := _opp.position + Vector2(_opp.size.x / 2.0, _opp.size.y)
+	_opp.texture = tex
+	_opp.size = tex.get_size() * 0.6
+	_opp.position = feet - Vector2(_opp.size.x / 2.0, _opp.size.y)
+	_op_t = secs
 
 
 ## Ganti pose Maryam (tampak belakang), kembali ke "ready" setelah `secs`.
@@ -732,7 +749,7 @@ func _point(who: int) -> void:
 	pts[who] += 1
 	_rally = 0
 	game.sfx("pop" if who == 0 else "arrive", -6.0)
-	_opp.texture = load("res://assets/chars/%s/%s_L.png" % [FOES[foe][2], FOES[foe][4] if who == 1 else FOES[foe][3]])
+	_opose("cheer" if who == 1 else "tired", 1.3)
 	_mpose("cheer" if who == 0 else "tired", 1.2)
 	if pts[who] >= 4 and pts[who] - pts[1 - who] >= 2:
 		if who == 0:

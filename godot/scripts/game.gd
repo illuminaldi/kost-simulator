@@ -104,6 +104,7 @@ func _ready() -> void:
 	_refresh_world()
 	_sync_npcs()
 	_refresh_cargo()
+	_refresh_bags()
 	ui.update_hud()
 	_handle_cli(args)
 	_maybe_intro.call_deferred(args)
@@ -294,6 +295,18 @@ func _build_world() -> void:
 		var dst := D.rect_of("%dS" % f)
 		var sp := _sprite(bld, src, dst.position)
 		sp.scale = dst.size / src.size
+		# Lapisan cat dinding & lantai ruang tengah
+		var hp := Sprite2D.new()
+		hp.texture = art
+		hp.centered = false
+		hp.region_enabled = true
+		hp.region_rect = src
+		hp.position = dst.position
+		hp.scale = dst.size / src.size
+		hp.visible = false
+		bld.add_child(hp)
+		hall_paint_sp[f] = hp
+	_refresh_hall_paint()
 	stair_nodes = []
 	for f in range(1, D.TOP_FLOOR + 1):
 		var src2 := D.rect_of("1S") if f % 2 == 1 else D.rect_of("3S")
@@ -1150,13 +1163,20 @@ func _process(dt: float) -> void:
 	_thief_tick(dt)
 	_cat_tick(dt)
 	_facil_tick(dt)
+	_auto_acc += dt
+	if _auto_acc > 3.0:
+		_auto_acc = 0.0
+		if not S.queue.is_empty(): _auto_checkin()
 	if funny and funny.game: funny.tick(dt)
 	_preman_tick(dt)
 	_ojol_tick(dt)
 	if sp > 0:
 		for n in npcs.values().duplicate():
 			if is_instance_valid(n):
-				n.speed_mul = (1.0 + (sp - 1) * 0.5) * float(n.get_meta("spd", 1.0))
+				var lvm := 1.0
+				if n.kind == "staff" and n.role != "":
+					lvm = 1.0 + 0.12 * float(staff_lv(n.role) - 1)
+				n.speed_mul = (1.0 + (sp - 1) * 0.5) * float(n.get_meta("spd", 1.0)) * lvm
 				n.tick(dt)
 		recep_art.visible = S.staff.get("resep", false) and not npcs.has("keeper")
 		_keeper_tick(dt)
@@ -1244,7 +1264,8 @@ func _hourly() -> void:
 	var h := int(S.min) / 60
 	_maybe_thief(h)
 	if funny: funny.hourly(h)
-	_maybe_preman(h)
+	if out_lv("polisi") < 2 or randf() < 0.4: _maybe_preman(h)
+	_maybe_fire(h)
 	_maybe_ojol(h)
 	_maybe_galon(h)
 	_maybe_sampah(h)
@@ -1413,12 +1434,21 @@ func send_to_waiting(pid: String) -> void:
 			return
 
 
+## Ruang Tunggu (dijaga Maryam) otomatis memasukkan antrean ke kamar kosong.
 func _auto_checkin() -> void:
+	var auto_all := waiting_room_on()
 	for p in S.queue.duplicate():
-		if not p.get("auto", false): continue
+		if not p.get("auto", false) and not auto_all: continue
 		var er := empty_rooms()
 		if er.is_empty(): return
-		act("assign", "%s|%s" % [p.id, er[0]])
+		er.sort_custom(func(a, b): return D.fl(a) < D.fl(b))
+		var rid: String = er[0]
+		act("assign", "%s|%s" % [p.id, rid])
+		ui.toast("Ruang Tunggu: %s langsung masuk Kamar %s" % [p.name, D.room_name(rid)], "gold")
+		dirty = true
+
+
+var _auto_acc := 0.0
 
 
 func has_app(k: String) -> bool:
@@ -1510,9 +1540,17 @@ func out_upgrade(k: String) -> void:
 	var lv := out_lv(k)
 	if lv >= D.OUTSRC[k].lv.size() - 1: return
 	var nx: Dictionary = D.OUTSRC[k].lv[lv + 1]
-	if float(S.money) < float(nx.cost):
-		ui.toast(ui.money_why(float(nx.cost)), "bad"); return
-	spend(float(nx.cost), "other")
+	if D.OUTSRC[k].get("dia", false):
+		if int(W.diamonds) < int(nx.cost):
+			ui.toast("Diamond tidak cukup (butuh %d). Beli di Toko." % int(nx.cost), "bad")
+			ui.open_sheet("toko")
+			return
+		W.diamonds = int(W.diamonds) - int(nx.cost)
+		save_wallet()
+	else:
+		if float(S.money) < float(nx.cost):
+			ui.toast(ui.money_why(float(nx.cost)), "bad"); return
+		spend(float(nx.cost), "other")
 	if not S.has("out"): S.out = {}
 	S.out[k] = lv + 1
 	sfx("upgrade")
@@ -2036,7 +2074,11 @@ func _thief_tick(dt: float) -> void:
 				_thief_flee("Waduh, ada satpam!")
 				_thief_end("Aji mengusir maling! Kost aman.", 0.0)
 		"grab":
-			if _thief_t <= 0.0:
+			if out_lv("polisi") >= 2 and not npcs.has("polisi"):
+				_police_come("thief")
+			if _thief_t <= 0.0 and npcs.has("polisi"):
+				_thief_t = 0.5
+			elif _thief_t <= 0.0:
 				var loss := minf(maxf(float(S.money) * 0.05, 100000), 600000)
 				thief.art_map["walk"] = "carry"
 				if S.fac.has("cctv"):
@@ -2173,6 +2215,10 @@ func preman_answer(how: String) -> void:
 			ui.toast("Kamu membayar %s. Preman akan datang lagi, makin sering & makin mahal." % D.rp(amt), "bad")
 			_preman_leave("count", 3.0)
 		"police":
+			if out_lv("polisi") >= 1:
+				_police_come("preman")
+				ui.close_sheet()
+				return
 			if float(S.money) < 50000:
 				ui.toast("Uang belum cukup", "bad"); return
 			spend(50000, "other")
@@ -2366,6 +2412,7 @@ func spawn_ojol(t: Dictionary) -> void:
 	n.char_id = "ojol"
 	n.art_map = {"walk": "ride", "stand": "ride3"}
 	n.set_meta("spd", 2.4)
+	n.size_mul = 1.3
 	n.set_meta("nama", OJOL_NAMES.pick_random())
 	npcs["ojol"] = n
 	ojol = n
@@ -2378,7 +2425,15 @@ func spawn_ojol(t: Dictionary) -> void:
 		m.dir = -1
 		sfx("arrive", -12.0)
 		m.say("Paket %s atas nama %s!" % [food, t.name], 3.5)
-		ui.toast("Bang Ojol mengantar %s untuk %s" % [food, t.name])
+		var rid := _room_of_tenant(str(t.id))
+		var who: Npc = npcs.get(str(t.id))
+		if who != null and is_instance_valid(who) and who.scene == "lobby":
+			ui.toast("Bang Ojol mengantar %s untuk %s" % [food, t.name])
+		else:
+			# Penghuni di kamar: kantong ditaruh di lobi, seret ke kamar yang benar.
+			drop_bag(str(t.id), str(t.name), rid, food)
+			m.say("Titip ya, Mbak! Buat %s." % t.name, 3.0)
+			_ojol_leave()
 		dirty = true)
 
 
@@ -2460,6 +2515,57 @@ func has_facil(k: String) -> bool:
 	for f in S.facil:
 		if S.facil[f] == k: return true
 	return false
+
+
+# ---------- Level fasilitas tambahan ----------
+const FACIL_LV_MAX := 3
+const FACIL_LV_INC := [1.0, 1.0, 1.6, 2.3]        # pengali pemasukan
+const FACIL_LV_CAP := [0, 45, 60, 75]              # peluang penghuni berkunjung (kapasitas)
+
+
+func facil_lv(f: String) -> int:
+	return clampi(int(S.get("flv", {}).get(f, 1)), 1, FACIL_LV_MAX)
+
+
+func facil_up_cost(f: String) -> float:
+	var k: String = S.facil.get(f, "")
+	if k == "": return 0.0
+	return float(D.FACIL[k].cost) * [0.0, 0.6, 1.2][facil_lv(f)]
+
+
+func facil_upgrade(f: String) -> void:
+	var lv := facil_lv(f)
+	if lv >= FACIL_LV_MAX or not S.facil.has(f): return
+	var c := facil_up_cost(f)
+	if float(S.money) < c:
+		ui.toast(ui.money_why(c), "bad"); return
+	spend(c, "other")
+	if not S.has("flv"): S.flv = {}
+	S.flv[f] = lv + 1
+	sfx("upgrade")
+	add_xp(20)
+	ui.toast("%s naik ke Level %d: kapasitas & pemasukan bertambah!" % [D.FACIL[S.facil[f]].n, lv + 1], "gold")
+	_refresh_facil()
+	dirty = true
+
+
+## Ganti fasilitas di sisi tangga ini dengan fasilitas lain (bangun ulang, level kembali 1).
+func facil_swap(f: String, k: String) -> void:
+	var old: String = S.facil.get(f, "")
+	if old == "" or has_facil(k): return
+	var fc: Dictionary = D.FACIL[k]
+	if int(S.lvl) < int(fc.lv):
+		ui.toast("%s terbuka di Level %d" % [fc.n, int(fc.lv)], "bad"); return
+	if float(S.money) < float(fc.cost):
+		ui.toast(ui.money_why(float(fc.cost)), "bad"); return
+	spend(float(fc.cost), "other")
+	S.facil.erase(f)
+	if S.has("flv"): S.flv.erase(f)
+	add_job("fbuild", "S%s" % f, k)
+	ui.toast("%s dibongkar, %s mulai dibangun." % [D.FACIL[old].n, fc.n])
+	_refresh_facil()
+	ui.close_sheet()
+	dirty = true
 
 
 func facil_floor(k: String) -> int:
@@ -2573,6 +2679,7 @@ func _facil_daily() -> void:
 			if S.facil[f] == "kantin" and on and int(S.day) - int(S.get("water_day", -9)) > 3:
 				mult = 0.0
 				ui.toast("Kantin tutup: stok air galon habis. Kang Galon datang besok pagi.", "bad")
+		mult *= FACIL_LV_INC[facil_lv(str(f))]
 		inc += float(fc.inc) * mult * occ
 		if float(fc.inc) * mult * occ > 0:
 			_float_world(D.facil_spot(int(f)) + Vector2(0, -260), "+" + D.short(float(fc.inc) * mult * occ), Color("2f7a2a"))
@@ -2608,12 +2715,13 @@ func facil_income(k: String) -> float:
 	if fc.has("staff"):
 		var on: bool = S.staff.get(fc.staff, false)
 		mult = (2.0 if on else 1.0) if k == "laundry" else (1.0 if on else 0.0)
+	mult *= FACIL_LV_INC[facil_lv(str(facil_floor(k)))]
 	return float(fc.inc) * mult * each_tenant().size()
 
 
 func facil_happy() -> int:
 	var h := 0
-	for f in S.facil: h += int(D.FACIL[S.facil[f]].happy)
+	for f in S.facil: h += int(D.FACIL[S.facil[f]].happy) + (facil_lv(str(f)) - 1)
 	return h
 
 
@@ -2864,7 +2972,7 @@ func _goal_of(w: Dictionary) -> Dictionary:
 		var hr := int(S.min) / 60
 		for fk in S.facil:
 			var fc: Dictionary = D.FACIL[S.facil[fk]]
-			if hr in fc.visit and absi(("%s%d" % [w.p.id, hr]).hash()) % 100 < 45:
+			if hr in fc.visit and absi(("%s%d" % [w.p.id, hr]).hash()) % 100 < FACIL_LV_CAP[facil_lv(str(fk))]:
 				var ff := int(fk)
 				var off := float(absi(str(w.p.id).hash()) % 70) - 35.0
 				return {"key": "fac|%s|%d" % [fk, hr], "scene": "S%d" % ff, "spot": D.facil_spot(ff) + Vector2(off, 0), "pose": fc.pose}
@@ -3065,6 +3173,8 @@ func _fix_jobbed(r: Dictionary) -> bool:
 func add_job(type: String, room: String, item: String = "", lv: int = 0) -> void:
 	S.jobs.append({"id": "j%d" % randi(), "type": type, "room": room, "item": item, "lv": lv,
 		"t": float(D.WORKER["build" if type == "fbuild" else type].mins), "started": type in ["build", "fbuild"]})
+	if type in ["build", "fbuild"]:
+		S.jobs[-1].t = float(S.jobs[-1].t) / [1.0, 1.6, 2.5][out_lv("tukang")]
 	if type == "deliver" and out_lv("kurir") >= 2:
 		S.jobs[-1].t = float(S.jobs[-1].t) * 0.5
 	dirty = true
@@ -3073,6 +3183,8 @@ func add_job(type: String, room: String, item: String = "", lv: int = 0) -> void
 
 func _tick_jobs(mins: float) -> void:
 	_tick_orders(mins)
+	_tick_bags(mins)
+	_fire_tick(mins)
 	for j in S.jobs.duplicate():
 		if not j.started:
 			continue
@@ -3407,17 +3519,17 @@ func _staff_brain() -> void:
 			continue
 		match n.role:
 			"cleaner":
-				var R := _pick_room(n, func(r): return r.built and float(r.clean) < 75.0, func(r): return float(r.clean))
+				var R := _pick_room(n, func(r): return r.built and float(r.clean) < 75.0, _smart_score(n, func(r): return float(r.clean)))
 				if R != "":
 					n.target = R
-					n.plan(R, _spot_in(R), "sweep", func(x: Npc): x.work = {"t": 7.0, "pose": "sweep", "fn": func(y: Npc): _finish_clean(y, R)})
+					n.plan(R, _spot_in(R), "sweep", func(x: Npc): x.work = {"t": _work_t(x, 7.0), "pose": "sweep", "fn": func(y: Npc): _finish_clean(y, R)})
 				else:
 					_idle_staff(n)
 			"teknisi":
-				var R := _pick_room(n, func(r): return str(r.broken) != "" and not _fix_jobbed(r), func(_r): return 0.0)
+				var R := _pick_room(n, func(r): return str(r.broken) != "" and not _fix_jobbed(r), _smart_score(n, func(_r): return 0.0))
 				if R != "":
 					n.target = R
-					n.plan(R, _spot_in(R), "fix", func(x: Npc): x.work = {"t": 5.0, "pose": "fix", "fn": func(y: Npc): _finish_fix(y, R)})
+					n.plan(R, _spot_in(R), "fix", func(x: Npc): x.work = {"t": _work_t(x, 5.0), "pose": "fix", "fn": func(y: Npc): _finish_fix(y, R)})
 				else:
 					_idle_staff(n)
 			"laundry", "kantin", "barista", "kasir", "trainer":
@@ -3451,6 +3563,30 @@ func _idle_staff(n: Npc) -> void:
 	n.plan("lobby", Vector2(x, D.LOBBY_Y), "stand", func(m: Npc): m.work = {"t": randf_range(3.0, 7.0), "pose": "stand"})
 
 
+## Lantai tempat NPC berada (lobi = 0).
+func npc_floor(n: Npc) -> int:
+	var sc := str(n.scene)
+	if sc == "lobby" or sc == "": return 0
+	if sc.begins_with("S"): return int(sc.substr(1))
+	return D.fl(sc)
+
+
+## Karyawan level 1 memilih kamar paling parah; makin tinggi levelnya makin pintar:
+## kamar terdekat dari lantainya dulu (lantai sama → atas/bawah terdekat).
+func _smart_score(n: Npc, base: Callable) -> Callable:
+	var lv := staff_lv(n.role)
+	if lv <= 1: return base
+	var f := npc_floor(n)
+	return func(r: Dictionary, id: String) -> float:
+		var d := absf(float(D.fl(id) - f))
+		return d * 1000.0 + float(base.call(r)) * 0.01
+
+
+## Durasi kerja makin singkat seiring level karyawan.
+func _work_t(n: Npc, base: float) -> float:
+	return base / (1.0 + 0.2 * float(staff_lv(n.role) - 1))
+
+
 func _pick_room(self_n: Npc, filter: Callable, score: Callable) -> String:
 	var claimed := {}
 	for m in npcs.values():
@@ -3462,7 +3598,7 @@ func _pick_room(self_n: Npc, filter: Callable, score: Callable) -> String:
 		var r: Dictionary = S.rooms[id]
 		if claimed.has(id) or not filter.call(r):
 			continue
-		var s: float = score.call(r)
+		var s: float = score.call(r, id) if score.get_argument_count() == 2 else score.call(r)
 		if s < bs:
 			bs = s
 			best = id
@@ -3548,6 +3684,11 @@ func act(a: String, arg: String = "") -> void:
 		"dekor":
 			set_dekor(not dekor)
 			return
+		"facil_up":
+			facil_upgrade(arg)
+		"facil_swap":
+			var ps := arg.split("|")
+			facil_swap(ps[0], ps[1])
 		"facil_build":
 			var parts2 := arg.split("|")
 			var ff := int(parts2[0])
@@ -3769,6 +3910,11 @@ func _activate_drag() -> void:
 		"furn":
 			tex = load("res://assets/furn/icon/%s.png" % drag.item)
 			sc = 0.9
+		"bag":
+			tex = load("res://assets/bag.png")
+			sc = 1.1
+			var bb := _bag(drag.item)
+			if not bb.is_empty(): ui.ghost_label("%s · %s" % [bb.food, bb.name])
 		"cargo":
 			box_nodes[int(drag.item)].modulate.a = 0.3
 			tex = load("res://assets/box.png")
@@ -3816,6 +3962,9 @@ func _drop_ok(id: String) -> String:
 			if int(r.furn.get(t, 0)) >= 3: return "%s di Kamar %s sudah level maksimal" % [D.FURN[t].n, D.room_name(id)]
 			if int(S.lvl) < int(D.FURN[t].min): return "%s terbuka di Level %d" % [D.FURN[t].n, int(D.FURN[t].min)]
 			return ""
+		"bag":
+			if not r.built or r.tenant == null: return "Kamar %s kosong, tidak ada yang pesan" % D.room_name(id)
+			return ""
 		"build":
 			if r.built: return "Kamar %s sudah dibangun" % D.room_name(id)
 			if job_for(id, "build") != {}: return "Kamar %s sedang dibangun" % D.room_name(id)
@@ -3844,6 +3993,11 @@ func _end_drag(p: Vector2) -> void:
 			_box_tag(b, D.FURN[it].n)
 			ui.toast("Kotak berisi %s. Tahan & seret ke kamar." % D.FURN[it].n)
 			return
+	if not d.active and d.kind == "bag":
+		var b0 := _bag(d.item)
+		if not b0.is_empty():
+			ui.toast("Pesanan %s untuk %s (Kamar %s). Tahan & seret ke kamarnya." % [b0.food, b0.name, D.room_name(_room_of_tenant(str(b0.for)))])
+		return
 	if not d.active:
 		if d.kind == "guest":
 			ui.open_sheet("tenants")
@@ -3877,6 +4031,7 @@ func _end_drag(p: Vector2) -> void:
 		"guest": act("assign", "%s|%s" % [d.item, id])
 		"furn": act("upgrade_furn" if S.rooms[id].furn.has(d.item) else "place_furn", "%s|%s" % [id, d.item])
 		"build": act("build", id)
+		"bag": deliver_bag(str(d.item), id)
 		"cargo":
 			var t: String = S.cargo.pop_at(int(d.item))
 			truck_touch()
@@ -4071,7 +4226,12 @@ func _unhandled_input(e: InputEvent) -> void:
 			else:
 				ui.open_sheet(nv[0])
 			return
-	if (funny and funny.game and funny.tap(p)) or _preman_tap(p) or _thief_tap(p):
+	if (funny and funny.game and funny.tap(p)) or _preman_tap(p) or _thief_tap(p) or fire_tap(room_at(p)):
+		get_viewport().set_input_as_handled()
+		return
+	var bgid := _bag_at(p)
+	if bgid != "":
+		begin_drag("bag", bgid, p, false)
 		get_viewport().set_input_as_handled()
 		return
 	var bi := _box_at(p)
@@ -4454,6 +4614,24 @@ func _handle_cli(args: PackedStringArray) -> void:
 				elif sv == "cafe": ui.side._arrive("cafe")
 				elif sv == "cafein": ui.side.loc = "cafe"; ui.side._show_cafe_in()
 				else: ui.side.loc = "padel"; ui.side._arrive("padel"))
+		elif a.begins_with("--fire"):
+			get_tree().create_timer(0.5).timeout.connect(func():
+				if a.begins_with("--fire="):
+					if not S.has("out"): S.out = {}
+					S.out["damkar"] = int(a.split("=")[1])
+				var e: Array = each_tenant()
+				if not e.is_empty(): start_fire(e[0][0]))
+		elif a == "--police":
+			get_tree().create_timer(0.5).timeout.connect(func():
+				if not S.has("out"): S.out = {}
+				S.out["polisi"] = 1
+				spawn_preman()
+				get_tree().create_timer(4.0).timeout.connect(func(): preman_answer("police")))
+		elif a == "--bag":
+			get_tree().create_timer(0.4).timeout.connect(func():
+				for e in each_tenant():
+					drop_bag(str(e[1].tenant.id), str(e[1].tenant.name), e[0], "nasi padang")
+					break)
 		elif a.begins_with("--stair="):
 			S.stair_lv = int(a.substr(8))
 			_refresh_stairs()
@@ -4902,3 +5080,394 @@ func open_review(user: bool) -> void:
 		OS.shell_open(PLAY_URL)
 	elif user:
 		ui.toast("Rating Google Play tersedia di aplikasi Android (segera hadir). Terima kasih!", "gold")
+
+
+# ---------------- Cat dinding & lantai ruang tengah (tangga) ----------------
+var hall_paint_sp := {}
+
+
+func hall_tpl(f: int) -> String:
+	return "1S" if f % 2 == 1 else "3S"
+
+
+func _refresh_hall_paint() -> void:
+	for f in hall_paint_sp:
+		var p: Dictionary = S.get("hall_paint", {}).get(str(f), {})
+		if hall_preview.has(f): p = hall_preview[f]
+		var sp: Sprite2D = hall_paint_sp[f]
+		var on: bool = p.get("wall", "asli") != "asli" or p.get("motif", "polos") != "polos" or p.get("floor", "asli") != "asli"
+		sp.visible = on
+		if on:
+			sp.material = D.paint_mat(hall_tpl(f), p, art.get_size(), sp.material as ShaderMaterial)
+
+
+var hall_preview := {}
+
+
+func hall_paint_cost(f: int, sel: Dictionary) -> float:
+	var cur: Dictionary = S.get("hall_paint", {}).get(str(f), {})
+	var c := 0.0
+	if sel.get("wall", "asli") != cur.get("wall", "asli") or sel.get("motif", "polos") != cur.get("motif", "polos"):
+		c += D.PAINT_PRICE + float(D.MOTIFS[sel.get("motif", "polos")].p)
+	if sel.get("floor", "asli") != cur.get("floor", "asli"):
+		c += maxf(100000.0, float(D.FLOORS[sel.get("floor", "asli")].p))
+	return c
+
+
+func buy_hall_paint(f: int, sel: Dictionary) -> void:
+	var c := hall_paint_cost(f, sel)
+	if c <= 0.0:
+		ui.toast("Belum ada yang diubah.", "bad"); return
+	if float(S.money) < c:
+		ui.toast(ui.money_why(c), "bad"); return
+	spend(c, "other")
+	if not S.has("hall_paint"): S.hall_paint = {}
+	S.hall_paint[str(f)] = sel.duplicate()
+	hall_preview.erase(f)
+	S.rep = clampf(float(S.rep) + 0.02, 1.0, 5.0)
+	_refresh_hall_paint()
+	sfx("upgrade")
+	add_xp(6)
+	ui.toast("Ruang tengah lantai %d didekorasi ulang!" % f, "gold")
+	dirty = true
+
+
+# ---------------- Paper bag pesanan ojol ----------------
+var bag_nodes: Array = []
+const BAG_LATE := 60.0        # menit game sebelum penghuni mulai kesal
+
+
+func _room_of_tenant(tid: String) -> String:
+	for e in each_tenant():
+		if str(e[1].tenant.id) == tid: return e[0]
+	return ""
+
+
+func drop_bag(tid: String, tname: String, rid: String, food: String) -> void:
+	if not S.has("bags"): S.bags = []
+	if S.bags.size() >= 4: return
+	S.bags.append({"id": "b%d" % randi(), "for": tid, "name": tname, "room": rid, "food": food, "age": 0.0, "warn": false})
+	_refresh_bags()
+	sfx("pop", -6.0)
+	ui.toast("Kantong %s untuk %s ditaruh di lobi. Seret ke kamarnya!" % [food, tname])
+
+
+func _refresh_bags() -> void:
+	for b in bag_nodes: b.queue_free()
+	bag_nodes = []
+	var tex: Texture2D = load("res://assets/bag.png")
+	var i := 0
+	for bg in S.get("bags", []):
+		var sp := Sprite2D.new()
+		sp.texture = tex
+		sp.centered = false
+		sp.offset = Vector2(-tex.get_width() / 2.0, -tex.get_height())
+		sp.position = Vector2(905 + i * 95, D.LOBBY_Y + 8)
+		var tag := Label.new()
+		tag.text = str(bg.name)
+		tag.add_theme_font_override("font", font)
+		tag.add_theme_font_size_override("font_size", 26)
+		tag.add_theme_color_override("font_color", D.C_INK)
+		tag.add_theme_color_override("font_outline_color", Color.WHITE)
+		tag.add_theme_constant_override("outline_size", 8)
+		tag.position = Vector2(-60, -tex.get_height() - 34)
+		tag.size = Vector2(120, 30)
+		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		sp.add_child(tag)
+		sp.set_meta("bid", bg.id)
+		lobby_root.add_child(sp)
+		bag_nodes.append(sp)
+		i += 1
+
+
+func _bag_at(p: Vector2) -> String:
+	for sp in bag_nodes:
+		var r := Rect2(sp.position + Vector2(-60, -150), Vector2(120, 160))
+		if r.has_point(p): return str(sp.get_meta("bid"))
+	return ""
+
+
+func _bag(bid: String) -> Dictionary:
+	for b in S.get("bags", []):
+		if b.id == bid: return b
+	return {}
+
+
+func _tick_bags(mins: float) -> void:
+	for b in S.get("bags", []).duplicate():
+		b.age = float(b.age) + mins
+		var rid := _room_of_tenant(str(b.for))
+		if rid == "":
+			S.bags.erase(b)
+			_refresh_bags()
+			continue
+		if float(b.age) > BAG_LATE:
+			var t: Dictionary = S.rooms[rid].tenant
+			t.happy = maxf(0.0, float(t.happy) - mins * 0.05)
+			if not b.warn:
+				b.warn = true
+				if npcs.has(t.id): npcs[t.id].say("Makananku kok belum sampai?!", 3.0)
+				ui.toast("%s menunggu pesanannya terlalu lama!" % t.name, "bad")
+
+
+func deliver_bag(bid: String, rid: String) -> void:
+	var b := _bag(bid)
+	if b.is_empty(): return
+	S.bags.erase(b)
+	_refresh_bags()
+	var r: Dictionary = S.rooms[rid]
+	var right := _room_of_tenant(str(b.for))
+	if rid == right:
+		var late := float(b.age) > BAG_LATE
+		r.tenant.happy = clampf(float(r.tenant.happy) + (2.0 if late else [5.0, 7.0, 9.0][out_lv("ojol")]), 0, 100)
+		if npcs.has(r.tenant.id):
+			npcs[r.tenant.id].say("Akhirnya! Makasih Mbak Maryam~" if late else "Wah, %s-ku! Makasih!" % b.food, 2.6)
+			npcs[r.tenant.id].react("happy", 2.0)
+		sfx("pop", -4.0)
+		ui.toast("%s sampai ke Kamar %s%s" % [b.food.capitalize(), D.room_name(rid), " (agak telat)" if late else "!"], "" if late else "gold")
+		add_xp(3)
+	else:
+		# Salah kamar: penerima bingung, pemilik asli makin kesal.
+		if npcs.has(r.tenant.id): npcs[r.tenant.id].say("Lho, ini bukan pesananku...", 2.6)
+		if right != "":
+			var t: Dictionary = S.rooms[right].tenant
+			t.happy = maxf(0.0, float(t.happy) - 15.0)
+			if npcs.has(t.id):
+				npcs[t.id].say("Pesananku malah dikasih ke kamar lain?!", 3.0)
+				npcs[t.id].react("angry", 2.5)
+		ui.toast("Salah kamar! Ini pesanan %s (Kamar %s). %s jadi kesal." % [b.name, D.room_name(right) if right != "" else "-", b.name], "bad")
+	dirty = true
+
+
+# ---------------- Polisi (outsource) ----------------
+const POLICE_LINES := {"preman": ["Selamat siang. Ada laporan pungli di sini?", "Bapak ikut kami ke kantor, ya.", "Pungli itu melanggar hukum!"],
+	"thief": ["Berhenti! Polisi!", "Angkat tangan!", "Kembalikan barangnya!"]}
+
+
+func _police_come(why: String) -> void:
+	if npcs.has("polisi"): return
+	var n := Npc.new()
+	npc_lobby.add_child(n)
+	n.setup("polisi", "visitor", D.STAFF_LOOK.teknisi, Vector2(D.IW + 220, D.LOBBY_Y), font)
+	n.art = true
+	n.char_id = "polisi"
+	n.art_map = {"walk": "walk", "stand": "idle", "stop": "stop", "happy": "happy"}
+	n.set_meta("nama", D.OUTSRC.polisi.nama)
+	n.set_meta("spd", 1.6)
+	npcs["polisi"] = n
+	sfx("arrive", -8.0)
+	keeper_say("Pak Polisi, tolong!", 2.5)
+	var target: Npc = preman if why == "preman" else thief
+	if target == null or not is_instance_valid(target):
+		_remove_npc(n); return
+	target.work = {"t": 30.0, "pose": "caught" if why == "thief" else "demand"}
+	n.plan("lobby", Vector2(target.position.x + 150, D.LOBBY_Y), "stand", func(m: Npc):
+		m.dir = -1
+		m.work = {"t": 2.4, "pose": "stop", "fn": func(k: Npc):
+			k.say(POLICE_LINES[why].pick_random(), 2.6)
+			if is_instance_valid(target):
+				target.say("Ampun, Pak! Ampun!" if why == "preman" else "Iya, Pak, saya nyerah...", 2.4)
+				target.art_map["walk"] = "walk"
+				target.work = {"t": 2.2, "pose": "caught"}
+			get_tree().create_timer(2.4).timeout.connect(func(): _police_drag(k, target, why))}
+		m.say(POLICE_LINES[why].pick_random(), 2.4))
+
+
+## Polisi menyeret pelaku keluar: pelaku berjalan di depan, polisi menyusul di belakangnya.
+func _police_drag(pol: Npc, target: Npc, why: String) -> void:
+	if is_instance_valid(target):
+		target.set_meta("spd", 0.9)
+		target.work = {}
+		target.plan("lobby", Vector2(D.OUT_X - 260, D.LOBBY_Y), "stand", func(z: Npc):
+			_remove_npc(z)
+			if why == "preman": preman = null
+			else: thief = null)
+	if why == "preman":
+		S.preman_next = int(S.day) + (14 if out_lv("polisi") >= 2 else 10)
+		S.preman_paid = 0
+		S.rep = clampf(float(S.rep) + 0.05, 1, 5)
+		ui.toast("Pak Bambang menyeret preman ke kantor polisi. Kost aman!", "gold")
+	else:
+		_thief_state = ""
+		ui.toast("Maling ditangkap polisi! Tidak ada barang yang hilang.", "gold")
+	add_xp(12)
+	pol.set_meta("spd", 0.9)
+	pol.plan("lobby", Vector2(D.OUT_X - 120, D.LOBBY_Y), "stand", func(m: Npc):
+		m.say("Tugas selesai. Selamat siang!", 2.0)
+		m.work = {"t": 1.5, "pose": "happy", "fn": func(z: Npc):
+			z.plan("lobby", Vector2(D.OUT_X - 360, D.LOBBY_Y), "stand", func(y: Npc): _remove_npc(y))})
+
+
+# ---------------- Kebakaran & pemadam (outsource) ----------------
+var fire_fx := {}
+var _fire_called := {}
+
+
+func _maybe_fire(h: int) -> void:
+	if not S.get("fire", {}).is_empty() or int(S.lvl) < 3: return
+	if each_tenant().size() < 3: return
+	if int(S.day) - int(S.get("fire_day", -99)) < 20: return
+	if randf() > 0.004: return
+	var pool := []
+	for e in each_tenant(): pool.append(e[0])
+	start_fire(pool.pick_random())
+
+
+func start_fire(rid: String) -> void:
+	if not S.has("fire"): S.fire = {}
+	if S.fire.has(rid): return
+	S.fire[rid] = 0.0
+	S.fire_day = int(S.day)
+	_refresh_fire()
+	sfx("thunder", -8.0)
+	jump_to_floor(D.fl(rid))
+	ui.toast("KEBAKARAN di Kamar %s! %s" % [D.room_name(rid), "Damkar sedang menuju ke sini." if out_lv("damkar") >= 1 else "Ketuk kamarnya untuk panggil Damkar!"], "bad")
+	var r: Dictionary = S.rooms[rid]
+	if r.tenant != null and npcs.has(r.tenant.id):
+		npcs[r.tenant.id].say("Kebakaran! Tolong!", 3.0)
+	keeper_say("Ya Allah, ada api! Semua keluar dulu!", 3.0)
+	if out_lv("damkar") >= 1: _call_damkar(rid)
+
+
+func _fire_tick(mins: float) -> void:
+	if S.get("fire", {}).is_empty(): return
+	var spread := 500.0 * (1.6 if out_lv("damkar") >= 2 else 1.0)
+	for rid in S.fire.keys():
+		S.fire[rid] = float(S.fire[rid]) + mins
+		var r: Dictionary = S.rooms[rid]
+		if r.tenant != null:
+			r.tenant.happy = maxf(0.0, float(r.tenant.happy) - mins * 0.02)
+		if float(S.fire[rid]) >= spread and not S.has("fire_spread_" + rid):
+			S["fire_spread_" + rid] = true
+			for nb in _fire_neighbors(rid):
+				if not S.fire.has(nb) and S.rooms[nb].built:
+					start_fire(nb)
+					ui.toast("Api menjalar ke Kamar %s!" % D.room_name(nb), "bad")
+					break
+		if float(S.fire[rid]) >= 1300.0:
+			# Terlalu lama: kamar rusak berat.
+			_fire_out(rid, true)
+
+
+func _fire_neighbors(rid: String) -> Array:
+	var f := D.fl(rid)
+	var c := D.col(rid)
+	var out := ["%d%s" % [f, "R" if c == "L" else "L"]]
+	out.shuffle()
+	if f + 1 <= D.TOP_FLOOR: out.append("%d%s" % [f + 1, c])
+	if f - 1 >= 1: out.append("%d%s" % [f - 1, c])
+	return out
+
+
+func _fire_out(rid: String, burnt: bool) -> void:
+	if not S.get("fire", {}).has(rid): return
+	S.fire.erase(rid)
+	S.erase("fire_spread_" + rid)
+	_fire_called.erase(rid)
+	var r: Dictionary = S.rooms[rid]
+	r.broken = Funny.GOSONG
+	if burnt:
+		for t in r.get("furn", {}).keys():
+			r.furn[t] = maxi(1, int(r.furn[t]) - 1)
+		ui.toast("Kamar %s terbakar habis! Perabot rusak, perlu renovasi." % D.room_name(rid), "bad")
+	_refresh_fire()
+	dirty = true
+
+
+func fire_tap(rid: String) -> bool:
+	if not S.get("fire", {}).has(rid): return false
+	if _fire_called.has(rid):
+		ui.toast("Damkar sedang dalam perjalanan. Sabar ya!")
+		return true
+	ui.open_sheet("fire", rid)
+	return true
+
+
+func _call_damkar(rid: String) -> void:
+	if _fire_called.has(rid): return
+	_fire_called[rid] = true
+	var delay: float = [9.0, 4.0, 2.0][out_lv("damkar")]
+	get_tree().create_timer(delay).timeout.connect(func(): _damkar_go(rid))
+
+
+func call_damkar_paid(rid: String) -> void:
+	ui.close_sheet()
+	if float(S.money) < 500000:
+		ui.toast(ui.money_why(500000), "bad"); return
+	spend(500000, "other")
+	ui.toast("Damkar dihubungi (Rp 500rb). Mereka segera datang!")
+	_call_damkar(rid)
+
+
+func _damkar_go(rid: String) -> void:
+	if not S.get("fire", {}).has(rid): return
+	var nid := "damkar-" + rid
+	if npcs.has(nid): return
+	var n := Npc.new()
+	npc_lobby.add_child(n)
+	n.setup(nid, "worker", D.STAFF_LOOK.teknisi, Vector2(D.OUT_X, D.LOBBY_Y), font)
+	n.art = true
+	n.char_id = "damkar"
+	n.art_map = {"walk": "walk", "stand": "idle", "spray": "spray", "happy": "happy", "job": "spray"}
+	n.set_meta("nama", D.OUTSRC.damkar.nama)
+	n.set_meta("spd", 2.0)
+	n.target = rid
+	npcs[nid] = n
+	sfx("arrive", -6.0)
+	n.say("Damkar datang! Minggir semua!", 2.6)
+	n.plan(rid, _spot_in(rid), "spray", func(m: Npc):
+		m.say(["Semprot!", "Tenang, apinya kecil!", "Air, air!"].pick_random(), 2.2)
+		m.work = {"t": 4.0, "pose": "spray", "fn": func(k: Npc):
+			_fire_out(rid, false)
+			k.say("Api padam! Aman sekarang.", 2.6)
+			add_xp(10)
+			ui.toast("Api di Kamar %s berhasil dipadamkan. Kamar perlu dibersihkan dari jelaga." % D.room_name(rid), "gold")
+			# Masih ada api lain? langsung ke sana.
+			var nxt := ""
+			for o in S.get("fire", {}).keys():
+				nxt = o
+				break
+			if nxt != "":
+				_fire_called[nxt] = true
+				k.target = nxt
+				k.plan(nxt, _spot_in(nxt), "spray", func(z: Npc):
+					z.work = {"t": 4.0, "pose": "spray", "fn": func(y: Npc):
+						_fire_out(nxt, false)
+						y.say("Semua padam!", 2.4)
+						_leave_worker(y)})
+			else:
+				k.work = {"t": 1.8, "pose": "happy", "fn": func(z: Npc): _leave_worker(z)}})
+
+
+func _refresh_fire() -> void:
+	for rid in fire_fx.keys():
+		if not S.get("fire", {}).has(rid):
+			fire_fx[rid].queue_free()
+			fire_fx.erase(rid)
+	for rid in S.get("fire", {}):
+		if fire_fx.has(rid) or not room_fx.has(rid): continue
+		var fx := _FireFx.new()
+		fx.sz = D.rect_of(rid).size
+		room_fx[rid].add_child(fx)
+		fire_fx[rid] = fx
+
+
+class _FireFx extends Node2D:
+	var sz := Vector2(420, 367)
+	var t := 0.0
+	func _process(dt: float) -> void:
+		t += dt
+		queue_redraw()
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, sz), Color(0.9, 0.35, 0.1, 0.18 + 0.06 * sin(t * 8.0)))
+		for i in range(7):
+			var x := sz.x * (0.12 + 0.13 * i)
+			var h := 90.0 + 50.0 * sin(t * 6.0 + i * 1.7)
+			var base := Vector2(x, sz.y - 30)
+			var pts := PackedVector2Array([base + Vector2(-34, 0), base + Vector2(-16, -h * 0.6), base + Vector2(0, -h), base + Vector2(16, -h * 0.55), base + Vector2(34, 0)])
+			draw_colored_polygon(pts, Color("f2662f"))
+			var pts2 := PackedVector2Array([base + Vector2(-18, 0), base + Vector2(-6, -h * 0.45), base + Vector2(0, -h * 0.7), base + Vector2(8, -h * 0.4), base + Vector2(18, 0)])
+			draw_colored_polygon(pts2, Color("ffd25a"))
+		for i in range(5):
+			var k := fmod(t * 0.3 + i * 0.2, 1.0)
+			draw_circle(Vector2(sz.x * (0.2 + 0.15 * i), sz.y * 0.6 - k * sz.y * 0.6), 20 + k * 40, Color(0.3, 0.3, 0.3, 0.4 * (1.0 - k)))
