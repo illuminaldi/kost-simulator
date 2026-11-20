@@ -36,6 +36,9 @@ var tray: PanelContainer
 var tray_row: HBoxContainer
 var tray_box: VBoxContainer
 var floor_btn: Button
+var wa_btn: Button
+var wa_badge: PanelContainer
+var wa_badge_lbl: Label
 var tray_tab := "perabot"
 var ghost: Sprite2D
 var hints := {}
@@ -252,6 +255,18 @@ func setup(p_game: Node, art: Texture2D, p_font: Font, p_font_m: Font) -> void:
 	floor_btn.add_theme_font_size_override("font_size", 30)
 	floor_btn.position = Vector2(1250, 215)
 	add_child(floor_btn)
+	wa_btn = _btn("Grup", Color("bfe8b0"), func(): open_sheet("wa"))
+	wa_btn.add_theme_font_size_override("font_size", 30)
+	wa_btn.position = Vector2(1080, 215)
+	add_child(wa_btn)
+	wa_badge = PanelContainer.new()
+	wa_badge.add_theme_stylebox_override("panel", _sb(Color("e0533d"), 4, 30, 10, 0, Color.WHITE))
+	wa_badge_lbl = _label("0", 26, Color.WHITE)
+	wa_badge_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	wa_badge.add_child(wa_badge_lbl)
+	wa_badge.position = Vector2(1190, 200)
+	wa_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(wa_badge)
 
 	tray = PanelContainer.new()
 	var tsb := _sb(D.C_PAPER, 6, 40, 22, 16)
@@ -861,6 +876,10 @@ func update_hud() -> void:
 	nav_badge.visible = q > 0 and not tray.visible and not sq
 	ev_badge.visible = S.events.size() > 0 and not tray.visible and not sq
 	ev_badge_lbl.text = str(S.events.size())
+	if wa_badge and game.wa:
+		var u: int = game.wa.unread()
+		wa_badge.visible = u > 0 and wa_btn.visible and not tray.visible and not sq
+		wa_badge_lbl.text = str(mini(u, 99))
 	nav_badge_lbl.text = str(q)
 
 
@@ -940,6 +959,7 @@ func refresh_sheet(keep: bool = true) -> void:
 	match kind:
 		"welcome": _sheet_welcome()
 		"away": _sheet_away()
+		"wa": _sheet_wa()
 		"backup": _sheet_backup()
 		"rename": _sheet_rename()
 		"preman": _sheet_preman()
@@ -1393,6 +1413,53 @@ func _sheet_rename() -> void:
 	f.add_child(_btn("Simpan", D.C_YELLOW, func(): _do("rename", le.text); close_sheet()))
 
 
+func _sheet_wa() -> void:
+	var S: Dictionary = game.S
+	S.wa_unread = 0
+	_header("Grup Penghuni " + str(S.get("kost_name", "Kost Harmoni")))
+	var L: Array = game.wa.list()
+	if L.is_empty():
+		box.add_child(_text("Belum ada obrolan. Grup akan ramai setelah ada penghuni.", 32, D.C_MUTED))
+		return
+	box.add_child(_text("Ketuk Tanggapi pada keluhan supaya penghuni merasa diperhatikan (+senang).", 28, D.C_MUTED))
+	var start := maxi(0, L.size() - 40)
+	var last_day := -1
+	for i in range(L.size() - 1, start - 1, -1):
+		var m: Dictionary = L[i]
+		if int(m.d) != last_day:
+			last_day = int(m.d)
+			var dl := _label("Hari %d" % last_day, 26, D.C_MUTED, true)
+			dl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			box.add_child(dl)
+		if m.k == "sys":
+			var sl := _label(str(m.t), 26, Color("6b8a5a"), true)
+			sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			box.add_child(sl)
+			continue
+		var me: bool = m.who == "Maryam"
+		var bub := PanelContainer.new()
+		var col := Color("d9f2c4") if me else (Color("ffe0d6") if m.k == "alert" else Color("ffffff"))
+		bub.add_theme_stylebox_override("panel", _sb(col, 3, 24, 20, 10))
+		bub.size_flags_horizontal = Control.SIZE_SHRINK_END if me else Control.SIZE_SHRINK_BEGIN
+		var vb := VBoxContainer.new()
+		bub.add_child(vb)
+		if not me:
+			var rn: String = ("  · Kamar " + D.room_name(m.r)) if str(m.r) != "" else ""
+			vb.add_child(_label(str(m.who) + rn, 26, Color("2f7a6a"), true))
+		var tl := _text(str(m.t), 32, D.C_INK)
+		tl.custom_minimum_size.x = 900
+		vb.add_child(tl)
+		var foot := HBoxContainer.new()
+		foot.add_child(_label(str(m.h), 22, D.C_MUTED, true))
+		if m.k == "complain" and not m.ok:
+			var idx: int = i
+			foot.add_child(_btn("Tanggapi", D.C_YELLOW, func(): game.wa.reply(idx); refresh_sheet()))
+		elif m.k == "complain":
+			foot.add_child(_label("  ditanggapi", 22, Color("2f7a2a"), true))
+		vb.add_child(foot)
+		box.add_child(bub)
+
+
 func _sheet_away() -> void:
 	var a: Dictionary = game.away
 	_header("Selamat datang kembali!")
@@ -1663,6 +1730,29 @@ func _sheet_room() -> void:
 			_cand_card(p, id)
 
 
+func _kt_filter_card() -> void:
+	var v := _card()
+	_row(v, _label("Filter calon penyewa", 38), _label("KostTerdekat", 28, Color("2f7a2a"), true))
+	if not game.has_app("kostterdekat"):
+		v.add_child(_text("Aktifkan aplikasi KostTerdekat (Kelola › Fasilitas Kost) untuk memilih calon penyewa: kost putra/putri, pekerjaan, dan profil terverifikasi. Gratis, tanpa iklan.", 30, D.C_MUTED))
+		return
+	var f: Dictionary = game.kt_filter()
+	var g1 := _flow(v)
+	for o in [["", "Campur"], ["p", "Kost Putri"], ["l", "Kost Putra"]]:
+		var val: String = o[0]
+		g1.add_child(_btn(o[1], D.C_YELLOW if f.g == val else Color.WHITE, func(): game.set_kt_filter("g", val); refresh_sheet(), false, true))
+	var g2 := _flow(v)
+	var jobs := [""]
+	for j in D.JOBS:
+		if int(D.JOBS[j].min) <= int(game.S.lvl) and not D.JOBS[j].get("tua", false): jobs.append(j)
+	for j in jobs:
+		var jv: String = j
+		g2.add_child(_btn("Semua pekerjaan" if j == "" else j, D.C_YELLOW if f.job == jv else Color.WHITE, func(): game.set_kt_filter("job", jv); refresh_sheet(), false, true))
+	_row(v, _label("Hanya profil terverifikasi", 34, D.C_INK, true), _btn("Nyala" if f.clean else "Mati", D.C_GREEN if f.clean else Color.WHITE, func(): game.set_kt_filter("clean", not f.clean); refresh_sheet()))
+	var slow: float = game.kt_filter_slow()
+	v.add_child(_text("Profil terverifikasi menyaring penyewa dengan riwayat buruk atau penghasilan kurang." + (" Filter aktif: calon datang ±%d%% lebih jarang." % roundi((slow - 1.0) * 100.0) if slow > 1.0 else ""), 28, D.C_MUTED))
+
+
 func _sheet_tenants() -> void:
 	var S: Dictionary = game.S
 	_header("Penyewa")
@@ -1678,6 +1768,7 @@ func _sheet_tenants() -> void:
 			dv.add_child(_text("Pasang KelolaPro supaya sewa ditagih otomatis setiap pagi.", 28, D.C_MUTED))
 	_tabs([["antre", "Antrean (%d)" % S.queue.size()], ["huni", "Penghuni (%d)" % ten.size()]])
 	if tab == "antre":
+		_kt_filter_card()
 		if S.queue.is_empty():
 			_card().add_child(_text("Belum ada calon penyewa. Rating tinggi, harga terjangkau, fasilitas lengkap & resepsionis membuat tamu lebih sering datang.", 36, D.C_MUTED))
 		for p in S.queue:
@@ -2344,6 +2435,8 @@ func _apps_list() -> void:
 func set_nav_visible(on: bool) -> void:
 	for n in nav_nodes: n.visible = on
 	if floor_btn: floor_btn.visible = on
+	if wa_btn: wa_btn.visible = on
+	if wa_badge and not on: wa_badge.visible = false
 	if not on:
 		nav_badge.visible = false
 		ev_badge.visible = false
