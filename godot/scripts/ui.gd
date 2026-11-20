@@ -1664,7 +1664,7 @@ func _sheet_room() -> void:
 				var dc: int = game.renov_speed_cost()
 				v.add_child(_dia_btn("Percepat", dc, func(): game.renov_speedup(); refresh_sheet()))
 			elif fln == nxt:
-				v.add_child(_btn("Mulai Renovasi (24 jam) · " + D.short(D.floor_cost(fln)), D.C_YELLOW, func(): game.renovate_floor(fln), float(S.rep) < D.floor_rep(fln) or float(S.money) < D.floor_cost(fln), false, ("Rating kost harus minimal %.1f" % D.floor_rep(fln)) if float(S.rep) < D.floor_rep(fln) else money_why(D.floor_cost(fln))))
+				v.add_child(_btn("Mulai Renovasi (3 hari) · " + D.short(D.floor_cost(fln)), D.C_YELLOW, func(): game.renovate_floor(fln), float(S.rep) < D.floor_rep(fln) or float(S.money) < D.floor_cost(fln), false, ("Rating kost harus minimal %.1f" % D.floor_rep(fln)) if float(S.rep) < D.floor_rep(fln) else money_why(D.floor_cost(fln))))
 			else:
 				v.add_child(_text("Renovasi lantai %d dulu." % nxt, 32, D.C_MUTED))
 		else:
@@ -1672,7 +1672,10 @@ func _sheet_room() -> void:
 			var bj: Dictionary = game.job_for(id, "build")
 			if bj != {}:
 				v.add_child(_text("%s sedang membangun kamar ini." % D.worker_label("build"), 38))
-				v.add_child(_label("Sisa ± %d jam game (± %s nyata pada 1x)" % [ceili(float(bj.t) / 60.0), game.fmt_real(float(bj.t) / game.GAME_MIN_PER_SEC)], 32, Color("3f6f96"), true))
+				if bj.has("end"):
+					v.add_child(_label("Sisa %s waktu nyata (tetap jalan walau game ditutup)" % game.fmt_real(game.job_left_real(bj)), 32, Color("3f6f96"), true))
+				else:
+					v.add_child(_label("Sisa ± %d jam game (± %s nyata pada 1x)" % [ceili(float(bj.t) / 60.0), game.fmt_real(float(bj.t) / game.GAME_MIN_PER_SEC)], 32, Color("3f6f96"), true))
 				var jc: int = game.job_speed_cost(bj)
 				v.add_child(_dia_btn("Selesaikan sekarang", jc, func(): game.job_speedup(id, "build")))
 				return

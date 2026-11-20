@@ -2807,9 +2807,9 @@ func renovate_floor(f: int) -> void:
 	if not S.get("renov", {}).is_empty():
 		ui.toast("Renovasi lantai %d masih berjalan." % int(S.renov.f), "bad"); return
 	spend(D.floor_cost(f), "other")
-	# Renovasi berjalan 24 jam waktu nyata (tetap berjalan walau game ditutup).
+	# Renovasi berjalan 3 hari waktu nyata (tetap berjalan walau game ditutup).
 	S.renov = {"f": f, "end": Time.get_unix_time_from_system() + RENOV_SECS}
-	ui.toast("Renovasi lantai %d dimulai: selesai dalam 24 jam (bisa dipercepat pakai Diamond)." % f, "gold")
+	ui.toast("Renovasi lantai %d dimulai: selesai dalam 3 hari waktu nyata (bisa dipercepat pakai Diamond)." % f, "gold")
 	sfx("buy")
 	dirty = true
 
@@ -2863,6 +2863,7 @@ func _check_renov() -> void:
 
 ## Percepat pembangunan kamar / ruang fasilitas: 1 Diamond per 2 jam game sisa.
 func job_speed_cost(j: Dictionary) -> int:
+	if j.has("end"): return maxi(1, ceili(job_left_real(j) / 7200.0))   # 1 Diamond / 2 jam nyata
 	return maxi(1, ceili(float(j.t) / 120.0))
 
 
@@ -3197,6 +3198,7 @@ func facil_ok(f: int, k: String) -> String:
 	var fc: Dictionary = D.FACIL[k]
 	if int(S.lvl) < int(fc.lv): return "%s terbuka di Level %d" % [fc.n, int(fc.lv)]
 	if not floor_open(f): return floor_lock_text(f)
+	if D.is_hub(f): return "Lantai %d dipakai %s" % [f, D.hub_info(f).n]
 	if S.facil.has(str(f)) or job_for("S%d" % f, "fbuild") != {}: return "Sisi tangga lantai %d sudah terpakai" % f
 	var bw := branch_why(k)
 	if bw != "": return bw
@@ -3207,7 +3209,7 @@ func facil_ok(f: int, k: String) -> String:
 ## Lantai terendah yang sisi tangganya masih kosong & sudah terbuka.
 func free_facil_floor() -> int:
 	for f in range(1, D.TOP_FLOOR + 1):
-		if not floor_open(f): continue
+		if not floor_open(f) or D.is_hub(f): continue
 		if S.facil.has(str(f)) or job_for("S%d" % f, "fbuild") != {}: continue
 		return f
 	return 0
@@ -3793,8 +3795,27 @@ func add_job(type: String, room: String, item: String = "", lv: int = 0) -> void
 		S.jobs[-1].t = float(S.jobs[-1].t) / [1.0, 1.6, 2.5][out_lv("tukang")]
 	if type == "deliver" and out_lv("kurir") >= 2:
 		S.jobs[-1].t = float(S.jobs[-1].t) * 0.5
+	# Pekerjaan besar memakai waktu nyata (tetap jalan walau game ditutup):
+	# bangun kamar 12 jam, renovasi kamar gosong 3 jam.
+	var real := 0.0
+	if type == "build": real = BUILD_SECS
+	elif type == "fix" and str(S.rooms.get(room, {}).get("broken", "")) == Funny.GOSONG: real = RENO_ROOM_SECS
+	if real > 0.0:
+		real /= [1.0, 1.6, 2.5][out_lv("tukang")] if type == "build" else 1.0
+		S.jobs[-1].end = Time.get_unix_time_from_system() + real
+		if ui: ui.toast("%s selesai dalam %s waktu nyata (tetap jalan walau game ditutup)." % ["Pembangunan kamar" if type == "build" else "Renovasi kamar", fmt_real(real)], "gold")
 	dirty = true
 	_jobs_brain()
+
+
+const BUILD_SECS := 12 * 3600.0       # bangun kamar: 12 jam waktu nyata
+const RENO_ROOM_SECS := 3 * 3600.0    # renovasi kamar gosong: 3 jam waktu nyata
+
+
+## Sisa detik nyata untuk pekerjaan berbasis waktu nyata (-1 kalau berbasis waktu game).
+func job_left_real(j: Dictionary) -> float:
+	if not j.has("end"): return -1.0
+	return maxf(0.0, float(j.end) - Time.get_unix_time_from_system())
 
 
 func _tick_jobs(mins: float) -> void:
@@ -3803,6 +3824,13 @@ func _tick_jobs(mins: float) -> void:
 	_fire_tick(mins)
 	for j in S.jobs.duplicate():
 		if not j.started:
+			continue
+		if j.has("end"):
+			# waktu nyata: game minute tidak dipakai; tukang tetap "bekerja" sampai jamnya tiba
+			if Time.get_unix_time_from_system() >= float(j.end):
+				_finish_job(j)
+			else:
+				j.t = maxf(float(j.t), 30.0)
 			continue
 		j.t = float(j.t) - mins
 		if j.t <= 0.0:
@@ -6422,6 +6450,17 @@ func _refresh_hubs() -> void:
 	if bld == null: return
 	for f in range(D.HUB_EVERY, D.TOP_FLOOR + 1, D.HUB_EVERY):
 		var on := floor_open(f)
+		if on and S.facil.has(str(f)):
+			var k: String = S.facil[str(f)]
+			S.facil.erase(str(f))
+			var nf := free_facil_floor()
+			if nf > 0:
+				S.facil[str(nf)] = k
+				ui.toast("%s dipindah ke lantai %d karena lantai %d jadi %s." % [D.FACIL[k].n, nf, f, D.hub_info(f).n])
+			else:
+				S.money = float(S.money) + facil_cost(k)
+				ui.toast("%s dibongkar (lantai %d jadi %s), biayanya dikembalikan." % [D.FACIL[k].n, f, D.hub_info(f).n])
+			_refresh_facil.call_deferred()
 		if on and not hub_nodes.has(f):
 			var hn := _HubSign.new()
 			hn.f = f
@@ -6435,7 +6474,7 @@ func _refresh_hubs() -> void:
 			hub_nodes.erase(f)
 
 
-## Papan & ikon Lobi Langit di ruang tengah lantai hub.
+## Lobi Langit: ruang khusus di sisi tangga lantai hub (menggantikan slot fasilitas).
 class _HubSign extends Node2D:
 	var f := 10
 	var font: Font
@@ -6450,41 +6489,83 @@ class _HubSign extends Node2D:
 	func _draw() -> void:
 		var c: Color = info.get("c", Color("6a8fb3"))
 		var ink := Color("4a3426")
-		var w := rect.size.x - 60.0
-		var box := Rect2(rect.position.x + 30, rect.position.y + 10, w, 64)
+		var r := D.facil_draw_rect(f)
+		var floor_y := r.position.y + r.size.y * D.FACIL_SVG_FLOOR
+		# pintu gerbang besar
+		var door := Rect2(r.position.x - 30, floor_y - 200, r.size.x + 60, 200)
 		var sb := StyleBoxFlat.new()
-		sb.bg_color = c
+		sb.bg_color = c.darkened(0.15)
 		sb.border_color = ink
 		sb.set_border_width_all(5)
-		sb.set_corner_radius_all(16)
-		draw_style_box(sb, box)
-		if font:
-			draw_string(font, box.position + Vector2(76, 45), str(info.get("n", "")), HORIZONTAL_ALIGNMENT_LEFT, w - 90, 32, Color.WHITE)
-		var ic := box.position + Vector2(40, 32)
-		draw_circle(ic, 26, Color(1, 1, 1, 0.9))
+		sb.corner_radius_top_left = 70
+		sb.corner_radius_top_right = 70
+		draw_style_box(sb, door)
+		var inner := door.grow(-16)
+		inner.size.y += 16
+		var sb2 := StyleBoxFlat.new()
+		sb2.bg_color = Color("2e3a4a")
+		sb2.corner_radius_top_left = 56
+		sb2.corner_radius_top_right = 56
+		draw_style_box(sb2, inner)
+		# pemandangan di balik gerbang (langit + kendaraan)
+		var sky := Rect2(inner.position + Vector2(8, 20), inner.size - Vector2(16, 28))
+		draw_rect(sky, Color("9fc7e6"))
+		draw_rect(Rect2(sky.position.x, sky.end.y - 26, sky.size.x, 26), Color("8c8f94"))
+		var ic := Vector2(sky.get_center().x, sky.end.y - 30)
 		var k := String(info.get("n", "")).split(" ")[0]
+		var bob := sin(t * 2.0) * 3.0
 		match k:
-			"Lobi":   # mobil
-				draw_rect(Rect2(ic + Vector2(-16, -2), Vector2(32, 12)), c)
-				draw_rect(Rect2(ic + Vector2(-9, -10), Vector2(18, 9)), c)
-				draw_circle(ic + Vector2(-9, 11), 4, ink)
-				draw_circle(ic + Vector2(9, 11), 4, ink)
-			"Gerbang":   # palang tol naik-turun
-				draw_rect(Rect2(ic + Vector2(-16, -14), Vector2(6, 28)), ink)
-				var a := -0.6 * absf(sin(t * 0.8))
-				draw_line(ic + Vector2(-12, -8), ic + Vector2(-12, -8) + Vector2(cos(a), sin(a)) * 30, Color("e0533d"), 5)
+			"Lobi":   # mobil keluar-masuk
+				var x := fmod(t * 40.0, sky.size.x + 120) - 60
+				var p := Vector2(sky.position.x + x, ic.y)
+				draw_rect(Rect2(p + Vector2(-34, -22), Vector2(68, 22)), Color("e0533d"))
+				draw_rect(Rect2(p + Vector2(-20, -38), Vector2(40, 17)), Color("e0533d"))
+				draw_rect(Rect2(p + Vector2(-14, -34), Vector2(28, 10)), Color("cfe8f7"))
+				draw_circle(p + Vector2(-20, 2), 8, ink)
+				draw_circle(p + Vector2(20, 2), 8, ink)
+			"Gerbang":   # palang tol
+				draw_rect(Rect2(ic + Vector2(-60, -70), Vector2(14, 70)), Color("f2c14e"))
+				var a := -1.2 * clampf(sin(t * 0.9) * 1.5, 0.0, 1.0)
+				draw_line(ic + Vector2(-53, -50), ic + Vector2(-53, -50) + Vector2(cos(a), sin(a)) * 110, Color("e0533d"), 8)
+				draw_rect(Rect2(ic + Vector2(10, -40), Vector2(60, 40)), Color("3a6fb0"))
 			"Stasiun":
 				if String(info.get("n", "")).find("Angkasa") >= 0:   # roket
-					var y := -sin(t * 2.0) * 3.0
-					draw_colored_polygon(PackedVector2Array([ic + Vector2(0, -18 + y), ic + Vector2(7, 6 + y), ic + Vector2(-7, 6 + y)]), c)
-					draw_colored_polygon(PackedVector2Array([ic + Vector2(-4, 7 + y), ic + Vector2(4, 7 + y), ic + Vector2(0, 16 + y)]), Color("f2a33a"))
-				else:   # kereta
-					draw_rect(Rect2(ic + Vector2(-16, -10), Vector2(32, 20)), c)
-					draw_rect(Rect2(ic + Vector2(-11, -6), Vector2(8, 7)), Color.WHITE)
-					draw_rect(Rect2(ic + Vector2(3, -6), Vector2(8, 7)), Color.WHITE)
-					draw_line(ic + Vector2(-18, 14), ic + Vector2(18, 14), ink, 3)
+					draw_rect(sky, Color("1f2448"))
+					for i in range(8):
+						draw_circle(sky.position + Vector2(fmod(i * 37.0, sky.size.x), fmod(i * 53.0, sky.size.y * 0.7)), 2, Color.WHITE)
+					var y := ic.y - 40 - absf(sin(t * 0.7)) * 30
+					draw_colored_polygon(PackedVector2Array([Vector2(ic.x, y - 60), Vector2(ic.x + 20, y), Vector2(ic.x - 20, y)]), Color("eceff3"))
+					draw_rect(Rect2(ic.x - 20, y, 40, 40), Color("eceff3"))
+					draw_colored_polygon(PackedVector2Array([Vector2(ic.x - 12, y + 40), Vector2(ic.x + 12, y + 40), Vector2(ic.x, y + 70 + bob * 3)]), Color("f2a33a"))
+				else:   # kereta lewat
+					var x2 := fmod(t * 90.0, sky.size.x + 320) - 160
+					var p2 := Vector2(sky.position.x + x2, ic.y)
+					draw_rect(Rect2(p2 + Vector2(-150, -60), Vector2(300, 56)), Color("5fae4f"))
+					for i in range(5):
+						draw_rect(Rect2(p2 + Vector2(-136 + i * 58, -50), Vector2(40, 22)), Color("dff1ff"))
 			"Helipad":
-				draw_string(font, ic + Vector2(-9, 11), "H", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, c)
-				var r := 20.0
-				var a2 := t * 12.0
-				draw_line(ic + Vector2(cos(a2), sin(a2) * 0.3) * -r + Vector2(0, -16), ic + Vector2(cos(a2), sin(a2) * 0.3) * r + Vector2(0, -16), ink, 2)
+				draw_ellipse_h(ic + Vector2(0, -8), 60, 12, Color("d6d6d6"))
+				if font: draw_string(font, ic + Vector2(-12, -2), "H", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("e0533d"))
+				var hy := ic.y - 70 + bob
+				draw_rect(Rect2(ic.x - 30, hy, 60, 30), Color("e0533d"))
+				draw_line(Vector2(ic.x + 30, hy + 12), Vector2(ic.x + 70, hy + 8), Color("e0533d"), 6)
+				var a2 := t * 14.0
+				draw_line(Vector2(ic.x - 60 * cos(a2), hy - 8), Vector2(ic.x + 60 * cos(a2), hy - 8), ink, 4)
+		# papan nama di atas gerbang
+		var w := 260.0
+		var box := Rect2(door.get_center().x - w / 2.0, door.position.y - 62, w, 56)
+		var sb3 := StyleBoxFlat.new()
+		sb3.bg_color = c
+		sb3.border_color = ink
+		sb3.set_border_width_all(4)
+		sb3.set_corner_radius_all(14)
+		draw_style_box(sb3, box)
+		if font:
+			draw_string(font, box.position + Vector2(0, 38), str(info.get("n", "")), HORIZONTAL_ALIGNMENT_CENTER, w, 24, Color.WHITE)
+
+	func draw_ellipse_h(cn: Vector2, rx: float, ry: float, col: Color) -> void:
+		var pts := PackedVector2Array()
+		for i in range(24):
+			var an := TAU * i / 24.0
+			pts.append(cn + Vector2(cos(an) * rx, sin(an) * ry))
+		draw_colored_polygon(pts, col)

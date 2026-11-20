@@ -579,7 +579,7 @@ static func hub_info(f: int) -> Dictionary:
 
 static func hub_spot(f: int) -> Vector2:
 	if f <= 0: return Vector2(OUT_X, LOBBY_Y)
-	return Vector2(700, FEET[f])
+	return Vector2(facil_center_x(f), FEET[f] - FACIL_BACK)
 
 
 static func scene_pos(s: String) -> Vector2:

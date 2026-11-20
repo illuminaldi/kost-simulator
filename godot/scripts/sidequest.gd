@@ -232,7 +232,7 @@ func _show_padel_ext() -> void:
 # ---------------- Cafe Book: membaca ----------------
 # Buku = karya klasik; isi halaman berupa intisari/ringkasan bahasa Indonesia (bukan kutipan teks asli).
 const BOOKS := [
-	{"t": "The Art of War", "src": "Sun Tzu · intisari bebas (domain publik)", "p": [
+	{"t": "The Art of War", "src": "Sun Tzu · terjemahan lengkap 13 bab (domain publik)", "file": "res://assets/books/art_of_war.txt", "p": [
 		["Perang adalah urusan hidup dan mati sebuah negeri. Karena itu, Sun Tzu mengajarkan: pikirkan matang-matang sebelum bertindak.", "Lima hal menentukan kemenangan: tujuan yang menyatukan semua orang, waktu dan cuaca, medan, kepemimpinan, serta aturan yang jelas."],
 		["Kemenangan terbaik adalah menang tanpa bertempur. Mematahkan rencana lawan lebih bijak daripada menghancurkan pasukannya.", "Kenali dirimu dan kenali lawanmu, maka kamu tidak perlu takut pada seratus pertempuran. Kenal salah satunya saja, peluangmu separuh."],
 		["Jadilah seperti air: mengikuti bentuk wadahnya. Air menghindari tempat tinggi dan mengalir ke tempat rendah.", "Begitu juga strategi: hindari kekuatan lawan, serang kelemahannya, dan selalu siap berubah mengikuti keadaan."],
@@ -301,7 +301,7 @@ var _rt_dim: ColorRect
 func _show_cafe_in() -> void:
 	_clear()
 	view = "cafe_in"
-	page = 0
+	_load_page()
 	_bg("res://assets/side/cafe_in.jpg")
 	_bk = _Book.new()
 	_bk.font = font
@@ -335,7 +335,7 @@ func _show_cafe_in() -> void:
 	_bottom([["Keluar Cafe", D.C_GREEN, _show_cafe_ext], ["Order Minuman", D.C_PINK, _order],
 		["Baca Buku Lain", D.C_YELLOW, func():
 			book = (book + 1) % BOOKS.size()
-			page = 0
+			_load_page()
 			game.sfx("pop", -6.0)
 			game.ui.toast("Membuka \"%s\"" % BOOKS[book].t)
 			_render_book()]], 2262)
@@ -372,10 +372,79 @@ func _dim(r: Rect2) -> ColorRect:
 	return c
 
 
+# ---------- Buku lengkap: teks dari file, dipecah otomatis jadi halaman ----------
+var _page_cache := {}
+const PAGE_W := 300.0
+const PAGE_H := 415.0
+const PAGE_FS := 27
+
+
+func _pages(i: int) -> Array:
+	if _page_cache.has(i): return _page_cache[i]
+	var b: Dictionary = BOOKS[i]
+	if not b.has("file"):
+		_page_cache[i] = b.p
+		return b.p
+	var f := FileAccess.open(str(b.file), FileAccess.READ)
+	var txt := f.get_as_text() if f else ""
+	var sides: Array = []
+	var cur := ""
+	var first := true
+	var fits := func(t: String) -> bool:
+		var lim := PAGE_H - (36.0 if first else 0.0)
+		var w := PAGE_W if sides.size() % 2 == 0 else PAGE_W + 34.0   # halaman kanan sedikit lebih lebar
+		return font.get_multiline_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, w, PAGE_FS).y <= lim
+	for para in txt.split("\n\n"):
+		para = para.strip_edges()
+		if para == "": continue
+		if para.begins_with("# "):
+			# Bab baru selalu mulai di halaman baru.
+			if cur != "": sides.append(cur); first = false
+			cur = para.substr(2).to_upper() + "\n"
+			continue
+		var cand := (cur + "\n" + para) if cur != "" and not cur.ends_with("\n") else cur + para
+		if fits.call(cand):
+			cur = cand
+			continue
+		# paragraf dipotong per kata
+		var words := para.split(" ")
+		var line := cur + ("\n" if cur != "" and not cur.ends_with("\n") else "")
+		for w in words:
+			var t2 := line + ("" if line == "" or line.ends_with("\n") else " ") + w
+			if fits.call(t2):
+				line = t2
+			else:
+				sides.append(line.strip_edges(false, true))
+				first = false
+				line = w
+		cur = line
+	if cur != "": sides.append(cur)
+	if sides.size() % 2 == 1: sides.append("")
+	var out: Array = []
+	for k in range(0, sides.size(), 2):
+		out.append([sides[k], sides[k + 1]])
+	_page_cache[i] = out
+	return out
+
+
+func _save_page() -> void:
+	var S: Dictionary = game.S
+	if not S.has("side"): S.side = {}
+	if not S.side.has("bkpg"): S.side.bkpg = {}
+	S.side.bkpg[str(book)] = page
+
+
+func _load_page() -> void:
+	var S: Dictionary = game.S
+	page = int(S.get("side", {}).get("bkpg", {}).get(str(book), 0))
+	page = clampi(page, 0, _pages(book).size() - 1)
+
+
 func _render_book() -> void:
 	var b: Dictionary = BOOKS[book]
-	var n: int = b.p.size()
-	_bk.set_pages(b.t, b.src, b.p[page][0], b.p[page][1], page, n)
+	var pp := _pages(book)
+	var n: int = pp.size()
+	_bk.set_pages(b.t, b.src, pp[page][0], pp[page][1], page, n)
 	_coffee_bar.size.x = 380.0 * clampf(focus, 0, 1)
 	_cup_bar.size.x = 380.0 * clampf(coffee, 0, 1)
 	_mug.level = coffee
@@ -390,7 +459,8 @@ func _render_book() -> void:
 
 
 func _flip(d: int) -> void:
-	var n: int = BOOKS[book].p.size()
+	var pp := _pages(book)
+	var n: int = pp.size()
 	if d > 0 and focus <= 0.15:
 		game.ui.toast("Maryam mulai ngantuk... minum kopinya dulu!", "bad")
 		_mug.wiggle()
@@ -400,7 +470,19 @@ func _flip(d: int) -> void:
 		if d > 0: game.ui.toast("Buku ini sudah tamat. Coba buku lain!")
 		return
 	page = np
-	if d > 0: focus = maxf(0.0, focus - 0.2)
+	_save_page()
+	if d > 0: focus = maxf(0.0, focus - (0.2 if n <= 12 else 0.08))
+	# Bonus kecil tiap mulai bab baru (buku lengkap).
+	if d > 0 and BOOKS[book].has("file"):
+		for side in pp[page]:
+			if str(side).begins_with("BAB "):
+				var key := "bab%d_%s" % [book, str(side).get_slice("\n", 0)]
+				var S: Dictionary = game.S
+				if not S.has("side"): S.side = {}
+				if not S.side.has(key):
+					S.side[key] = true
+					game.add_xp(3)
+					game.ui.toast("Mulai %s · +3 XP" % str(side).get_slice("\n", 0).capitalize())
 	_bk.turn(d)
 	game.sfx("pop", -8.0)
 	if page == n - 1 and _toast_once("baca%d" % book):
@@ -589,9 +671,12 @@ class _Mug extends Node2D:
 	var _tex_sip: Texture2D = preload("res://assets/side/cafe_mug_sip.png")
 	const ORG := Vector2(876, 1600)
 	const PIV := Vector2(1284, 1824)
-	const C := Vector2(1053, 1697)
-	const RX := 168.0
-	const RY := 74.0
+	const C := Vector2(1046, 1703)
+	const RX := 180.0
+	const RY := 80.0
+	const HR := 3.0                     # tekstur 3x lebih tajam untuk zoom
+	const ZMAX := 4.2                   # saat diseruput gelas mendekat sampai memenuhi layar
+	const ZPIV := Vector2(1719, 1470)
 	const DUR := 1.5
 
 	var _inited := false
@@ -633,16 +718,17 @@ class _Mug extends Node2D:
 
 	func _draw() -> void:
 		var e := _lift()
-		var z := 1.0 + 0.5 * e
-		var piv := PIV + Vector2(-10, -25) * e + Vector2(sin(t * 40.0) * 8.0 * _wig, 0)
-		draw_set_transform(piv, -0.08 * e, Vector2(z, z))
+		var z := lerpf(1.0, ZMAX, e)
+		var piv := PIV.lerp(ZPIV, e) + Vector2(sin(t * 40.0) * 8.0 * _wig, 0)
+		draw_set_transform(piv, -0.05 * e, Vector2(z, z))
 		var o := -PIV
-		if e > 0.35:
-			# saat diseruput: gelas miring, kopinya bergoyang ke bibir gelas
-			draw_texture(_tex_sip, ORG + o)
+		var sz := _tex.get_size() / HR
+		if e > 0.12:
+			# saat diseruput: gelas miring mendekat ke kamera, kopinya bergoyang ke bibir gelas
+			draw_texture_rect(_tex_sip, Rect2(ORG + o, sz), false)
 			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 			return
-		draw_texture(_tex, ORG + o)
+		draw_texture_rect(_tex, Rect2(ORG + o, sz), false)
 		var c := C + o
 		_ell(c, RX - 6, RY - 4, Color("c99a6d"))
 		var lv := _shown
@@ -650,7 +736,7 @@ class _Mug extends Node2D:
 			var drop := (1.0 - lv) * 48.0
 			var s := 1.0 - (1.0 - lv) * 0.2
 			_ell(c + Vector2(0, drop), (RX - 14) * s, (RY - 12) * s, Color("5e3626"))
-			_ell(c + Vector2(-20, drop - 6), (RX - 60) * s, (RY - 34) * s, Color(1, 1, 1, 0.12))
+			_ell(c + Vector2(-20, drop - 6), (RX - 60) * s, (RY - 34) * s, Color(1, 1, 1, 0.06))
 			if e > 0.5:
 				draw_arc(c + Vector2(0, drop), (RX - 40) * (0.6 + 0.4 * sin(t * 9.0)), 0, TAU, 32, Color(1, 1, 1, 0.3), 4)
 			for i in range(3):
