@@ -6545,7 +6545,9 @@ class _HubSign extends Node2D:
 		for reg in [Vector2(L0, L1), Vector2(R0, R1)]:
 			var r := Rect2(reg.x, y0, reg.y - reg.x, fy - y0 + 18)
 			draw_rect(r, Color("1f2448") if space else c.lightened(0.62))
-			draw_rect(Rect2(reg.x, fy - 40, reg.y - reg.x, 58), Color("3b3f52") if space else Color("cfc6b8"))
+			var ft: float = quad[3].y   # lantai lobi setinggi kaki tangga
+			draw_rect(Rect2(reg.x, ft, reg.y - reg.x, fy + 18 - ft), Color("3b3f52") if space else Color("cfc6b8"))
+			draw_line(Vector2(reg.x, ft), Vector2(reg.y, ft), Color(0, 0, 0, 0.15), 3)
 			draw_rect(Rect2(reg.x, y0, reg.y - reg.x, 16), c.darkened(0.2))
 			draw_line(r.position, Vector2(r.end.x, r.position.y), INK, 4)
 			draw_line(Vector2(r.position.x, r.end.y), r.end, INK, 4)
@@ -6592,7 +6594,8 @@ class _HubSign extends Node2D:
 		draw_rect(Rect2(L1 - 4, y0, q0.x - L1 + 4, yb - y0), bg)
 		draw_colored_polygon(PackedVector2Array([q1, Vector2(R0 + 4, y0), Vector2(R0 + 4, yb), Vector2(q2.x, yb), q2]), bg)
 		draw_rect(Rect2(q3.x, q3.y, q2.x - q3.x, yb - q3.y), bg)
-		draw_rect(Rect2(L1 - 4, fy - 40, R0 - L1 + 8, 58), Color("3b3f52") if space else Color("cfc6b8"))
+		draw_rect(Rect2(L1 - 4, q3.y, R0 - L1 + 8, yb - q3.y), Color("3b3f52") if space else Color("cfc6b8"))
+		draw_line(Vector2(L1 - 4, q3.y), Vector2(R0 + 4, q3.y), Color(0, 0, 0, 0.15), 3)
 		draw_rect(Rect2(L1 - 4, y0, R0 - L1 + 8, 16), c.darkened(0.2))
 		draw_line(Vector2(L1, y0), Vector2(R0, y0), INK, 4)
 		draw_line(Vector2(L1, yb), Vector2(R0, yb), INK, 4)
