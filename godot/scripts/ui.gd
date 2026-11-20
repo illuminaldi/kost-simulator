@@ -191,7 +191,7 @@ func setup(p_game: Node, art: Texture2D, p_font: Font, p_font_m: Font) -> void:
 	add_child(ev_badge)
 
 	toasts = VBoxContainer.new()
-	toasts.position = Vector2(80, 225)
+	toasts.position = Vector2(80, 330)   # di bawah tombol Grup & Lantai
 	toasts.size = Vector2(1278, 10)
 	toasts.alignment = BoxContainer.ALIGNMENT_BEGIN
 	toasts.add_theme_constant_override("separation", 12)
@@ -267,6 +267,7 @@ func setup(p_game: Node, art: Texture2D, p_font: Font, p_font_m: Font) -> void:
 	wa_badge.position = Vector2(1190, 200)
 	wa_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(wa_badge)
+	move_child(toasts, get_child_count() - 1)   # balon teks selalu di atas tombol
 
 	tray = PanelContainer.new()
 	var tsb := _sb(D.C_PAPER, 6, 40, 22, 16)
