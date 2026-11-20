@@ -4481,10 +4481,14 @@ func pet_cat() -> void:
 	t.tween_property(cat_spr, "scale", Vector2(0.94, 1.12) * CAT_S, 0.1)
 	t.tween_property(cat_spr, "scale", Vector2.ONE * CAT_S, 0.16).set_trans(Tween.TRANS_BACK)
 	for i in range(3):
-		var h := Label.new()
-		h.text = "♥"
-		h.add_theme_font_size_override("font_size", 54)
-		h.add_theme_color_override("font_color", Color("ff7a8a"))
+		# Hati digambar sebagai poligon (font web tidak punya glyph ♥).
+		var h := Polygon2D.new()
+		var hp := PackedVector2Array()
+		for k in range(24):
+			var a := TAU * k / 24.0
+			hp.append(Vector2(16.0 * pow(sin(a), 3), -(13.0 * cos(a) - 5.0 * cos(2 * a) - 2.0 * cos(3 * a) - cos(4 * a))) * 1.6)
+		h.polygon = hp
+		h.color = Color("ff7a8a")
 		h.position = cat_spr.position + Vector2(randf_range(-50, 40), -130)
 		h.z_index = 45
 		lobby_root.add_child(h)

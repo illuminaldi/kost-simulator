@@ -6,7 +6,7 @@ extends Control
 
 const RING := ["kost", "cafe", "padel"]
 # Pemandangan di antara dua tujuan, searah "kiri" (indeks naik).
-const SCENERY := {"kost>cafe": "kota", "cafe>padel": "taman", "padel>kost": "gunung"}
+const SCENERY := {"kost>cafe": "taman", "cafe>padel": "taman", "padel>kost": "taman"}
 const NAMES := {"gunung": "Jalan Desa", "kost": "Kost", "cafe": "Cafe Book", "padel": "Lapangan Padel", "kota": "Jalan Kota", "taman": "Taman Kota"}
 
 var game: Node
@@ -99,6 +99,7 @@ func _bg(path: String) -> void:
 	tr.stretch_mode = TextureRect.STRETCH_SCALE
 	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_layer.add_child(tr)
+	_bgrect = tr
 
 
 func _hit(r: Rect2, cb: Callable) -> void:
@@ -364,7 +365,7 @@ func _render_book() -> void:
 	elif page >= n - 1:
 		_cafe_hint_lbl.text = "Tamat! Ketuk Baca Buku Lain"
 	else:
-		_cafe_hint_lbl.text = "Geser halaman ke kiri / ketuk > (hal. %d dari %d)" % [page * 2 + 3, n * 2]
+		_cafe_hint_lbl.text = "Hal. %d-%d dari %d · geser untuk balik" % [page * 2 + 1, page * 2 + 2, n * 2]
 
 
 func _flip(d: int) -> void:
@@ -535,12 +536,16 @@ class _Mug extends Node2D:
 	const RY := 56.0
 	const DUR := 1.5
 
+	var _inited := false
 	func sip() -> void: _a = 0.001
 	func wiggle() -> void: _wig = 1.0
 	func refill() -> void: _shown = 0.0
 
 	func _process(dt: float) -> void:
 		t += dt
+		if not _inited:
+			_inited = true
+			_shown = level
 		if _a > 0.0:
 			_a += dt / DUR
 			if _a >= 1.0: _a = 0.0
@@ -593,7 +598,9 @@ class _Mug extends Node2D:
 					pts.append(c + Vector2(-40 + i * 40 + sin(t * 2.0 + j * 0.7 + i) * 18, -40 - k * 260 - j * 18))
 				draw_polyline(pts, Color(1, 1, 1, a), 12)
 		else:
-			draw_arc(c + Vector2(0, 20), RX - 40, 0.3, PI - 0.3, 16, Color(0.43, 0.27, 0.2, 0.5), 6)
+			# gelas kosong: dasar gelas kecokelatan sisa kopi, tanpa uap
+			_ell(c + Vector2(0, 26), RX - 40, RY - 26, Color("cdb08d"))
+			_ell(c + Vector2(-6, 30), RX - 90, RY - 44, Color("9c7451", 0.55))
 		draw_set_transform(Vector2.ZERO)
 
 
@@ -628,10 +635,12 @@ class _CafeLife extends Node2D:
 				continue
 			w.x += w.dir * 70.0 * dt
 			if not w.paused and absf(w.x - w.stop) < 4.0:
+				# berhenti di depan kasir, menyapa, lalu balik arah (tidak menembus meja pengunjung)
 				w.paused = true
 				w.pause = 2.2
+				w.dir = -1
 				bubble = {"p": Vector2(w.x, PATH_Y - 230), "s": ["Permisi~", "Halo!", "Antre dulu ah.", "Wah, ramai ya."].pick_random(), "t": 2.2}
-			if w.x < -150 or w.x > 900: walkers.erase(w)
+			if w.x < -160: walkers.erase(w)
 		_chat_t -= dt
 		if _chat_t <= 0.0:
 			_chat_t = 2.8
@@ -647,11 +656,11 @@ class _CafeLife extends Node2D:
 
 	func _add_walker() -> void:
 		var ch: String = WALK_CHARS.pick_random()
-		var d := 1 if randf() < 0.5 else -1
+		var d := 1
 		var f: Array = []
 		for k in ["walk", "walk2", "idle"]:
 			f.append(load("res://assets/chars/%s/%s_L.png" % [ch, k]))
-		walkers.append({"f": f, "x": -120.0 if d > 0 else 880.0, "dir": d, "stop": randf_range(120, 520), "pause": 0.0, "paused": false, "ph": randf()})
+		walkers.append({"f": f, "x": -120.0, "dir": d, "stop": randf_range(160, 380), "pause": 0.0, "paused": false, "ph": randf()})
 
 	func _draw() -> void:
 		for w in walkers:
@@ -683,7 +692,7 @@ class _CafeLife extends Node2D:
 
 
 # ---------------- Lapangan Padel ----------------
-# Maryam melawan Ryan atau Aji; Kak Ray jadi pelatih di pinggir lapangan.
+# Maryam melawan Ryan atau Aji.
 const FOES := [["Ryan", 0.55, "padel_ryan"], ["Aji", 0.75, "padel_aji"]]
 var foe := 0
 var pts := [0, 0]
@@ -692,11 +701,8 @@ var _foe_lbl: Label
 var _ball: _Ball
 var _msg: Label
 var _hint: Label
-var _ray_lbl: Label
-var _ray_box: PanelContainer
 var _mar: TextureRect
 var _opp: TextureRect
-var _ray: TextureRect
 var _tut := 0          # 0 sapa, 1 lihat bola, 2 tunggu lingkaran, 3 pukul!, 4 selesai
 var _rally := 0
 
@@ -719,14 +725,13 @@ func _show_padel() -> void:
 	_opp = _sprite("res://assets/chars/%s/ready_L.png" % FOES[foe][2], 0.6, Vector2(800, 1060))
 	_ball = _Ball.new()
 	_layer.add_child(_ball)
-	_ray = _sprite("res://assets/chars/trainer/clip_L.png", 1.15, Vector2(185, 2140))
 	_mar = _sprite("res://assets/chars/padel_back/ready_L.png", 1.7, Vector2(820, 2130))
 	_ball.player = _mar
 	_ball.missed.connect(_point.bind(1))
 	_ball.foe_missed.connect(_point.bind(0))
 	_ball.hit_ok.connect(_on_hit)
 	# Papan skor
-	var sp := _panel(Rect2(420, 210, 600, 120))
+	var sp := _panel(Rect2(420, 210, 600, 175))
 	var hb := HBoxContainer.new()
 	hb.alignment = BoxContainer.ALIGNMENT_CENTER
 	hb.add_theme_constant_override("separation", 22)
@@ -744,18 +749,6 @@ func _show_padel() -> void:
 	_msg.position = Vector2(0, 1480)
 	_msg.size = Vector2(D.IW, 120)
 	_layer.add_child(_msg)
-	# Gelembung Kak Ray
-	_ray_box = _panel(Rect2(40, 1440, 640, 220), Color("fffaf0"))
-	var rv := VBoxContainer.new()
-	rv.add_theme_constant_override("separation", 4)
-	_ray_box.add_child(rv)
-	var rn := _lbl("Kak Ray · Pelatih", 30, Color("8a5a3a"))
-	rn.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	rv.add_child(rn)
-	_ray_lbl = _lbl("", 36, D.C_INK, true)
-	_ray_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	_ray_lbl.custom_minimum_size = Vector2(590, 0)
-	rv.add_child(_ray_lbl)
 	# Petunjuk yang mengikuti keadaan bola
 	_hint = _lbl("", 44, Color("fff6e6"))
 	_hint.add_theme_color_override("font_outline_color", D.C_LINE)
@@ -776,16 +769,25 @@ func _show_padel() -> void:
 	if not S.has("side"): S.side = {}
 	_tut = 4 if S.side.get("padel_tut", false) else 0
 	if _tut == 0:
-		_ray_say("Halo Mbak Maryam! Aku Kak Ray. Hari ini lawanmu %s. Perhatikan bola dari seberang net, ya." % FOES[foe][0])
+		_ray_say("Lawanmu hari ini %s. Perhatikan bola dari seberang net, pukul saat masuk lingkaran putih." % FOES[foe][0])
 	else:
 		_ray_say("Selamat datang lagi! Lawanmu %s. Ingat: pukul saat bola masuk lingkaran putih." % FOES[foe][0])
 	_new_match()
 
 
+## Pesan arahan tampil di satu papan kecil di bawah skor (menggantikan pesan sebelumnya).
+var _tip: PanelContainer
+var _tip_lbl: Label
 func _ray_say(t: String) -> void:
-	_ray_lbl.text = t
-	_ray_box.modulate.a = 1.0
-	_ray.texture = load("res://assets/chars/trainer/%s_L.png" % ("happy" if t.find("!") >= 0 else "clip"))
+	if _tip == null or not is_instance_valid(_tip):
+		_tip = _panel(Rect2(140, 400, D.IW - 280, 110), Color(1, 0.98, 0.94, 0.9))
+		_tip_lbl = _lbl("", 32, D.C_INK, true)
+		_tip.add_child(_tip_lbl)
+	_tip_lbl.text = t
+	_tip.modulate.a = 1.0
+	var tw := _tip.create_tween()
+	tw.tween_interval(4.0)
+	tw.tween_property(_tip, "modulate:a", 0.0, 0.6)
 
 
 func _new_match() -> void:
@@ -815,7 +817,15 @@ func _say(t: String) -> void:
 	tw.tween_property(_msg, "modulate:a", 0.0, 0.4)
 
 
+var _bgrect: TextureRect
+
+
 func _process(_dt: float) -> void:
+	# Pencahayaan ikut jam di game (malam lebih gelap), hanya latar & suasana.
+	if visible and _layer:
+		var tint: Color = game.canvas_mod.color.lerp(Color.WHITE, 0.3)
+		for c in _layer.get_children():
+			if c == _bgrect or c is _CafeLife or c is _Walk or c is _Mug: c.modulate = tint
 	if view != "padel" or _ball == null: return
 	if _op_t > 0.0:
 		_op_t -= _dt
@@ -850,7 +860,7 @@ func _process(_dt: float) -> void:
 	else:
 		_hint.text = "%s bersiap servis..." % FOES[foe][0]
 		_hint.add_theme_color_override("font_color", Color("fff6e6"))
-	# Tutorial Kak Ray mengikuti apa yang terjadi di lapangan
+	# Tutorial mengikuti apa yang terjadi di lapangan
 	if _tut == 0 and _ball.state == "in":
 		_tut = 1
 		_ray_say("Itu bolanya datang! Jangan buru-buru, tunggu sampai bola turun ke dekatmu.")
@@ -1078,7 +1088,7 @@ class _Walk extends Node2D:
 		draw_texture_rect(tex, r, false)
 		# Papan keterangan
 		if font:
-			var txt := "%s  →  %s" % [from, dest] if dir > 0 else "%s  ←  %s" % [dest, from]
+			var txt := "%s  >  %s" % [from, dest] if dir > 0 else "%s  <  %s" % [dest, from]
 			var tw := font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 52).x
 			var pr := Rect2(W / 2.0 - tw / 2.0 - 40, 300, tw + 80, 100)
 			draw_rect(pr, Color("fbf3e6"))
@@ -1342,7 +1352,7 @@ class _Walk extends Node2D:
 	func _label_draw() -> void:
 		var W := float(D.IW)
 		if font:
-			var txt := "%s  →  %s" % [from, dest] if dir > 0 else "%s  ←  %s" % [dest, from]
+			var txt := "%s  >  %s" % [from, dest] if dir > 0 else "%s  <  %s" % [dest, from]
 			var tw := font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 52).x
 			var pr := Rect2(W / 2.0 - tw / 2.0 - 40, 300, tw + 80, 100)
 			draw_rect(pr, Color("fbf3e6"))

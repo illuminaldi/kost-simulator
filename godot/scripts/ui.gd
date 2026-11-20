@@ -444,7 +444,7 @@ func _header(title: String, closable: bool = true) -> void:
 	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	h.add_child(t)
 	if closable:
-		var xb := _btn("✕", Color.WHITE, close_sheet)
+		var xb := _btn("×", Color.WHITE, close_sheet)
 		xb.custom_minimum_size = Vector2(120, 110)
 		h.add_child(xb)
 	box.add_child(h)
@@ -676,7 +676,7 @@ func _build_tray() -> void:
 			if slv < D.STAIRS.size() - 1:
 				var nx: Dictionary = D.STAIRS[slv + 1]
 				var okl: bool = int(S.lvl) >= int(nx.lv)
-				_buy_row("stair%d" % slv, sat, "Upgrade Tangga → %s" % nx.n, "%s Sewa semua kamar +%d%%, penghuni naik-turun lebih cepat." % [nx.d, roundi(float(nx.bonus) * 100.0)], ("Sekarang: %s (Lv %d/%d)" % [D.STAIRS[slv].n, slv, D.STAIRS.size() - 1]) if okl else "Terbuka di Level %d" % int(nx.lv), float(nx.cost), okl, "Upgrade", func(): game.stair_upgrade())
+				_buy_row("stair%d" % slv, sat, "Upgrade Tangga: %s" % nx.n, "%s Sewa semua kamar +%d%%, penghuni naik-turun lebih cepat." % [nx.d, roundi(float(nx.bonus) * 100.0)], ("Sekarang: %s (Lv %d/%d)" % [D.STAIRS[slv].n, slv, D.STAIRS.size() - 1]) if okl else "Terbuka di Level %d" % int(nx.lv), float(nx.cost), okl, "Upgrade", func(): game.stair_upgrade())
 			else:
 				_buy_row("stairmax", sat, "Eskalator", "Tangga sudah level maksimal.", "Sudah terpasang", 0.0, false, "Upgrade", func(): pass)
 			for k in D.FACIL_ORDER:
@@ -1357,7 +1357,7 @@ func _sheet_fire() -> void:
 	box.add_child(_text("Api bisa menjalar ke kamar sebelah, atas, atau bawah kalau terlalu lama. Segera panggil pemadam!", 32, D.C_INK))
 	var v := _card()
 	v.add_child(_btn("Panggil Damkar · Rp 500rb", D.C_RED, func(): game.call_damkar_paid(rid)))
-	v.add_child(_text("Langganan Damkar (menu Karyawan → Outsource) membuat damkar datang otomatis & gratis.", 28, D.C_MUTED))
+	v.add_child(_text("Langganan Damkar (menu Karyawan › Outsource) membuat damkar datang otomatis & gratis.", 28, D.C_MUTED))
 
 
 func _sheet_rename() -> void:
@@ -1429,7 +1429,7 @@ func _cand_card(p: Dictionary, room_ctx: String = "") -> void:
 		for rid in er:
 			var r: Dictionary = S.rooms[rid]
 			var ok := int(r.lv) >= int(p.pref)
-			f.add_child(_btn("%s · %s%s" % [D.room_name(rid), D.RLV[int(r.lv)].n, " ✓" if ok else ""], D.C_YELLOW, func(): _do("assign", "%s|%s" % [p.id, rid])))
+			f.add_child(_btn("%s · %s%s" % [D.room_name(rid), D.RLV[int(r.lv)].n, " • cocok" if ok else ""], D.C_YELLOW, func(): _do("assign", "%s|%s" % [p.id, rid])))
 		f.add_child(_btn("Batal", D.C_CREAM, func(): sel = ""; refresh_sheet()))
 	else:
 		f.add_child(_btn("Terima", D.C_GREEN, func(): sel = p.id; refresh_sheet()))
@@ -2191,7 +2191,7 @@ func _sheet_paint() -> void:
 	var gain: float = game.paint_comfort(sel) - game.paint_comfort(cur)
 	_row(tv, _label("Total", 40), _label(D.rp(c), 42))
 	if absf(gain) > 0.01:
-		tv.add_child(_text("Kenyamanan %+.1f → sewa ikut %s" % [gain, "naik" if gain > 0 else "turun"], 30, D.C_MUTED))
+		tv.add_child(_text("Kenyamanan %+.1f, sewa ikut %s" % [gain, "naik" if gain > 0 else "turun"], 30, D.C_MUTED))
 	tv.add_child(_text("Pratinjau langsung terlihat di gedung. Penghuni ikut senang kalau kamarnya didekorasi.", 30, D.C_MUTED))
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 26)
