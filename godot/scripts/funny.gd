@@ -1,7 +1,7 @@
 class_name Funny
 extends Node
 ## Kejadian kocak bulanan: kira-kira satu kali tiap bulan game ada satu kejadian lucu.
-## beruang  : Oyen tertukar anak beruang; induknya datang sopan menjemput, tamu kabur ketakutan.
+## beruang  : Mpus tertukar anak beruang; induknya datang sopan menjemput, tamu kabur ketakutan.
 ## petir    : satu kamar tersambar petir, gosong, harus direnovasi.
 ## maling   : maling memanjat dinding luar; ketuk dia sebelum sampai jendela.
 ## hantu    : "hantu" di jendela kamar kosong (ternyata gorden). Calon penyewa menolak kamar itu.
@@ -160,7 +160,7 @@ func tap(p: Vector2) -> bool:
 func sheet(k: String) -> Dictionary:
 	match k:
 		"beruang":
-			return {"t": "Anak Beruang di Lobi", "d": "Oyen menghilang... dan di bantalnya malah tidur seekor anak beruang! Calon penyewa takut masuk. Induknya pasti sedang mencari.",
+			return {"t": "Anak Beruang di Lobi", "d": "Mpus menghilang... dan di bantalnya malah tidur seekor anak beruang! Calon penyewa takut masuk. Induknya pasti sedang mencari.",
 				"o": [["Tunggu induknya datang", D.C_CREAM, 0.0, func(): game.ui.close_sheet(); game.keeper_say("Sabar ya, Dek Beruang. Mamamu pasti datang.", 3.5)],
 					["Telepon Damkar (langsung dijemput)", D.C_YELLOW, 200000.0, func(): game.ui.close_sheet(); _call_damkar()]]}
 		"durian":
@@ -177,8 +177,8 @@ func _start_bear() -> void:
 	f.mama_at = int(S.day) * 24 + int(S.min) / 60 + 5
 	_show_cub()
 	game.sfx("bear", -4.0)
-	game.ui.toast("Lho, itu bukan Oyen... itu ANAK BERUANG! Ketuk untuk pilihan.", "bad")
-	game.keeper_say("Ya ampun! Oyen ke mana?! Ini kok... beruang?", 4.0)
+	game.ui.toast("Lho, itu bukan Mpus... itu ANAK BERUANG! Ketuk untuk pilihan.", "bad")
+	game.keeper_say("Ya ampun! Mpus ke mana?! Ini kok... beruang?", 4.0)
 	_scare_guests("Aaaa! Ada beruang!")
 
 
@@ -243,7 +243,7 @@ func _call_damkar() -> void:
 	game.spend(200000, "other")
 	if mama != null: return
 	_bear_done(false)
-	game.ui.toast("Petugas Damkar menjemput anak beruang dengan aman. Oyen pulang dari atap!", "gold")
+	game.ui.toast("Petugas Damkar menjemput anak beruang dengan aman. Mpus pulang dari atap!", "gold")
 
 
 func _bear_done(polite: bool) -> void:
@@ -259,7 +259,7 @@ func _bear_done(polite: bool) -> void:
 	game.sfx("meow", -4.0)
 	if polite:
 		S.money = float(S.money) + 150000
-		game.ui.toast("Induk beruang pamit sopan dan meninggalkan sebotol madu (+Rp 150rb). Oyen keluar dari kolong meja!", "gold")
+		game.ui.toast("Induk beruang pamit sopan dan meninggalkan sebotol madu (+Rp 150rb). Mpus keluar dari kolong meja!", "gold")
 		game.add_xp(15)
 	game.dirty = true
 
@@ -503,7 +503,7 @@ class _Bear extends Node2D:
 			draw_polyline(pts, INK, 5.0 if not small else 4.0, true)
 	func _draw() -> void:
 		if small:
-			# Anak beruang meringkuk tidur di bantal Oyen
+			# Anak beruang meringkuk tidur di bantal Mpus
 			var br := sin(t * 2.0) * 3.0
 			_ell(Vector2(0, -10), Vector2(100, 22), Color("e7c9a0"))
 			_ell(Vector2(0, -48), Vector2(78, 46 + br * 0.4), FUR)

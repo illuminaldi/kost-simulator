@@ -213,6 +213,17 @@ func _art_tex(p: String) -> Texture2D:
 	return _art_cache[path]
 
 
+var _hmul := 1.0
+
+
+func _art_ref_h(k: float) -> float:
+	var path := "res://assets/chars/%s/idle_%s.png" % [char_id, "L" if k > 1.5 else "R"]
+	if not _art_cache.has(path):
+		_art_cache[path] = load(path) if ResourceLoader.exists(path) else null
+	var t: Texture2D = _art_cache[path]
+	return t.get_height() if t else 0.0
+
+
 var _base_bub := ["", false]
 var chat_t := 0.0
 var chat_with: Npc = null
@@ -398,6 +409,14 @@ func _refresh() -> void:
 		_sp.texture = t
 		var sz := t.get_size()
 		_sp.offset = Vector2(-sz.x / 2.0, -sz.y)
+		# Pose berdiri ekspresi (senang/kesal/pusing...) digambar lebih pendek dari idle:
+		# samakan tingginya supaya karakter tidak tiba-tiba menyusut.
+		_hmul = 1.0
+		if use_art and pose != "lie" and pose != "sit" and pose != "work" and pose != "sweep" and pose != "fix":
+			var bn := t.resource_path.get_file().get_basename().trim_suffix("_L").trim_suffix("_R")
+			if bn in ["happy", "angry", "annoyed", "sad", "tired", "run", "shock", "cheer"]:
+				var ref := _art_ref_h(k)
+				if ref > 0.0 and sz.y < ref * 0.97: _hmul = clampf(ref / sz.y, 1.0, 1.2)
 	if pose == "lie":
 		# Kepala di sisi sandaran kasur: kamar kanan -> kepala di kanan.
 		_sp.flip_h = scene.length() == 2 and scene.ends_with("R")
@@ -425,7 +444,7 @@ func _refresh() -> void:
 		_sp.scale = Vector2.ONE
 	if pose == "lie" and use_art:
 		_sp.scale = Vector2(1.45, 1.45)
-	_sp.scale *= size_mul
+	_sp.scale *= size_mul * _hmul
 	_zz.visible = pose == "lie" and not use_art
 	if _zz.visible:
 		_zz.position = Vector2(-20, -100 + sin(anim * 2.0) * 8.0)

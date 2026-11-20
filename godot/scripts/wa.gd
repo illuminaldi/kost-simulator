@@ -13,10 +13,9 @@ const GOSSIP := [
 	["WiFi kencang banget hari ini, mantap!", "Iya, nonton drakor lancar jaya."],
 	["Ada yang lihat sandal jepit biru? Hilang di depan kamar.", "Kayaknya dipakai kucing kost tidur deh"],
 	["Info: galon di dapur udah diganti ya.", "Makasih infonya!"],
-	["Yang parkir motor merah, lampunya masih nyala!", "Waduh punyaku, makasih udah ngingetin!"],
 	["Selamat pagi semua! Semangat kerja & kuliahnya", "Pagi! Semangat juga!"],
 	["Ada yang mau joging bareng sore ini?", "Ikut! Jam 5 di lobi ya."],
-	["Oyen (kucing kost) tidur di depan kamarku lagi", "Lucu banget, jangan diusir ya."],
+	["Mpus (kucing kost) tidur di depan kamarku lagi", "Lucu banget, jangan diusir ya."],
 	["Malam ini nonton bola bareng di lobi?", "Gas! Aku bawa kacang.", "Aku bawa kopi sachet."],
 	["Siapa yang suka nyanyi di kamar mandi? Suaranya bagus juga", "Ketahuan deh..."],
 ]

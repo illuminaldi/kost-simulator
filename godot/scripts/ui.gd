@@ -1526,6 +1526,13 @@ func _sheet_backup() -> void:
 		if why != "": toast(why, "bad")))
 
 
+## Tombol bayar diamond: kalau diamond kurang, langsung jadi tombol ke Toko (bukan pesan error).
+func _dia_btn(label: String, cost: int, cb: Callable) -> Button:
+	if int(game.W.diamonds) >= cost:
+		return _btn("%s · %d Diamond" % [label, cost], Color("bfe3f5"), cb)
+	return _btn("%s · %d Diamond (Beli di Toko)" % [label, cost], Color("e6eef2"), func(): open_sheet("toko"))
+
+
 func _te_style(te: TextEdit) -> void:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color("fffaf0")
@@ -1655,7 +1662,7 @@ func _sheet_room() -> void:
 				v.add_child(_label("Sedang direnovasi · sisa %s waktu nyata" % game.fmt_real(left), 34, Color("3f6f96"), true))
 				v.add_child(_text("Tukang bekerja 24 jam waktu nyata dan tetap jalan walau game ditutup. Mau cepat? Pakai Diamond.", 28, D.C_MUTED))
 				var dc: int = game.renov_speed_cost()
-				v.add_child(_btn("Percepat · %d Diamond" % dc, Color("bfe3f5"), func(): game.renov_speedup(); refresh_sheet(), int(game.W.diamonds) < dc, false, "Diamond tidak cukup (punya %d, butuh %d)" % [int(game.W.diamonds), dc]))
+				v.add_child(_dia_btn("Percepat", dc, func(): game.renov_speedup(); refresh_sheet()))
 			elif fln == nxt:
 				v.add_child(_btn("Mulai Renovasi (24 jam) · " + D.short(D.floor_cost(fln)), D.C_YELLOW, func(): game.renovate_floor(fln), float(S.rep) < D.floor_rep(fln) or float(S.money) < D.floor_cost(fln), false, ("Rating kost harus minimal %.1f" % D.floor_rep(fln)) if float(S.rep) < D.floor_rep(fln) else money_why(D.floor_cost(fln))))
 			else:
@@ -1667,7 +1674,7 @@ func _sheet_room() -> void:
 				v.add_child(_text("%s sedang membangun kamar ini." % D.worker_label("build"), 38))
 				v.add_child(_label("Sisa ± %d jam game (± %s nyata pada 1x)" % [ceili(float(bj.t) / 60.0), game.fmt_real(float(bj.t) / game.GAME_MIN_PER_SEC)], 32, Color("3f6f96"), true))
 				var jc: int = game.job_speed_cost(bj)
-				v.add_child(_btn("Selesaikan sekarang · %d Diamond" % jc, Color("bfe3f5"), func(): game.job_speedup(id, "build"), int(game.W.diamonds) < jc, false, "Diamond tidak cukup (punya %d, butuh %d)" % [int(game.W.diamonds), jc]))
+				v.add_child(_dia_btn("Selesaikan sekarang", jc, func(): game.job_speedup(id, "build")))
 				return
 			v.add_child(_text("Bangun kamar Standar baru di sini.", 38))
 			_row(v, _label(D.rp(c), 42), _btn("Bangun", D.C_GREEN, func(): _do("build", id), float(S.money) < c, false, money_why(c)))
@@ -1908,6 +1915,8 @@ func _staff_list() -> void:
 			col.add_child(_label("Kelelahan %d%%%s" % [roundi(tr2), "  · MOGOK sampai besok" if game.staff_strike(k) else ""], 30, Color("9b2f1c") if tr2 >= 70 else D.C_MUTED, true))
 			_bar(col, 100.0 - tr2, Color("e98b7a") if tr2 >= 70 else Color("8fc77a"))
 			col.add_child(_label("%s · kinerja %d%% (lebih cepat & pintar)" % [game.staff_rank(k), roundi(game.staff_perf(k) * 100.0)], 30, Color("2f7a2a"), true))
+			if game.staff_crew(k) > 1:
+				col.add_child(_label("%d personil (1 per cabang) · gaji x%d" % [game.staff_crew(k), game.staff_crew(k)], 30, Color("2f6a8a"), true))
 			if true:
 				var uc: float = game.staff_up_cost(k)
 				f.add_child(_btn("Upgrade ke Lv %d · %s" % [lvk + 1, D.short(uc)], D.C_YELLOW, func(): _do("staff_up", k), float(S.money) < uc, false, money_why(uc)))
@@ -1961,7 +1970,7 @@ func _sheet_facil() -> void:
 		v.add_child(_label("%s sedang dibangun" % D.FACIL[j.item].n, 40))
 		v.add_child(_text("%s sedang bekerja." % D.worker_label("build"), 32, D.C_MUTED))
 		var fjc: int = game.job_speed_cost(j)
-		v.add_child(_btn("Selesaikan sekarang · %d Diamond" % fjc, Color("bfe3f5"), func(): game.job_speedup("S%d" % f, "fbuild"), int(game.W.diamonds) < fjc, false, "Diamond tidak cukup (punya %d, butuh %d)" % [int(game.W.diamonds), fjc]))
+		v.add_child(_dia_btn("Selesaikan sekarang", fjc, func(): game.job_speedup("S%d" % f, "fbuild")))
 	else:
 		v.add_child(_label("Belum ada fasilitas", 40))
 		v.add_child(_text("Bangun satu fasilitas tambahan di samping tangga. Fasilitas menambah kebahagiaan, harga sewa, dan pemasukan.", 30, D.C_MUTED))
@@ -2201,7 +2210,7 @@ func _sheet_manage() -> void:
 	_row(v, _label("Penghuni selesai", 38, D.C_INK, true), _label("%d orang" % int(S.total.served), 40))
 	var fl := []
 	for k in S.fac:
-		fl.append(D.FAC[k].n)
+		if D.FAC.has(k): fl.append(D.FAC[k].n)
 	if fl.size() > 0:
 		v.add_child(_text("Fasilitas: " + ", ".join(fl), 34, D.C_MUTED))
 	_kelolapro_stats(occ, tot)

@@ -108,6 +108,8 @@ func _hit(r: Rect2, cb: Callable) -> void:
 	b.position = r.position
 	b.size = r.size
 	b.focus_mode = Control.FOCUS_NONE
+	# Langsung aktif saat disentuh: di HP event "jari diangkat" kadang hilang.
+	b.action_mode = BaseButton.ACTION_MODE_BUTTON_PRESS
 	var e := StyleBoxEmpty.new()
 	for st in ["normal", "hover", "pressed", "focus", "disabled"]:
 		b.add_theme_stylebox_override(st, e)
@@ -816,13 +818,13 @@ func _show_padel() -> void:
 		_chat("Mustofa", [["Mustofa", "Mbak Maryam, sore ini padel yuk? Aku udah booking lapangan di taman."],
 			["Maryam", "Boleh! Lagi pusing ngurus kost, pas banget buat olahraga."],
 			["Mustofa", "Sip! Aku ajarin dulu ya, gampang kok."]], func():
-				_ray_say("Lawanmu %s. Lingkaran kuning = tempat bola jatuh. Geser ke situ, lalu geser ke ATAS untuk memukul." % FOES[foe][0])
+				_ray_say("Lawanmu %s. Maryam lari sendiri ke arah bola. Ketuk layar saat bola masuk lingkaran putih!" % FOES[foe][0])
 				_new_match())
 		return
 	if _tut == 0:
 		_ray_say("Lawanmu hari ini %s. Perhatikan bola dari seberang net, pukul saat masuk lingkaran putih." % FOES[foe][0])
 	else:
-		_ray_say("Selamat datang lagi! Lawanmu %s. Geser ke lingkaran kuning, pukul saat lingkaran putih." % FOES[foe][0])
+		_ray_say("Selamat datang lagi! Lawanmu %s. Ketuk saat bola masuk lingkaran putih." % FOES[foe][0])
 	_new_match()
 
 
@@ -886,6 +888,9 @@ func _process(_dt: float) -> void:
 		_opose("swing", 0.5)
 	elif _ball.state == "idle" and _ball._wait > 0.0 and _ball._wait < 0.6 and _opp.texture.resource_path.find("serve") < 0 and ResourceLoader.exists("res://assets/chars/%s/serve_L.png" % FOES[foe][2]):
 		_opose("serve", 0.7)
+	# Maryam otomatis mengejar titik jatuh bola.
+	if _ball and _ball.state == "in":
+		_mar_to = clampf(_ball.b.x - _mar.size.x * 0.25, 330.0, 1150.0)
 	if _mar_to >= 0.0:
 		var cx := _mar.position.x + _mar.size.x / 2.0
 		var nx := move_toward(cx, _mar_to, 900.0 * _dt)
@@ -911,10 +916,10 @@ func _process(_dt: float) -> void:
 	# Petunjuk sesuai keadaan bola (bukan teks hiasan)
 	var zone := _ball.in_zone()
 	if _ball.state == "in" and not _ball.near():
-		_hint.text = "Geser Maryam ke %s! Ikuti tanda bola" % ("KIRI" if _ball.b.x < _ball.reach_x() else "KANAN")
+		_hint.text = "Maryam mengejar bola..."
 		_hint.add_theme_color_override("font_color", Color("ffe28a"))
 	elif _ball.state == "in" and zone:
-		_hint.text = "SEKARANG! Geser ke atas!"
+		_hint.text = "SEKARANG! Ketuk!"
 		_hint.add_theme_color_override("font_color", Color("ffe28a"))
 	elif _ball.state == "in":
 		_hint.text = "Bola datang... tunggu lingkaran putih"
@@ -928,10 +933,10 @@ func _process(_dt: float) -> void:
 	# Tutorial mengikuti apa yang terjadi di lapangan
 	if _tut == 0 and _ball.state == "in":
 		_tut = 1
-		_ray_say("Lihat lingkaran kuning di lapangan: di situ bola akan jatuh. Geser jari ke kiri/kanan supaya Maryam ke sana.")
+		_ray_say("Lingkaran kuning = tempat bola jatuh. Maryam lari sendiri ke sana, kamu tinggal atur waktu pukulnya.")
 	elif _tut == 1 and zone:
 		_tut = 2
-		_ray_say("Lingkaran putih = zona pukul. Geser jarimu ke ATAS sekarang!")
+		_ray_say("Lingkaran putih = zona pukul. Ketuk layar sekarang!")
 	_ball.show_guide = _tut < 4
 
 
@@ -1049,6 +1054,11 @@ func _opose(p: String, secs: float = 0.0) -> void:
 
 
 ## Ganti pose Maryam (tampak belakang), kembali ke "ready" setelah `secs`.
+## Pose lawan saat kehilangan poin: menunduk (bukan duduk di bangku).
+func _foe_lose() -> String:
+	return "run" if FOES[foe][2] == "padel_aji" else "ready"
+
+
 func _mpose(p: String, secs: float = 0.0) -> void:
 	var tex: Texture2D = load("res://assets/chars/padel_back/%s_L.png" % p)
 	var feet := _mar.position + Vector2(_mar.size.x / 2.0, _mar.size.y)
@@ -1062,7 +1072,7 @@ func _point(who: int) -> void:
 	pts[who] += 1
 	_rally = 0
 	game.sfx("pop" if who == 0 else "arrive", -6.0)
-	_opose("cheer" if who == 1 else "tired", 1.3)
+	_opose("cheer" if who == 1 else _foe_lose(), 1.3)
 	_mpose("cheer" if who == 0 else "tired", 1.2)
 	if pts[who] >= 4 and pts[who] - pts[1 - who] >= 2:
 		if who == 0:
@@ -1089,7 +1099,7 @@ func _point(who: int) -> void:
 		if _tut >= 4: _ray_say(["%s nggak sempat mengejar. Bagus!" % FOES[foe][0], "Pukulan yang rapi!", "Terus tekan, Mbak!"].pick_random())
 	else:
 		_say("Bola lolos...")
-		if _tut >= 4: _ray_say(["Terlalu cepat menggesek. Tunggu lingkaran putih.", "Bola lolos. Tetap tenang, fokus ke bayangan bola.", "Hampir! Geser ke atas tepat saat lingkaran muncul."].pick_random())
+		if _tut >= 4: _ray_say(["Terlalu cepat mengetuk. Tunggu lingkaran putih.", "Bola lolos. Tetap tenang, fokus ke bayangan bola.", "Hampir! Ketuk tepat saat lingkaran muncul."].pick_random())
 	_render_score()
 	_ball.serve(1.6)
 
@@ -1108,7 +1118,10 @@ func _gui_input(e: InputEvent) -> void:
 			_press = e.position
 			_pressed = true
 			_swiped = false
-			if view == "padel" and e.position.y > 1150 and e.position.y < 2240: _move_mar(e.position.x)
+			# Padel: cukup ketuk saat bola masuk lingkaran putih (Maryam bergerak sendiri).
+			if view == "padel" and e.position.y > 900 and e.position.y < 2240:
+				_swiped = true
+				_ball.swing()
 		else:
 			_pressed = false
 			if view == "cafe_in" and not _swiped and BOOK_R.has_point(e.position) and e.position.distance_to(_press) < 30.0:
@@ -1119,8 +1132,6 @@ func _gui_input(e: InputEvent) -> void:
 			if d.y < -70.0 and absf(d.y) > absf(d.x) * 1.2:
 				_swiped = true
 				_ball.swing()
-			else:
-				_move_mar(e.position.x)
 		elif view == "cafe_in" and absf(d.x) > 120.0 and absf(d.x) > absf(d.y) * 1.5 and BOOK_R.has_point(_press):
 			_swiped = true
 			_flip(1 if d.x < 0 else -1)

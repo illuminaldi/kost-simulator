@@ -21,7 +21,7 @@ static var BUILDING_TOP := -1568
 
 static func setup_floors(top: int) -> void:
 	TOP_FLOOR = maxi(8, top)
-	ROWS = {4: Vector2(242, 626), 3: Vector2(651, 1018), 2: Vector2(1043, 1410), 1: Vector2(1436, 1800)}
+	ROWS = {4: Vector2(266, 626), 3: Vector2(651, 1018), 2: Vector2(1043, 1410), 1: Vector2(1436, 1800)}
 	FEET = {4: 600.0, 3: 1000.0, 2: 1392.0, 1: 1778.0}
 	SPOT = BASE_SPOT.duplicate(true)
 	LAMPS = BASE_LAMPS.duplicate(true)
@@ -329,9 +329,7 @@ const STAFF := {
 }
 const FAC := {
 	"wifi": {"n": "WiFi Kencang", "cost": 800000, "min": 1, "d": ""},
-	"jemur": {"n": "Area Jemuran", "cost": 900000, "min": 2, "d": "Kamar lebih lambat kotor."},
 	"cctv": {"n": "CCTV", "cost": 1000000, "min": 3, "d": "Peluang pencurian turun separuh."},
-	"parkir": {"n": "Parkir Motor", "cost": 1500000, "min": 4, "d": ""},
 	"lift": {"n": "Lift Barang", "cost": 4000000, "min": 6, "d": "Lift barang di sisi gedung. Seret kotak perabot atau paper bag ke lift, otomatis diantar ke kamar tujuan. Penghuni lantai atas juga tidak cepat capek."},
 }
 # ---------- Aplikasi (langganan bulanan, ditagih per hari = bulanan/30 bersama gaji pukul 17:00) ----------

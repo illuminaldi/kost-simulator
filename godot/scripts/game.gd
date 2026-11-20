@@ -420,6 +420,8 @@ func _build_world() -> void:
 		bld.add_child(st)
 		stair_nodes.append(st)
 	_refresh_stairs()
+	# Balok pemisah lantai 4-5 setebal lantai lain (ilustrasi asli lantai 4 tanpa balok atas).
+	_sprite(bld, Rect2(0, 626, D.IW, 25), Vector2(0, 241))
 	# Ornamen samping gedung: pipa talang + unit AC luar di lantai yang kamarnya pakai AC.
 	var side := _SideDecor.new()
 	side.game = self
@@ -468,7 +470,7 @@ func _build_world() -> void:
 	npc_lobby = Node2D.new()
 	npc_lobby.y_sort_enabled = true
 	lobby_root.add_child(npc_lobby)
-	# Si Oyen (kucing) bisa dielus.
+	# Si Mpus (kucing) bisa dielus.
 	cat_spr = Sprite2D.new()
 	for k in CAT_POSES: cat_tex[k] = load("res://assets/cat/%s.png" % k)
 	cat_spr.centered = false
@@ -1286,6 +1288,9 @@ func _migrate(d: Dictionary) -> Dictionary:
 		if not d.has("fac"): d.fac = {}
 		if not d.has("staff"): d.staff = {}
 		v = 2
+	# Fasilitas yang sudah dihapus dari game
+	for k in ["jemur", "parkir"]:
+		if d.has("fac") and d.fac.has(k): d.fac.erase(k)
 	d.ver = v
 	return d
 
@@ -1635,7 +1640,7 @@ func _hourly() -> void:
 		var r: Dictionary = S.rooms[id]
 		if not r.built:
 			continue
-		r.clean = clampf(float(r.clean) - [1.3, 1.0, 0.85, 0.75][out_lv("sampah")] * (0.6 * _trait_mult(r.tenant, "dirt") if r.tenant != null else 0.08) * (0.85 if S.fac.has("jemur") else 1.0) * (0.75 if has_facil("laundry") else 1.0), 0, 100)
+		r.clean = clampf(float(r.clean) - [1.3, 1.0, 0.85, 0.75][out_lv("sampah")] * (0.6 * _trait_mult(r.tenant, "dirt") if r.tenant != null else 0.08) * (0.75 if has_facil("laundry") else 1.0), 0, 100)
 		if r.tenant != null and str(r.broken) == "" and randf() < 0.003:
 			r.broken = D.RANDOM_ISSUES.pick_random()
 			ui.toast("%s di Kamar %s!" % [r.broken, D.room_name(id)], "bad")
@@ -1979,7 +1984,7 @@ var season: Season
 func _salary_total() -> float:
 	var s := float(D.OUTSRC.sampah.lv[out_lv("sampah")].get("fee", 0))
 	for k in S.staff:
-		if S.staff[k]: s += staff_sal(k)
+		if S.staff[k]: s += staff_sal(k) * staff_crew(k)
 	for k in S.apps:
 		s += roundf(float(D.APPS[k].fee))
 	return s
@@ -2038,7 +2043,7 @@ func _pay_salary() -> void:
 	s += float(D.OUTSRC.sampah.lv[out_lv("sampah")].get("fee", 0))
 	for k in S.staff:
 		if S.staff[k]:
-			s += staff_sal(k)
+			s += staff_sal(k) * staff_crew(k)
 	for k in S.apps:
 		s += roundf(float(D.APPS[k].fee))
 	if s > 0:
@@ -3153,8 +3158,7 @@ func _facil_sign(f: int, text: String) -> void:
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		pc.add_child(l)
 		pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		pc.z_index = 20
-		bld.add_child(pc)
+		bld.add_child(pc)   # tanpa z_index: tidak menembus panel lobi
 		facil_signs[f] = pc
 	(pc.get_child(0) as Label).text = text
 	pc.visible = true
@@ -4047,9 +4051,35 @@ func _staff_brain() -> void:
 		var on: bool = S.staff.get(role, false)
 		if D.STAFF[role].has("need") and not has_facil(D.STAFF[role].need):
 			on = false
-		var nid: String = "staff-" + role
+		# Satu personil per cabang fasilitas (cabang ke-2 = karyawan ke-2, dst.)
+		var crew := 1
+		if on and D.STAFF[role].has("need"): crew = maxi(1, _facil_floors(D.STAFF[role].need).size())
+		for xi in range(crew, 6):
+			var xid := "staff-%s#%d" % [role, xi]
+			if npcs.has(xid) and npcs[xid].goal_key != "out": _leave(npcs[xid])
+		for ci in range(crew):
+			_spawn_staff(role, on, ci)
+	_staff_work()
+
+
+## Jumlah personil karyawan k (satu per cabang fasilitasnya).
+func staff_crew(k: String) -> int:
+	if not D.STAFF.has(k) or not D.STAFF[k].has("need"): return 1
+	return maxi(1, _facil_floors(D.STAFF[k].need).size())
+
+
+func _facil_floors(k: String) -> Array:
+	var out := []
+	for f in S.facil:
+		if S.facil[f] == k: out.append(int(f))
+	out.sort()
+	return out
+
+
+func _spawn_staff(role: String, on: bool, ci: int) -> void:
+		var nid: String = "staff-" + role + ("" if ci == 0 else "#%d" % ci)
 		if on and not npcs.has(nid) and _clock - _staff_spawn_t < 2.5:
-			continue
+			return
 		if on and not npcs.has(nid):
 			_staff_spawn_t = _clock
 			var n := Npc.new()
@@ -4074,10 +4104,19 @@ func _staff_brain() -> void:
 				n.art_map = D.WORKER.fix.map.duplicate()
 				n.art_map["fix"] = ["fix", "idle"]
 			n.role = role
-			n.set_meta("nama", D.STAFF[role].nama)
+			n.set_meta("branch", ci)
+			n.set_meta("nama", D.STAFF[role].nama if ci == 0 else _crew_name(role, ci))
 			npcs[nid] = n
 		elif not on and npcs.has(nid) and npcs[nid].goal_key != "out":
 			_leave(npcs[nid])
+
+
+const CREW_NAMES := ["Bang Thoyib", "Bang Jali", "Mas Ucup", "Mbak Sri", "Kang Ujang"]
+func _crew_name(role: String, ci: int) -> String:
+	return CREW_NAMES[(role.hash() + ci) % CREW_NAMES.size()]
+
+
+func _staff_work() -> void:
 	for n in npcs.values():
 		if n.kind != "staff" or n.route.size() > 0 or not n.work.is_empty() or n.leaving or n.fade_state != "":
 			continue
@@ -4097,7 +4136,9 @@ func _staff_brain() -> void:
 				else:
 					_idle_staff(n)
 			"laundry", "kantin", "barista", "kasir", "trainer", "tani", "lele", "petshop", "florist", "koperasi", "warteg":
-				var ff := facil_floor(D.STAFF[n.role].need)
+				var fls := _facil_floors(D.STAFF[n.role].need)
+				var bi: int = int(n.get_meta("branch", 0))
+				var ff: int = fls[bi] if bi < fls.size() else (fls[0] if not fls.is_empty() else 0)
 				if ff > 0:
 					n.plan("S%d" % ff, D.facil_spot(ff) + Vector2(-24 if ff % 2 == 0 else 24, -4), "counter", func(m: Npc): m.work = {"t": randf_range(20.0, 40.0), "pose": "counter"})
 				else:
@@ -4882,7 +4923,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		_lswipe = {"start": p, "done": false}
 
 
-# ---------- Si Oyen: tidur di depan meja; naik ke meja kalau lobi ramai ----------
+# ---------- Si Mpus: tidur di depan meja; naik ke meja kalau lobi ramai ----------
 const CAT_S := 0.25
 const CAT_POSES := ["sleep", "eat", "jump", "stretch", "walk", "kaget"]
 var cat_tex := {}
@@ -4907,7 +4948,7 @@ func _cat_pose(k: String) -> void:
 	cat_spr.offset = Vector2(-cat_spr.texture.get_width() / 2.0, -cat_spr.texture.get_height())
 
 
-## Oyen punya rutinitas: tidur → menggeliat → jalan-jalan → makan → tidur lagi.
+## Mpus punya rutinitas: tidur → menggeliat → jalan-jalan → makan → tidur lagi.
 func _cat_life(dt: float) -> void:
 	if not cat_spr.visible or cat_on_desk and cat_state != "kaget": return
 	_cat_t -= dt
@@ -5026,12 +5067,12 @@ func pet_cat() -> void:
 		ht.parallel().tween_property(h, "modulate:a", 0.0, 1.0).set_delay(i * 0.12 + 0.3)
 		ht.tween_callback(h.queue_free)
 	var lines := ["Meong~", "Purrr...", "Meooong!", "Nyaa~"]
-	ui.toast("Oyen: " + lines.pick_random())
+	ui.toast("Mpus: " + lines.pick_random())
 	# Penghuni di lobi ikut senang melihat kucing.
 	if _cat_pets % 5 == 0:
 		for n in npcs.values():
 			if n.kind == "res" and n.scene == "lobby":
-				n.say("Lucunya Oyen!", 2.0)
+				n.say("Lucunya Mpus!", 2.0)
 				n.react("happy", 1.5)
 				break
 
@@ -5310,6 +5351,13 @@ func _handle_cli(args: PackedStringArray) -> void:
 				if cp == "kaget": cat_startle()
 				elif cp == "walk": _cat_to = 820.0; _cat_set("walk", 0.0)
 				else: _cat_set(cp, 30.0))
+		elif a == "--crew":
+			S.lvl = 10
+			S.facil = {"1": "laundry", "2": "kantin", "3": "laundry", "4": "laundry"}
+			S.staff["laundry"] = true; S.staff["kantin"] = true
+			if not S.has("slv"): S.slv = {}
+			S.slv["laundry"] = 6
+			_refresh_world()
 		elif a == "--branch":
 			# uji cabang: laundry di lantai 1, petugas laundry Lv 3 -> boleh cabang ke-2
 			S.lvl = 8
