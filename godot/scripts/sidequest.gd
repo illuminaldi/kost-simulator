@@ -992,7 +992,7 @@ class _Walk extends Node2D:
 			var right := i % 2 == 0
 			var sp := rng.randf_range(260, 420) if theme == "kota" else rng.randf_range(120, 200)
 			if kinds[i].begins_with("bus") or kinds[i].begins_with("truck"): sp *= 0.8
-			var sc := 0.85 if theme == "kota" else 0.92
+			var sc := 0.85 if theme == "kota" else 1.3
 			if kinds[i].begins_with("motor"): sc = 0.75
 			var x0 := rng.randf_range(-2600, 2600) + i * 520.0 * (1 if right else -1)
 			_veh.append([t, _flip_tex(t), x0, sp * (1 if right else -1), sc, 0 if right else 1])
@@ -1104,7 +1104,7 @@ class _Walk extends Node2D:
 		var sz := tex.get_size() * 1.4
 		var bob := -absf(sin(t * 12.0)) * 8.0
 		draw_texture_rect(tex, Rect2(W / 2.0 - sz.x / 2.0, 2080.0 - sz.y + bob, sz.x, sz.y), false)
-		_draw_traffic(x, 2570.0, 70.0)   # sepeda di jalan, lebih dekat ke kamera dari Maryam
+		_draw_traffic(x, 2600.0, 90.0)   # sepeda di jalan, lebih dekat ke kamera dari Maryam
 		_label_draw()
 
 	func _draw_city(off: float) -> void:
