@@ -206,10 +206,22 @@ const FACIL := {
 		"d": "Penghuni lantai atas tidak perlu naik tangga panjang: tidak cepat capek & tetap betah."},
 	"minimart": {"n": "Minimart", "lv": 7, "cost": 3500000, "happy": 2, "inc": 7000, "staff": "kasir", "visit": [10, 16, 21], "pose": "stand",
 		"d": "Belanja kebutuhan harian tanpa keluar kost. Pemasukan harian kalau ada Kasir."},
+	"hidroponik": {"n": "Kebun Hidroponik", "lv": 4, "cost": 1800000, "happy": 2, "inc": 5000, "staff": "tani", "visit": [7, 17], "pose": "stand",
+		"d": "Sayur segar dari pipa hidroponik. Penghuni lebih sehat & betah; panen dijual kalau ada Petani."},
+	"lele": {"n": "Kolam Lele", "lv": 5, "cost": 2200000, "happy": 1, "inc": 7000, "staff": "lele", "visit": [8, 16], "pose": "stand",
+		"d": "Budidaya lele di kolam terpal. Panen rutin jadi pemasukan kalau ada Peternak Lele."},
+	"petshop": {"n": "Pet Shop", "lv": 6, "cost": 2800000, "happy": 2, "inc": 7000, "staff": "petshop", "visit": [10, 17], "pose": "stand",
+		"d": "Pakan & perlengkapan hewan. Penghuni pecinta kucing makin betah; pemasukan harian kalau ada Penjaga Pet Shop."},
+	"bunga": {"n": "Toko Bunga", "lv": 6, "cost": 2400000, "happy": 2, "inc": 6000, "staff": "florist", "visit": [9, 18], "pose": "stand",
+		"d": "Buket & tanaman hias. Kost terasa wangi dan cantik; pemasukan harian kalau ada Florist."},
+	"koperasi": {"n": "Koperasi", "lv": 7, "cost": 3000000, "happy": 3, "inc": 6000, "staff": "koperasi", "visit": [10, 19], "pose": "stand",
+		"d": "Simpan pinjam & sembako murah untuk penghuni. Penghuni jarang telat bayar; pemasukan kalau ada Pengurus Koperasi."},
+	"warteg": {"n": "Warteg", "lv": 5, "cost": 2600000, "happy": 2, "inc": 9000, "staff": "warteg", "visit": [7, 12, 19], "pose": "stand",
+		"d": "Nasi + lauk murah meriah sepanjang hari. Pemasukan harian besar kalau ada Ibu Warteg."},
 	"rooftop_old": {"n": "Taman Rooftop", "lv": 99, "cost": 3500000, "happy": 3, "inc": 0, "visit": [], "pose": "stand",
 		"d": "Taman hijau untuk santai sore. Rating kost naik setiap hari."},
 }
-const FACIL_ORDER := ["tunggu", "laundry", "mushola", "dapur", "kantin", "cafe", "gym", "minimart"]
+const FACIL_ORDER := ["tunggu", "laundry", "mushola", "dapur", "kantin", "hidroponik", "cafe", "lele", "warteg", "gym", "petshop", "bunga", "minimart", "koperasi"]
 
 
 ## Sisi kosong ruang tangga (lantai ganjil: kanan, genap: kiri).
@@ -307,6 +319,12 @@ const STAFF := {
 	"barista": {"nama": "Nadia", "n": "Barista", "sal": 60000, "min": 5, "need": "cafe", "d": "Meracik kopi di Cafe. Membuka pemasukan harian Cafe."},
 	"kasir": {"nama": "Sinta", "n": "Kasir Minimart", "sal": 55000, "min": 7, "need": "minimart", "d": "Menjaga kasir Minimart. Membuka pemasukan harian Minimart."},
 	"trainer": {"nama": "Kak Ray", "n": "Personal Trainer", "sal": 65000, "min": 6, "need": "gym", "d": "Melatih penghuni di Gym. Membuka pemasukan kelas latihan & penghuni lebih bugar (kebahagiaan ekstra)."},
+	"tani": {"nama": "Kang Dedi", "n": "Petani Hidroponik", "sal": 45000, "min": 4, "need": "hidroponik", "d": "Merawat & memanen sayur hidroponik. Membuka pemasukan Kebun Hidroponik."},
+	"lele": {"nama": "Pak Darto", "n": "Peternak Lele", "sal": 50000, "min": 5, "need": "lele", "d": "Memberi pakan & memanen lele. Membuka pemasukan Kolam Lele."},
+	"petshop": {"nama": "Mbak Lala", "n": "Penjaga Pet Shop", "sal": 55000, "min": 6, "need": "petshop", "d": "Melayani pembeli pakan & aksesoris hewan. Membuka pemasukan Pet Shop."},
+	"florist": {"nama": "Mbak Rosa", "n": "Florist", "sal": 55000, "min": 6, "need": "bunga", "d": "Merangkai buket bunga. Membuka pemasukan Toko Bunga."},
+	"koperasi": {"nama": "Bu Wati", "n": "Pengurus Koperasi", "sal": 60000, "min": 7, "need": "koperasi", "d": "Mengurus simpan pinjam & sembako. Membuka pemasukan Koperasi."},
+	"warteg": {"nama": "Bu Tini", "n": "Ibu Warteg", "sal": 60000, "min": 5, "need": "warteg", "d": "Memasak & melayani di Warteg. Membuka pemasukan harian Warteg."},
 	"satpam": {"nama": "Aji", "n": "Satpam", "sal": 70000, "min": 3, "d": "Patroli di depan kost. Mencegah pencurian; urus tamu menginap & paket hilang."},
 }
 const FAC := {
@@ -314,7 +332,7 @@ const FAC := {
 	"jemur": {"n": "Area Jemuran", "cost": 900000, "min": 2, "d": "Kamar lebih lambat kotor."},
 	"cctv": {"n": "CCTV", "cost": 1000000, "min": 3, "d": "Peluang pencurian turun separuh."},
 	"parkir": {"n": "Parkir Motor", "cost": 1500000, "min": 4, "d": ""},
-	"lift": {"n": "Lift Kaca", "cost": 4000000, "min": 6, "d": "Lift lurus di luar gedung (sisi taman), tidak memakai ruang samping tangga. Penghuni lantai atas tidak cepat capek."},
+	"lift": {"n": "Lift Barang", "cost": 4000000, "min": 6, "d": "Lift barang di sisi gedung. Seret kotak perabot atau paper bag ke lift, otomatis diantar ke kamar tujuan. Penghuni lantai atas juga tidak cepat capek."},
 }
 # ---------- Aplikasi (langganan bulanan, ditagih per hari = bulanan/30 bersama gaji pukul 17:00) ----------
 const APPS := {
@@ -366,6 +384,12 @@ const STAFF_LOOK := {
 	"trainer": {"skin": "#c98d62", "hair": "#2a1d18", "style": "short", "shirt": "#2b2b30", "pants": "#2b2b30", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#fff"},
 	"laundry": {"skin": "#ecc29b", "hair": "#3b2a20", "style": "short", "shirt": "#8fb3c9", "pants": "#3f4a5a", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#6f8fb0"},
 	"kantin": {"skin": "#d6a378", "hair": "#2f2320", "style": "bun", "shirt": "#e9a35a", "pants": "#6b5a48", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#fff"},
+	"tani": {"skin": "#e9b98f", "hair": "#2f2320", "style": "short", "shirt": "#7fae5a", "pants": "#4f5d4a", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#7fae5a"},
+	"lele": {"skin": "#d9a27a", "hair": "#2f2320", "style": "short", "shirt": "#3f5a4a", "pants": "#3f4a5a", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#3f5a4a"},
+	"petshop": {"skin": "#f2c7a5", "hair": "#6b4a2b", "style": "bun", "shirt": "#f2a7b6", "pants": "#3f4a5a", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#fff"},
+	"florist": {"skin": "#f2c7a5", "hair": "#2f2320", "style": "bun", "shirt": "#b48ad6", "pants": "#3f4a5a", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#fff"},
+	"koperasi": {"skin": "#f2c7a5", "hair": "#2f2320", "style": "bun", "shirt": "#7fae5a", "pants": "#3f4a5a", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#fff"},
+	"warteg": {"skin": "#e9b98f", "hair": "#4a3426", "style": "bun", "shirt": "#e07a5f", "pants": "#4f5d4a", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#fff"},
 	"kasir": {"skin": "#f2c7a5", "hair": "#2f2320", "style": "bun", "shirt": "#e0533a", "pants": "#3f4a5a", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#fff"},
 	"barista": {"skin": "#f2c7a5", "hair": "#6b4a2b", "style": "cap", "shirt": "#3f4a44", "pants": "#2f3a33", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#2f3833"},
 	"cleaner": {"skin": "#f6d3b3", "hair": "#6b4a2b", "style": "bun", "shirt": "#7d9a6b", "pants": "#4f5d4a", "bag": false, "bagc": "#000", "blanket": "#fff", "hat": "#7d9a6b"},
@@ -487,7 +511,7 @@ const ITEM_LAYOUT := {
 	"kipas": [0.80, 0.80, 0.11],
 }
 # Posisi khusus per level (kipas berdiri di lantai, AC menempel di dinding).
-const ITEM_LAYOUT_LV := {"kipas": {2: [0.84, 0.26, 0.24], 3: [0.84, 0.26, 0.24]}}
+const ITEM_LAYOUT_LV := {"kipas": {2: [0.395, 0.19, 0.2], 3: [0.395, 0.19, 0.2]}}
 const ITEM_DRAW_ORDER := ["karpet", "dekor", "rak", "kasur", "lampu", "kipas", "tanaman"]
 
 

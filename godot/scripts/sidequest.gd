@@ -727,6 +727,7 @@ func _show_padel() -> void:
 	_layer.add_child(_ball)
 	_mar = _sprite("res://assets/chars/padel_back/ready_L.png", 1.7, Vector2(820, 2130))
 	_ball.player = _mar
+	_layer.move_child(_ball, _layer.get_child_count() - 1)
 	_ball.missed.connect(_point.bind(1))
 	_ball.foe_missed.connect(_point.bind(0))
 	_ball.hit_ok.connect(_on_hit)
@@ -758,6 +759,9 @@ func _show_padel() -> void:
 	_layer.add_child(_hint)
 	_bottom([["Balik ke Kost", D.C_GREEN, func(): _walk(-1)],
 		["Ganti Lawan", D.C_PINK, func():
+			if not game.S.side.get("aji", false):
+				_ray_say("Belum ada lawan lain. Main dulu sama Ryan~")
+				return
 			foe = (foe + 1) % FOES.size()
 			_opose("ready")
 			_ray_say("Lawan baru: %s! %s" % [FOES[foe][0], "Dia santai, cocok buat pemanasan." if foe == 0 else "Pak Aji pukulannya keras, fokus ya!"])
@@ -768,10 +772,21 @@ func _show_padel() -> void:
 	var S: Dictionary = game.S
 	if not S.has("side"): S.side = {}
 	_tut = 4 if S.side.get("padel_tut", false) else 0
+	if not S.side.get("aji", false): foe = 0
+	if not S.side.get("padel_intro", false):
+		S.side.padel_intro = true
+		_tut = 0
+		_ball.serve(999.0)
+		_chat("Ryan", [["Ryan", "Mbak Maryam, sore ini padel yuk? Aku udah booking lapangan di taman."],
+			["Maryam", "Boleh! Lagi pusing ngurus kost, pas banget buat olahraga."],
+			["Ryan", "Sip! Aku ajarin dulu ya, gampang kok."]], func():
+				_ray_say("Lawanmu %s. Lingkaran kuning = tempat bola jatuh. Geser ke situ, lalu geser ke ATAS untuk memukul." % FOES[foe][0])
+				_new_match())
+		return
 	if _tut == 0:
 		_ray_say("Lawanmu hari ini %s. Perhatikan bola dari seberang net, pukul saat masuk lingkaran putih." % FOES[foe][0])
 	else:
-		_ray_say("Selamat datang lagi! Lawanmu %s. Ingat: pukul saat bola masuk lingkaran putih." % FOES[foe][0])
+		_ray_say("Selamat datang lagi! Lawanmu %s. Geser ke lingkaran kuning, pukul saat lingkaran putih." % FOES[foe][0])
 	_new_match()
 
 
@@ -834,6 +849,16 @@ func _process(_dt: float) -> void:
 		_opose("swing", 0.5)
 	elif _ball.state == "idle" and _ball._wait > 0.0 and _ball._wait < 0.6 and _opp.texture.resource_path.find("serve") < 0 and ResourceLoader.exists("res://assets/chars/%s/serve_L.png" % FOES[foe][2]):
 		_opose("serve", 0.7)
+	if _mar_to >= 0.0:
+		var cx := _mar.position.x + _mar.size.x / 2.0
+		var nx := move_toward(cx, _mar_to, 900.0 * _dt)
+		_mar.position.x = nx - _mar.size.x / 2.0
+		if absf(nx - _mar_to) > 2.0:
+			if _mar.texture.resource_path.find("run") < 0: _mpose("run", 0.25)
+			_mar.flip_h = _mar_to < cx
+		else:
+			_mar_to = -1.0
+			_mar.flip_h = false
 	if _mp_t > 0.0:
 		_mp_t -= _dt
 		if _mp_t <= 0.0: _mpose("ready")
@@ -848,7 +873,10 @@ func _process(_dt: float) -> void:
 	_opp.position.x = lerpf(_opp.position.x, tx - _opp.size.x / 2.0, 0.08)
 	# Petunjuk sesuai keadaan bola (bukan teks hiasan)
 	var zone := _ball.in_zone()
-	if _ball.state == "in" and zone:
+	if _ball.state == "in" and not _ball.near():
+		_hint.text = "Geser Maryam ke %s! Ikuti tanda bola" % ("KIRI" if _ball.b.x < _ball.reach_x() else "KANAN")
+		_hint.add_theme_color_override("font_color", Color("ffe28a"))
+	elif _ball.state == "in" and zone:
 		_hint.text = "SEKARANG! Geser ke atas!"
 		_hint.add_theme_color_override("font_color", Color("ffe28a"))
 	elif _ball.state == "in":
@@ -863,10 +891,10 @@ func _process(_dt: float) -> void:
 	# Tutorial mengikuti apa yang terjadi di lapangan
 	if _tut == 0 and _ball.state == "in":
 		_tut = 1
-		_ray_say("Itu bolanya datang! Jangan buru-buru, tunggu sampai bola turun ke dekatmu.")
+		_ray_say("Lihat lingkaran kuning di lapangan: di situ bola akan jatuh. Geser jari ke kiri/kanan supaya Maryam ke sana.")
 	elif _tut == 1 and zone:
 		_tut = 2
-		_ray_say("Lingkaran putih muncul = zona pukul. Geser jarimu ke ATAS sekarang!")
+		_ray_say("Lingkaran putih = zona pukul. Geser jarimu ke ATAS sekarang!")
 	_ball.show_guide = _tut < 4
 
 
@@ -880,10 +908,98 @@ func _on_hit() -> void:
 		_ray_say("Mantap! Itu pukulan pertamamu. Sekarang lanjutkan sampai menang satu game!")
 	elif _rally >= 3:
 		_ray_say("Reli %d pukulan! Pertahankan ritmenya!" % _rally)
+	_hits_total += 1
+	if _hits_total == 4 and not game.S.side.get("aji", false):
+		_aji_calls()
 
 
 var _mp_t := 0.0
 var _op_t := 0.0
+var _hits_total := 0
+
+
+## Cutscene: chat dari Aji "kamu lagi dimana?", lalu dia menyusul ke lapangan.
+func _aji_calls() -> void:
+	_ball.serve(999.0)
+	game.sfx("pop", -2.0)
+	_chat("Aji", [["Aji", "Maryam, kamu lagi dimana?"],
+		["Maryam", "Lagi main padel sama Ryan di lapangan taman."],
+		["Aji", "Wah, curang nggak ngajak! Aku nyusul ya, 5 menit sampai!"],
+		["Maryam", "Hahaha oke, buruan!"]], func():
+			game.S.side.aji = true
+			foe = 1
+			_opose("ready")
+			_say("Aji datang!")
+			_ray_say("Aji menyusul! Pukulannya lebih keras. Tekan Ganti Lawan untuk kembali ke Ryan.")
+			_new_match())
+
+
+## Jendela chat ala WhatsApp; ketuk untuk menampilkan pesan berikutnya.
+func _chat(who: String, lines: Array, done: Callable) -> void:
+	var root := Control.new()
+	root.size = Vector2(D.IW, D.IH)
+	root.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(root)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.45)
+	dim.size = root.size
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(dim)
+	var phone := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color("efe6d8")
+	sb.border_color = D.C_LINE
+	sb.set_border_width_all(8)
+	sb.set_corner_radius_all(40)
+	sb.content_margin_left = 30
+	sb.content_margin_right = 30
+	sb.content_margin_top = 24
+	sb.content_margin_bottom = 30
+	phone.add_theme_stylebox_override("panel", sb)
+	phone.position = Vector2(170, 520)
+	phone.size = Vector2(D.IW - 340, 980)
+	phone.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(phone)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 22)
+	phone.add_child(v)
+	var head := _lbl("Chat · " + who, 42, Color("2f6a24"))
+	v.add_child(head)
+	var tip := _lbl("Ketuk untuk lanjut", 28, D.C_MUTED)
+	var shown := [0]
+	var add_line := func():
+		if shown[0] >= lines.size():
+			root.queue_free()
+			done.call()
+			return
+		var ln: Array = lines[shown[0]]
+		shown[0] += 1
+		var me: bool = ln[0] == "Maryam"
+		var bub := PanelContainer.new()
+		var bs := StyleBoxFlat.new()
+		bs.bg_color = Color("d9f2c4") if me else Color("ffffff")
+		bs.border_color = D.C_LINE
+		bs.set_border_width_all(4)
+		bs.set_corner_radius_all(24)
+		bs.content_margin_left = 22
+		bs.content_margin_right = 22
+		bs.content_margin_top = 12
+		bs.content_margin_bottom = 12
+		bub.add_theme_stylebox_override("panel", bs)
+		bub.size_flags_horizontal = Control.SIZE_SHRINK_END if me else Control.SIZE_SHRINK_BEGIN
+		bub.custom_minimum_size = Vector2(620, 0)
+		var l := _lbl(("" if me else ln[0] + "\n") + str(ln[1]), 34, D.C_INK, true)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		l.custom_minimum_size = Vector2(570, 0)
+		bub.add_child(l)
+		bub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(bub)
+		if tip.get_parent() == v: v.move_child(tip, -1)
+		else: v.add_child(tip)
+		game.sfx("pop", -10.0)
+	root.gui_input.connect(func(e):
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT: add_line.call())
+	add_line.call()
 
 
 func _opose(p: String, secs: float = 0.0) -> void:
@@ -942,12 +1058,20 @@ func _point(who: int) -> void:
 
 
 # ---------------- Input: geser ----------------
+## Maryam bergeser kiri/kanan mengikuti jari (geser horizontal).
+var _mar_to := -1.0
+func _move_mar(x: float) -> void:
+	if _mar == null: return
+	_mar_to = clampf(x, 330.0, 1150.0)
+
+
 func _gui_input(e: InputEvent) -> void:
 	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT:
 		if e.pressed:
 			_press = e.position
 			_pressed = true
 			_swiped = false
+			if view == "padel" and e.position.y > 1150 and e.position.y < 2240: _move_mar(e.position.x)
 		else:
 			_pressed = false
 			if view == "cafe_in" and not _swiped and BOOK_R.has_point(e.position) and e.position.distance_to(_press) < 30.0:
@@ -955,9 +1079,11 @@ func _gui_input(e: InputEvent) -> void:
 	elif e is InputEventMouseMotion and _pressed and not _swiped:
 		var d: Vector2 = e.position - _press
 		if view == "padel":
-			if d.y < -70.0 or d.length() > 110.0:
+			if d.y < -70.0 and absf(d.y) > absf(d.x) * 1.2:
 				_swiped = true
 				_ball.swing()
+			else:
+				_move_mar(e.position.x)
 		elif view == "cafe_in" and absf(d.x) > 120.0 and absf(d.x) > absf(d.y) * 1.5 and BOOK_R.has_point(_press):
 			_swiped = true
 			_flip(1 if d.x < 0 else -1)
@@ -1469,12 +1595,19 @@ class _Ball extends Node2D:
 		t = 0.0
 		dur = randf_range(1.25, 1.55) - skill * 0.3
 		a = Vector2(randf_range(640, 980), 1010)
-		var px := player.position.x + player.size.x * 0.8 if player else 980.0
-		b = Vector2(px + randf_range(-30, 40), 1730)
+		# Bola jatuh ke kiri, tengah, atau kanan: Maryam harus bergeser mengejarnya.
+		b = Vector2([520.0, 820.0, 1120.0].pick_random() + randf_range(-40, 40), 1730)
+
+	## Titik raket Maryam (tangan kanan, sedikit ke kanan badan).
+	func reach_x() -> float:
+		return player.position.x + player.size.x * 0.75 if player else 980.0
+
+	func near() -> bool:
+		return absf(reach_x() - b.x) < 170.0
 
 	func swing() -> void:
 		_swing_t = 0.28
-		if in_zone():
+		if in_zone() and near():
 			state = "out"
 			t = 0.0
 			dur = 1.0
@@ -1510,8 +1643,12 @@ class _Ball extends Node2D:
 		var p := _pos()
 		var ground := a.lerp(b, k)
 		draw_circle(ground + Vector2(0, 8), r * 0.9, Color(0, 0, 0, 0.18))
+		if state == "in" and not in_zone():
+			# tanda jatuhnya bola: Maryam harus bergeser ke sini
+			draw_arc(b, 60, 0, TAU, 32, Color(1, 0.9, 0.35, 0.9), 6)
+			draw_arc(b, 22, 0, TAU, 16, Color(1, 0.9, 0.35, 0.9), 5)
 		if in_zone():
-			draw_arc(b, 80, 0, TAU, 36, Color(1, 1, 1, 0.85), 8)
+			draw_arc(b, 80, 0, TAU, 36, Color(1, 1, 1, 0.85) if near() else Color(1, 0.55, 0.45, 0.85), 8)
 			draw_arc(b, 80 + fmod(_clock * 120.0, 30.0), 0, TAU, 36, Color(1, 1, 1, 0.35), 4)
 			if show_guide:
 				# Tangan & panah petunjuk: geser ke atas

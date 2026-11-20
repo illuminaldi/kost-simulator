@@ -233,6 +233,20 @@ func setup(p_game: Node, art: Texture2D, p_font: Font, p_font_m: Font) -> void:
 		h2.visible = false
 		hint_root.add_child(h2)
 		hints["S%d" % f] = h2
+	# Lift barang: zona drop di kolom lift (kiri gedung).
+	var hl := Panel.new()
+	var hsl := StyleBoxFlat.new()
+	hsl.bg_color = Color(0.5, 0.85, 0.45, 0.16)
+	hsl.border_color = Color("5fae4f")
+	hsl.set_border_width_all(8)
+	hsl.set_corner_radius_all(10)
+	hl.add_theme_stylebox_override("panel", hsl)
+	hl.position = Vector2(8, D.ROWS[D.TOP_FLOOR].x - 30)
+	hl.size = Vector2(122, 1810 - hl.position.y)
+	hl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hl.visible = false
+	hint_root.add_child(hl)
+	hints["LIFT"] = hl
 
 	floor_btn = _btn("Lantai", D.C_CREAM, func(): open_sheet("floors"))
 	floor_btn.add_theme_font_size_override("font_size", 30)
@@ -559,10 +573,10 @@ func _furn_card(id: String) -> void:
 		elif int(S.lvl) < int(f.min) and lv == 0:
 			right = _label("Lv %d" % int(f.min), 32, D.C_MUTED, true)
 		elif lv == 0:
-			right = _btn("Beli " + D.short(f.cost), D.C_GREEN, func(): _do("buy", t), float(S.money) < float(f.cost), false, money_why(float(f.cost)))
+			right = _btn("Beli " + D.short(f.cost), D.C_GREEN, func(): _do("buy", t + "|" + id), float(S.money) < float(f.cost), false, money_why(float(f.cost)))
 		elif lv < 3:
 			var nxt: String = f.lv_names[lv + 1] if f.has("lv_names") else "Lv %d" % (lv + 1)
-			right = _btn("Upgrade ke %s · %s" % [nxt, D.short(f.cost)], D.C_YELLOW, func(): _do("buy", t), float(S.money) < float(f.cost), false, money_why(float(f.cost)))
+			right = _btn("Upgrade ke %s · %s" % [nxt, D.short(f.cost)], D.C_YELLOW, func(): _do("buy", t + "|" + id), float(S.money) < float(f.cost), false, money_why(float(f.cost)))
 		else:
 			right = _label("Level maks", 32, Color("2f7a2a"), true)
 		var nm: String = f.n if lv == 0 else ("%s (Lv %d)" % [f.lv_names[lv], lv] if f.has("lv_names") else "%s Lv %d · %s" % [f.n, lv, D.FURN_LV_NAME[lv]])
@@ -1615,7 +1629,8 @@ func _sheet_tenants() -> void:
 
 
 const STAFF_PIC := {"cleaner": "kebersihan/happy", "resep": "penjaga/happy", "teknisi": "teknisi/idle", "satpam": "satpam/idle",
-	"laundry": "laundry/happy", "kantin": "kantin/happy", "barista": "barista/happy", "kasir": "kasir/happy", "trainer": "trainer/happy"}
+	"laundry": "laundry/happy", "kantin": "kantin/happy", "barista": "barista/happy", "kasir": "kasir/happy", "trainer": "trainer/happy",
+	"tani": "tani/idle", "lele": "lele/idle", "petshop": "petshop/idle", "florist": "florist/idle", "koperasi": "koperasi/idle", "warteg": "warteg/idle"}
 
 
 var staff_tab := "karyawan"

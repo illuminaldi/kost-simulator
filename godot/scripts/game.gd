@@ -102,6 +102,9 @@ func _ready() -> void:
 	if int(S.speed) > 2: S.speed = 2
 	if int(S.speed) == 2 and int(W.turbo_min) <= 0: S.speed = 1
 	_refresh_world()
+	# Tangga & cat ruang tangga dibuat sebelum save dimuat, jadi segarkan lagi di sini.
+	_refresh_stairs()
+	_refresh_hall_paint()
 	_sync_npcs()
 	_refresh_cargo()
 	_refresh_bags()
@@ -550,8 +553,99 @@ func _refresh_lift() -> void:
 	lift_node.base.visible = true
 
 
+func has_lift() -> bool:
+	return S.fac.has("lift") and lift_node != null
+
+
+func lift_at(p: Vector2) -> bool:
+	if not has_lift(): return false
+	if p.y >= D.LOBBY_TOP: return p.x < 160.0
+	var q := to_bld(p)
+	return q.x < 140.0 and q.y > lift_node.top_y - 40.0 and q.y < 1820.0
+
+
+var lift_pending: Array = []
+
+
+## Kamar paling butuh perabot t: belum punya dulu, lalu level terendah, lantai terendah.
+func auto_room_for(t: String) -> String:
+	var best := ""
+	var bk := 999999
+	for id in D.ROOMS:
+		var r: Dictionary = S.rooms[id]
+		if not r.built or not D.furn_has(id, t): continue
+		var lv := int(r.furn.get(t, 0))
+		if lv >= 3 or job_for(id, "deliver", t) != {} or lift_pending.has(id + "|" + t): continue
+		var k := lv * 1000 + D.fl(id) * 10 + (0 if D.col(id) == "L" else 1)
+		if k < bk:
+			bk = k
+			best = id
+	return best
+
+
+func lift_send(d: Dictionary) -> void:
+	if d.kind == "bag":
+		var b := _bag(str(d.item))
+		if b.is_empty(): return
+		var rid := str(b.room)
+		b.lift = true
+		_refresh_bags()
+		ui.toast("Lift barang mengantar pesanan %s ke Kamar %s" % [b.name, D.room_name(rid)])
+		lift_node.add_trip(D.fl(rid), load("res://assets/bag.png"), func():
+			deliver_bag(str(b.id), rid))
+		return
+	var i := int(d.item)
+	if i >= S.cargo.size(): return
+	_cargo_sync()
+	var t: String = S.cargo[i]
+	var rid2: String = str(S.cargo_to[i])
+	if rid2 != "":
+		var r0: Dictionary = S.rooms[rid2]
+		if not r0.built or int(r0.furn.get(t, 0)) >= 3 or lift_pending.has(rid2 + "|" + t): rid2 = ""
+	if rid2 == "": rid2 = auto_room_for(t)
+	if rid2 == "":
+		ui.toast("Semua kamar sudah punya %s level maksimal." % D.FURN[t].n, "bad"); return
+	S.cargo.pop_at(i)
+	S.cargo_to.pop_at(i)
+	truck_touch()
+	_refresh_cargo()
+	var key := rid2 + "|" + t
+	lift_pending.append(key)
+	ui.toast("Lift barang membawa %s ke Kamar %s" % [D.FURN[t].n, D.room_name(rid2)])
+	lift_node.add_trip(D.fl(rid2), load("res://assets/box.png"), func():
+		lift_pending.erase(key)
+		var r: Dictionary = S.rooms[rid2]
+		var lv := int(r.furn.get(t, 0)) + 1
+		if lv > 3: return
+		r.furn[t] = lv
+		update_tier(r)
+		sfx("place" if lv == 1 else "upgrade")
+		_refresh_world()
+		room_fx[rid2].pop_item(t)
+		if r.tenant != null: r.tenant.happy = clampf(float(r.tenant.happy) + 4.0 * lv, 0, 100)
+		float_at(rid2, ("+ " + D.FURN[t].n) if lv == 1 else "%s jadi %s!" % [D.FURN[t].n, D.FURN_LV_NAME[lv]], Color("2f7a2a"))
+		add_xp(8 if lv == 1 else 12)
+		dirty = true)
+	save_game()
+
+
 class _Lift extends Node2D:
 	var top_y := -1500.0
+	var trips: Array = []      # {"f", "icon", "cb"}
+	var _phase := ""           # "" | "pickup" | "carry"
+	var icon: Texture2D
+
+	func add_trip(f: int, ic: Texture2D, cb: Callable) -> void:
+		trips.append({"f": f, "icon": ic, "cb": cb})
+		if _phase == "" and _move_t >= _move_dur:
+			_wait = 0.01
+
+	func _go(y: float) -> void:
+		_from = cy
+		_to = y
+		_move_dur = maxf(0.8, absf(_to - _from) / (SPEED * 3.0))
+		_move_t = 0.0
+		_wait = 0.0
 	var font: Font
 	var t := 0.0
 	var base := Node2D.new()
@@ -571,7 +665,11 @@ class _Lift extends Node2D:
 		t += dt
 		if cy < 0.0:
 			cy = _stop_y(1)
-		if _wait > 0.0:
+		if _wait > 0.0 and not trips.is_empty() and _phase == "":
+			_wait = 0.0
+			_phase = "pickup"
+			_go(_stop_y(1))
+		elif _wait > 0.0:
 			_wait -= dt
 			if _wait <= 0.0:
 				# pilih lantai tujuan lain, tidak terlalu jauh
@@ -590,7 +688,18 @@ class _Lift extends Node2D:
 			k = k * k * (3.0 - 2.0 * k)          # mulus di awal dan akhir
 			cy = lerpf(_from, _to, k)
 			if _move_t >= _move_dur:
-				_wait = randf_range(7.0, 14.0)  # berhenti agak lama di tiap lantai
+				if _phase == "pickup":
+					icon = trips[0].icon
+					_phase = "carry"
+					_go(_stop_y(int(trips[0].f)))
+				elif _phase == "carry":
+					var tr: Dictionary = trips.pop_front()
+					icon = null
+					_phase = ""
+					tr.cb.call()
+					_wait = 1.2 if not trips.is_empty() else randf_range(7.0, 14.0)
+				else:
+					_wait = randf_range(7.0, 14.0)  # berhenti agak lama di tiap lantai
 		queue_redraw()
 	func _draw() -> void:
 		var bottom := 1800.0
@@ -613,8 +722,11 @@ class _Lift extends Node2D:
 		var dw := (cab.size.x - 18.0) / 2.0
 		draw_rect(Rect2(cab.position.x + 6, cy + 14, dw, CAB_H - 24), Color(0.93, 0.9, 0.84))
 		draw_rect(Rect2(cab.position.x + 12 + dw, cy + 14, dw, CAB_H - 24), Color(0.93, 0.9, 0.84))
+		if icon:
+			var isz := icon.get_size() * minf(70.0 / icon.get_width(), 80.0 / icon.get_height())
+			draw_texture_rect(icon, Rect2(mid - isz.x / 2.0, cy + CAB_H - 8 - isz.y, isz.x, isz.y), false)
 		if font:
-			draw_string(font, Vector2(X0, top_y - 10), "LIFT", HORIZONTAL_ALIGNMENT_CENTER, X1 - X0, 26, Color(0.45, 0.36, 0.28, 0.6))
+			draw_string(font, Vector2(X0, top_y - 10), "BARANG", HORIZONTAL_ALIGNMENT_CENTER, X1 - X0, 26, Color(0.45, 0.36, 0.28, 0.6))
 
 
 func _refresh_world() -> void:
@@ -1948,7 +2060,7 @@ func _recent(type: String, floor: int = 0, days: int = 1) -> bool:
 
 
 const KOTA := ["Solo", "Medan", "Makassar", "Padang", "Malang", "Bandung", "Palembang", "Pontianak", "Kupang", "Banjarmasin"]
-const SAPA := {"cleaner": "Mas", "teknisi": "Mas", "satpam": "Pak", "laundry": "Mas", "kantin": "Bu", "barista": "Kak", "tukang": "Pak", "kurir": "Mas", "trainer": "Kak", "kasir": "Kak"}
+const SAPA := {"cleaner": "Mas", "teknisi": "Mas", "satpam": "Pak", "laundry": "Mas", "kantin": "Bu", "barista": "Kak", "tukang": "Pak", "kurir": "Mas", "trainer": "Kak", "kasir": "Kak", "tani": "Kang", "lele": "Pak", "petshop": "Mbak", "florist": "Mbak", "koperasi": "Bu", "warteg": "Bu"}
 
 
 func _panggil(w: Dictionary) -> String:
@@ -2445,11 +2557,15 @@ const FOODS := ["nasi padang", "ayam geprek", "martabak", "bakso", "seblak", "ko
 
 func _maybe_ojol(h: int) -> void:
 	if ojol != null or not ((h >= 11 and h <= 13) or (h >= 18 and h <= 20)): return
+	# Maksimal satu antaran per jam makan (siang/malam), dan tidak saat masih ada paper bag menumpuk.
+	var win := int(S.day) * 2 + (0 if h <= 13 else 1)
+	if int(S.get("ojol_win", -1)) == win or not S.get("bags", []).is_empty(): return
 	var pool := []
 	for e in each_tenant():
 		var t: Dictionary = e[1].tenant
 		if presence(t) in ["sit", "work"] and npcs.has(t.id): pool.append(t)
-	if pool.is_empty() or randf() > [0.35, 0.5, 0.7][out_lv("ojol")]: return
+	if pool.is_empty() or randf() > [0.2, 0.28, 0.36][out_lv("ojol")]: return
+	S.ojol_win = win
 	var t: Dictionary = pool.pick_random()
 	spawn_ojol(t)
 
@@ -3117,32 +3233,40 @@ func char_of(p: Dictionary) -> String:
 
 ## Jaga jarak: NPC yang berjalan berhenti kalau ada NPC lain tepat di depannya (lobi & tangga).
 func _separate_npcs() -> void:
+	var dt := get_process_delta_time()
 	var list: Array = []
 	for n in npcs.values():
 		if is_instance_valid(n) and n.fade_state == "" and n.visible:
 			list.append(n)
+	# Hitung dulu semua keputusan dari keadaan frame sebelumnya, baru terapkan sekaligus,
+	# dan tahan keputusan minimal sebentar (histeresis) supaya tidak berkedip jalan/diam (gedek).
+	var want := {}
 	for n in list:
-		n.blocked = false
-		if not n.is_moving():
-			continue
-		var d: Vector2 = n.move_dir()
-		if d == Vector2.ZERO:
-			continue
-		var gap := 95.0 if n.scene == "lobby" else 48.0
-		for o in list:
-			if o == n or o.scene != n.scene:
-				continue
-			var rel: Vector2 = o.position - n.position
-			var ahead := rel.dot(d)
-			var side := absf(rel.cross(d))
-			if ahead > 0.0 and ahead < gap and side < gap * 0.6:
-				# Hanya antre di belakang orang yang berjalan searah (yang diam/berlawanan dilewati).
-				if not o.is_moving() or o.move_dir().dot(d) < 0.5:
-					continue
-				if o.blocked and str(o.id) > str(n.id):
-					continue
-				n.blocked = true
-				break
+		var b := false
+		if n.is_moving():
+			var d: Vector2 = n.move_dir()
+			if d != Vector2.ZERO:
+				var gap := 95.0 if n.scene == "lobby" else 48.0
+				for o in list:
+					if o == n or o.scene != n.scene: continue
+					var rel: Vector2 = o.position - n.position
+					var ahead := rel.dot(d)
+					var side := absf(rel.cross(d))
+					if ahead > 0.0 and ahead < gap and side < gap * 0.6:
+						if not o.is_moving() or o.move_dir().dot(d) < 0.5: continue
+						# yang paling depan tidak pernah ditahan; yang di belakang mengalah
+						if o.blocked and str(o.id) > str(n.id): continue
+						b = true
+						break
+		want[n] = b
+	for n in list:
+		var hold := float(n.get_meta("bhold", 0.0)) - dt
+		if want[n] != n.blocked and hold <= 0.0:
+			n.blocked = want[n]
+			hold = 0.45 if n.blocked else 0.35
+		elif not n.is_moving():
+			n.blocked = false
+		n.set_meta("bhold", hold)
 
 
 ## NPC di lobi digambar di lapisan lobi (tetap), selain itu di dalam gedung (ikut scroll).
@@ -3376,7 +3500,14 @@ func _need_truck() -> bool:
 
 
 ## Gambar kotak pesanan di bak pickup (anak dari sprite truk, di belakang dinding bak).
+func _cargo_sync() -> void:
+	if not S.has("cargo_to"): S.cargo_to = []
+	while S.cargo_to.size() < S.cargo.size(): S.cargo_to.append("")
+	while S.cargo_to.size() > S.cargo.size(): S.cargo_to.pop_back()
+
+
 func _refresh_cargo() -> void:
+	_cargo_sync()
 	if box_tex == null:
 		box_tex = load("res://assets/box.png")
 	for b in box_nodes:
@@ -3416,6 +3547,8 @@ func _tick_orders(mins: float) -> void:
 		if o.t <= 0.0 and S.cargo.size() < CARGO_MAX:
 			S.orders.erase(o)
 			S.cargo.append(o.item)
+			_cargo_sync()
+			S.cargo_to[S.cargo.size() - 1] = str(o.get("room", ""))
 			truck_touch()
 			ui.toast("%s sudah datang! Seret kotaknya dari pickup ke kamar." % D.FURN[o.item].n, "gold")
 			_refresh_cargo()
@@ -3573,7 +3706,7 @@ func _courier_next(n: Npc) -> void:
 
 func _staff_brain() -> void:
 	_jobs_brain()
-	for role in ["cleaner", "satpam", "teknisi", "laundry", "kantin", "barista", "kasir", "trainer"]:
+	for role in ["cleaner", "satpam", "teknisi", "laundry", "kantin", "barista", "kasir", "trainer", "tani", "lele", "petshop", "florist", "koperasi", "warteg"]:
 		var on: bool = S.staff.get(role, false)
 		if D.STAFF[role].has("need") and not has_facil(D.STAFF[role].need):
 			on = false
@@ -3596,7 +3729,7 @@ func _staff_brain() -> void:
 			elif role == "trainer":
 				n.char_id = "trainer"
 				n.art_map = {"walk": "walk", "stand": "idle", "counter": ["idle", "lift", "clip", "happy"]}
-			elif role in ["laundry", "kantin", "barista", "kasir"]:
+			elif role in ["laundry", "kantin", "barista", "kasir", "tani", "lele", "petshop", "florist", "koperasi", "warteg"]:
 				n.char_id = role
 				n.art_map = {"walk": "walk", "stand": "happy" if role == "laundry" else "idle", "counter": "happy" if role == "laundry" else ["idle", "happy"]}
 			elif role == "teknisi":
@@ -3626,7 +3759,7 @@ func _staff_brain() -> void:
 					n.plan(R, _spot_in(R), "fix", func(x: Npc): x.work = {"t": _work_t(x, 5.0), "pose": "fix", "fn": func(y: Npc): _finish_fix(y, R)})
 				else:
 					_idle_staff(n)
-			"laundry", "kantin", "barista", "kasir", "trainer":
+			"laundry", "kantin", "barista", "kasir", "trainer", "tani", "lele", "petshop", "florist", "koperasi", "warteg":
 				var ff := facil_floor(D.STAFF[n.role].need)
 				if ff > 0:
 					n.plan("S%d" % ff, D.facil_spot(ff) + Vector2(-24 if ff % 2 == 0 else 24, -4), "counter", func(m: Npc): m.work = {"t": randf_range(20.0, 40.0), "pose": "counter"})
@@ -3689,6 +3822,7 @@ func _pick_room(self_n: Npc, filter: Callable, score: Callable) -> String:
 	var best := ""
 	var bs := INF
 	for id in D.ROOMS:
+		if S.get("fire", {}).has(id): continue
 		var r: Dictionary = S.rooms[id]
 		if claimed.has(id) or not filter.call(r):
 			continue
@@ -3803,6 +3937,9 @@ func act(a: String, arg: String = "") -> void:
 					_resolve_event(e, o[2], float(o[1]))
 					break
 		"buy":
+			var bp := arg.split("|")
+			arg = bp[0]
+			var broom: String = bp[1] if bp.size() > 1 else ""
 			var f: Dictionary = D.FURN[arg]
 			if int(S.lvl) < int(f.min): return
 			if S.orders.size() + S.cargo.size() >= CARGO_MAX:
@@ -3813,7 +3950,7 @@ func act(a: String, arg: String = "") -> void:
 				return
 			spend(f.cost, "other")
 			sfx("buy")
-			S.orders.append({"item": arg, "t": ORDER_MINS})
+			S.orders.append({"item": arg, "t": ORDER_MINS, "room": broom})
 			truck_touch()
 			ui.toast("%s dipesan. Pickup datang sebentar lagi." % f.n)
 		"clean":
@@ -4036,8 +4173,15 @@ func _drop_validity() -> Dictionary:
 		return out
 	if drag.get("kind", "") == "guest" and has_facil("tunggu"):
 		out["S%d" % facil_floor("tunggu")] = true
+	if drag.get("kind", "") == "bag":
+		# Paper bag: hanya kamar penerima yang disorot (salah antar tetap bisa, tapi penghuni marah).
+		var b := _bag(str(drag.item))
+		for id in D.ROOMS: out[id] = id == str(b.get("room", ""))
+		if has_lift(): out["LIFT"] = true
+		return out
 	for id in D.ROOMS:
 		out[id] = _drop_ok(id) == ""
+	if drag.get("kind", "") == "cargo" and has_lift(): out["LIFT"] = true
 	return out
 
 
@@ -4109,6 +4253,9 @@ func _end_drag(p: Vector2) -> void:
 			return
 		act("facil_build", "%d|%s" % [f, d.item])
 		return
+	if (d.kind == "cargo" or d.kind == "bag") and lift_at(p):
+		lift_send(d)
+		return
 	var id := room_at(p)
 	if id == "" and d.kind == "guest":
 		var sg := stair_at(p)
@@ -4130,6 +4277,8 @@ func _end_drag(p: Vector2) -> void:
 		"bag": deliver_bag(str(d.item), id)
 		"cargo":
 			var t: String = S.cargo.pop_at(int(d.item))
+			_cargo_sync()
+			S.cargo_to.pop_at(int(d.item))
 			truck_touch()
 			var r: Dictionary = S.rooms[id]
 			add_job("deliver", id, t, int(r.furn.get(t, 0)) + 1)
@@ -4806,6 +4955,8 @@ func _handle_cli(args: PackedStringArray) -> void:
 				elif sv == "park": ui.side.loc = "cafe"; ui.side._walk(-1)
 				elif sv == "gunung": ui.side.loc = "padel"; ui.side._walk(-1)
 				elif sv == "cafe": ui.side._arrive("cafe")
+				elif sv == "padelplay": ui.side.loc = "padel"; S.side = {"padel_intro": true, "padel_tut": true}; ui.side._show_padel()
+				elif sv == "padelnew": ui.side.loc = "padel"; S.side = {}; ui.side._show_padel()
 				elif sv == "cafein": ui.side.loc = "cafe"; ui.side._show_cafe_in()
 				else: ui.side.loc = "padel"; ui.side._arrive("padel"))
 		elif a.begins_with("--fire"):
@@ -4828,6 +4979,24 @@ func _handle_cli(args: PackedStringArray) -> void:
 		elif a.begins_with("--stair="):
 			S.stair_lv = int(a.substr(8))
 			_refresh_stairs()
+		elif a == "--liftsend":
+			S.fac["lift"] = true
+			_refresh_lift()
+			S.cargo = ["kasur", "lampu"]
+			_refresh_cargo()
+			get_tree().create_timer(0.5).timeout.connect(func():
+				lift_send({"kind": "cargo", "item": "0"})
+				lift_send({"kind": "cargo", "item": "0"}))
+		elif a == "--newfac":
+			S.lvl = 8
+			S.facil = {"1": "hidroponik", "2": "lele", "3": "petshop", "4": "bunga", "5": "koperasi", "6": "warteg"}
+			for k in ["tani", "lele", "petshop", "florist", "koperasi", "warteg"]: S.staff[k] = true
+			_refresh_world()
+		elif a == "--hpaint":
+			S.hall_paint = {}
+			for f in range(1, D.TOP_FLOOR + 1):
+				S.hall_paint[str(f)] = [{"wall": "biru", "motif": "garis", "floor": "keramik"}, {"wall": "pink", "motif": "polkadot", "floor": "kayu_gelap"}, {"wall": "mint", "motif": "bata", "floor": "catur"}][f % 3]
+			_refresh_hall_paint()
 		elif a == "--rich":
 			W.diamonds = 500
 		elif a == "--stats":
@@ -5190,6 +5359,12 @@ const FACIL_TALK := {
 	"cafe": [["Kak Nadia, es kopi susu satu!", "Oke! Gula aren atau biasa?"], ["Kak, matcha latte ya.", "Siap, less sugar?"]],
 	"minimart": [["Kak Sinta, ada mi instan?", "Ada, rak kedua ya."], ["Bayar pakai QRIS bisa?", "Bisa dong, scan di sini."]],
 	"gym": [["Kak Ray, spot aku ya!", "Ayo, satu lagi! Kamu pasti bisa!"], ["Kak, plank berapa lama?", "Satu menit. Tahan... jangan curang!"]],
+	"hidroponik": [["Kang Dedi, seladanya udah panen?", "Besok pagi, segar-segar!"], ["Kang, pakcoy sekilo berapa?", "Buat anak kost, harga teman!"]],
+	"lele": [["Pak Darto, lelenya gede-gede!", "Pakannya rutin, Nak."], ["Pak, bisa pesan lele goreng?", "Bisa, nanti saya antar ke Warteg."]],
+	"petshop": [["Mbak Lala, pasir kucing ada?", "Ada, yang wangi lavender ya?"], ["Mbak, makanan kucing anak?", "Ini, buat kitten. Lucu banget pasti!"]],
+	"bunga": [["Mbak Rosa, buket buat pacar dong.", "Mawar merah? Romantis!"], ["Mbak, tanaman yang gampang dirawat?", "Lidah mertua, tahan banting!"]],
+	"koperasi": [["Bu Wati, mau nabung lima puluh ribu.", "Siap, ini bukunya ya."], ["Bu, beras lima kilo masih?", "Masih, harga anggota!"]],
+	"warteg": [["Bu Tini, nasi orek tempe ya!", "Pakai kuah sayur lodeh?"], ["Bu, es teh manis satu!", "Siap, gulanya dikit kan?"]],
 }
 const FACIL_SOLO := {
 	"mushola": ["Adem banget di sini.", "Alhamdulillah, tenang rasanya."],
@@ -5197,6 +5372,9 @@ const FACIL_SOLO := {
 	"tunggu": ["Duduk sebentar ah.", "Sofanya empuk."],
 	"laundry": ["Mesinnya kupakai sendiri deh."],
 	"gym": ["Treadmill dulu 10 menit."],
+	"hidroponik": ["Seger lihat yang hijau-hijau.", "Wah, tomatnya mulai merah."],
+	"lele": ["Lelenya lincah banget!", "Kasih pakan ah."],
+	"bunga": ["Wangi banget mawarnya.", "Beli satu buat kamar ah."],
 }
 var _fac_acc := 0.0
 
@@ -5351,6 +5529,7 @@ func _refresh_bags() -> void:
 	var tex: Texture2D = load("res://assets/bag.png")
 	var i := 0
 	for bg in S.get("bags", []):
+		if bg.get("lift", false): continue
 		var sp := Sprite2D.new()
 		sp.texture = tex
 		sp.centered = false
@@ -5523,7 +5702,30 @@ func start_fire(rid: String) -> void:
 	if r.tenant != null and npcs.has(r.tenant.id):
 		npcs[r.tenant.id].say("Kebakaran! Tolong!", 3.0)
 	keeper_say("Ya Allah, ada api! Semua keluar dulu!", 3.0)
+	_fire_flee(rid)
 	if out_lv("damkar") >= 1: _call_damkar(rid)
+
+
+## Semua orang di kamar terbakar (penghuni & karyawan) lari panik ke lobi.
+const PANIC_LINES := ["Kebakaran!!", "Tolong! Api!", "Lari! Lari!", "Panas! Keluar!", "Aaaa! Apinya besar!"]
+func _fire_flee(rid: String) -> void:
+	var k := 0
+	for n in npcs.values():
+		if not is_instance_valid(n) or n.scene != rid: continue
+		if str(n.id).begins_with("damkar"): continue
+		k += 1
+		n.work = {}
+		n.say(PANIC_LINES.pick_random(), 2.5)
+		n.set_meta("spd", 2.2)
+		n.set_meta("panic", true)
+		var x := 260.0 + 120.0 * k
+		n.plan("lobby", Vector2(x, D.LOBBY_Y), "stand", func(m: Npc):
+			m.set_meta("spd", 1.0)
+			m.remove_meta("panic")
+			m.dir = 1
+			m.say(["Huft... selamat.", "Semoga cepat padam...", "Barangku gimana ya..."].pick_random(), 2.6)
+			m.work = {"t": 6.0, "pose": "stand"})
+	if k > 0: ui.toast("Penghuni & karyawan di Kamar %s berlarian keluar!" % D.room_name(rid), "bad")
 
 
 func _fire_tick(mins: float) -> void:

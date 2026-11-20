@@ -348,7 +348,8 @@ func tick(dt: float) -> void:
 				route.pop_front()
 			else:
 				position += d / dist * step
-				if absf(d.x) > 0.5:
+				# Arah hadap hanya berubah kalau gerak horizontal cukup jelas (cegah balik-balik di tempat).
+				if absf(d.x) > 6.0 and absf(d.x) > absf(d.y) * 0.3:
 					dir = -1 if d.x < 0 else 1
 			pose = "stand" if blocked else "walk"
 	else:
