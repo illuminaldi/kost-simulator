@@ -112,6 +112,7 @@ func _on_input(e: InputEvent) -> void:
 
 
 func _next() -> void:
+	if not is_instance_valid(who_lbl) or not is_inside_tree(): return
 	idx += 1
 	if idx >= scenes.size():
 		_finish(_cur_name)

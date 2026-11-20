@@ -217,6 +217,44 @@ func _bagdrag_test() -> void:
 	print("BAGTEST still alive, min=", S.min)
 
 
+## Uji acak: ketuk & seret di sembarang tempat, laporkan kalau waktu game berhenti.
+func _monkey() -> void:
+	await get_tree().create_timer(1.0).timeout
+	S.lvl = 12
+	S.money = 50000000.0
+	S.fac["lift"] = true
+	_refresh_lift()
+	var last_min := int(S.min) + int(S.day) * 1440
+	var stuck := 0
+	for i in range(900):
+		var a := Vector2(randf_range(20, D.IW - 20), randf_range(250, D.IH - 20))
+		var b := a + Vector2(randf_range(-500, 500), randf_range(-900, 400))
+		var drag_it := randf() < 0.5
+		for st in ([[a, true], [b, null], [b, false]] if drag_it else [[a, true], [a, false]]):
+			var ev: InputEvent
+			if st[1] == null:
+				ev = InputEventMouseMotion.new()
+			else:
+				ev = InputEventMouseButton.new()
+				ev.button_index = MOUSE_BUTTON_LEFT
+				ev.pressed = st[1]
+			ev.position = st[0]
+			ev.global_position = st[0]
+			Input.warp_mouse(st[0])
+			Input.parse_input_event(ev)
+			await get_tree().process_frame
+		if randf() < 0.15 and ui.kind != "": ui.close_sheet()
+		if randf() < 0.05 and ui.side.visible: ui.side._walk(1)
+		await get_tree().create_timer(0.05).timeout
+		if i % 50 == 49:
+			var now := int(S.min) + int(S.day) * 1440
+			print("MONKEY i=", i, " t=", now, " sheet=", ui.kind, " side=", ui.side.visible, " drag=", drag.get("kind", ""), " speed=", S.speed, " cut=", cutscene_on)
+			if now == last_min: stuck += 1
+			last_min = now
+	print("MONKEY done stuck=", stuck)
+	get_tree().quit()
+
+
 func _clicktest() -> void:
 	await get_tree().create_timer(2.5).timeout
 	for i in range(4):
@@ -2179,6 +2217,10 @@ func _chat_tick(dt: float) -> void:
 			if _desk_say_t <= 0.0:
 				_desk_text(D.STAFF.resep.nama, false)
 	for c in _convos.duplicate():
+		# NPC bisa sudah dihapus (pulang/pergi): jangan simpan ke variabel bertipe sebelum dicek.
+		if not is_instance_valid(c.n[0]) or not is_instance_valid(c.n[1]):
+			_end_chat(c)
+			continue
 		var a: Npc = c.n[0]
 		var b: Npc = c.n[1]
 		if c.get("hold", false) and is_instance_valid(a) and is_instance_valid(b):
@@ -5337,6 +5379,8 @@ func _handle_cli(args: PackedStringArray) -> void:
 				wa.complain(tt[1][0], "dirty")
 				wa.post("Penghuni", "Ada preman minta-minta duit di depan. Hati-hati semua!", "alert")
 				if a == "--watest": ui.update_hud())
+		elif a == "--monkey":
+			_monkey.call_deferred()
 		elif a == "--codetest":
 			var c := export_code()
 			var parts := c.split(":")
