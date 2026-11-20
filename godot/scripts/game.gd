@@ -368,9 +368,9 @@ func _build_world() -> void:
 	lobby_root.add_child(npc_lobby)
 	# Si Oyen (kucing) bisa dielus.
 	cat_spr = Sprite2D.new()
-	cat_spr.texture = load("res://assets/cat_only.png")
+	for k in CAT_POSES: cat_tex[k] = load("res://assets/cat/%s.png" % k)
 	cat_spr.centered = false
-	cat_spr.offset = Vector2(-cat_spr.texture.get_width() / 2.0, -cat_spr.texture.get_height())
+	_cat_pose("sleep")
 	cat_spr.scale = Vector2.ONE * CAT_S
 	cat_spr.position = CAT_FLOOR
 	lobby_root.add_child(cat_spr)
@@ -2074,6 +2074,7 @@ func spawn_thief() -> void:
 	npcs["thief"] = n
 	thief = n
 	_thief_state = "sneak"
+	cat_startle()
 	_thief_t = 0.0
 	n.plan("lobby", Vector2(1000, D.LOBBY_Y), "stand", func(m: Npc):
 		_thief_state = "grab"
@@ -2182,6 +2183,7 @@ func _maybe_preman(h: int) -> void:
 
 func spawn_preman() -> void:
 	if preman != null: return
+	cat_startle()
 	var n := Npc.new()
 	npc_lobby.add_child(n)
 	n.setup("preman", "preman", D.STAFF_LOOK.teknisi, Vector2(D.OUT_X, D.LOBBY_Y), font)
@@ -4287,7 +4289,14 @@ func _unhandled_input(e: InputEvent) -> void:
 
 
 # ---------- Si Oyen: tidur di depan meja; naik ke meja kalau lobi ramai ----------
-const CAT_S := 0.5
+const CAT_S := 0.25
+const CAT_POSES := ["sleep", "eat", "jump", "stretch", "walk", "kaget"]
+var cat_tex := {}
+var cat_state := "sleep"
+var _cat_t := 12.0
+var _cat_to := 1000.0
+const CAT_X := [780.0, 1240.0]
+const CAT_BOWL_X := 1180.0
 const CAT_FLOOR := Vector2(1000, 2322)
 const CAT_DESK := Vector2(1060, 2130)
 var cat_on_desk := false
@@ -4299,7 +4308,61 @@ func cat_rect() -> Rect2:
 	return Rect2(cat_spr.position - Vector2(sz.x / 2.0, sz.y), sz)
 
 
+func _cat_pose(k: String) -> void:
+	cat_spr.texture = cat_tex[k]
+	cat_spr.offset = Vector2(-cat_spr.texture.get_width() / 2.0, -cat_spr.texture.get_height())
+
+
+## Oyen punya rutinitas: tidur → menggeliat → jalan-jalan → makan → tidur lagi.
+func _cat_life(dt: float) -> void:
+	if not cat_spr.visible or cat_on_desk and cat_state != "kaget": return
+	_cat_t -= dt
+	match cat_state:
+		"walk":
+			var d := signf(_cat_to - cat_spr.position.x)
+			cat_spr.flip_h = d > 0
+			cat_spr.position.x = move_toward(cat_spr.position.x, _cat_to, 90.0 * dt)
+			# langkah kecil: badan naik-turun
+			cat_spr.position.y = CAT_FLOOR.y - absf(sin(Time.get_ticks_msec() / 90.0)) * 5.0
+			if absf(cat_spr.position.x - _cat_to) < 1.0:
+				cat_spr.position.y = CAT_FLOOR.y
+				if absf(_cat_to - CAT_BOWL_X) < 2.0:
+					_cat_set("eat", randf_range(5.0, 8.0))
+				else:
+					_cat_set("sleep" if randf() < 0.6 else "stretch", randf_range(15.0, 30.0))
+		_:
+			if _cat_t > 0.0: return
+			match cat_state:
+				"sleep":
+					_cat_set("stretch", 1.8)
+				"stretch", "eat", "kaget":
+					if cat_on_desk:
+						_cat_set("sleep", 20.0)
+						return
+					_cat_to = CAT_BOWL_X if randf() < 0.35 and cat_state != "eat" else randf_range(CAT_X[0], CAT_X[1])
+					_cat_set("walk", 0.0)
+
+
+func _cat_set(k: String, secs: float) -> void:
+	cat_state = k
+	_cat_t = secs
+	_cat_pose(k)
+	if k == "eat": cat_spr.flip_h = false
+
+
+## Kucing kaget (maling, preman, kebakaran): bulu berdiri & badan gemetar.
+func cat_startle() -> void:
+	if cat_spr == null or not cat_spr.visible: return
+	_cat_set("kaget", 2.2)
+	sfx("meow2", -6.0)
+	var t := create_tween()
+	for i in range(4):
+		t.tween_property(cat_spr, "rotation", 0.08 * (1 if i % 2 == 0 else -1), 0.06)
+	t.tween_property(cat_spr, "rotation", 0.0, 0.06)
+
+
 func _cat_tick(dt: float) -> void:
+	_cat_life(dt)
 	_cat_acc += dt
 	if _cat_acc < 1.0 or not cat_spr.visible: return
 	_cat_acc = 0.0
@@ -4317,13 +4380,16 @@ func _cat_jump(up: bool) -> void:
 	cat_on_desk = up
 	if up: lobby_root.move_child(cat_spr, recep_art.get_index() + 1)
 	else: lobby_root.move_child(cat_spr, recep_art.get_index())
-	var to: Vector2 = CAT_DESK if up else CAT_FLOOR
+	var to: Vector2 = CAT_DESK if up else Vector2(CAT_FLOOR.x, CAT_FLOOR.y)
 	var from: Vector2 = cat_spr.position
+	_cat_pose("jump")
+	cat_spr.flip_h = to.x > from.x
 	var t := create_tween()
 	t.tween_method(func(k: float):
 		cat_spr.position = from.lerp(to, k) + Vector2(0, -sin(k * PI) * 90.0), 0.0, 1.0, 0.45).set_trans(Tween.TRANS_SINE)
 	t.tween_property(cat_spr, "scale", Vector2(1.1, 0.88) * CAT_S, 0.08)
 	t.tween_property(cat_spr, "scale", Vector2.ONE * CAT_S, 0.12)
+	t.tween_callback(func(): _cat_set("sleep" if up else "stretch", 10.0 if up else 1.5))
 	if up:
 		sfx("meow2", -10.0)
 
@@ -4343,6 +4409,7 @@ func _try_side(dir: int) -> void:
 
 func pet_cat() -> void:
 	_cat_pets += 1
+	if cat_state == "sleep" and not cat_on_desk: _cat_set("stretch", 1.6)
 	sfx(["meow", "meow2", "purr"][_cat_pets % 3], -4.0)
 	var t := create_tween()
 	t.tween_property(cat_spr, "scale", Vector2(1.12, 0.86) * CAT_S, 0.09)
@@ -4635,6 +4702,16 @@ func _handle_cli(args: PackedStringArray) -> void:
 			get_tree().create_timer(0.5).timeout.connect(spawn_sampah)
 		elif a == "--sip":
 			get_tree().create_timer(1.5).timeout.connect(func(): ui.side._sip())
+		elif a.begins_with("--cat="):
+			var cp := a.substr(6)
+			get_tree().create_timer(0.3).timeout.connect(func():
+				_cat_acc = -100.0
+				cat_on_desk = false
+				cat_spr.position = CAT_FLOOR
+				lobby_root.move_child(cat_spr, recep_art.get_index())
+				if cp == "kaget": cat_startle()
+				elif cp == "walk": _cat_to = 820.0; _cat_set("walk", 0.0)
+				else: _cat_set(cp, 30.0))
 		elif a == "--tired":
 			play_secs = TIRED_SECS - 1.0
 		elif a.begins_with("--side="):
@@ -5350,6 +5427,7 @@ func start_fire(rid: String) -> void:
 	if not S.has("fire"): S.fire = {}
 	if S.fire.has(rid): return
 	S.fire[rid] = 0.0
+	cat_startle()
 	S.fire_day = int(S.day)
 	_refresh_fire()
 	sfx("thunder", -8.0)

@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/wave_L.png-c3664db4b24a8aafe8a6db4be8ad693b.c
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.82
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
