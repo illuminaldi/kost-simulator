@@ -288,10 +288,6 @@ func _show_cafe_in() -> void:
 	_bk = _Book.new()
 	_bk.font = font
 	_layer.add_child(_bk)
-	var life := _CafeLife.new()
-	life.font = font
-	_layer.add_child(life)
-	_layer.move_child(life, 1)
 	_mug = _Mug.new()
 	_layer.add_child(_mug)
 	# Meter fokus & isi gelas
