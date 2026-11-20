@@ -658,12 +658,12 @@ class _CafeLife extends Node2D:
 	var _g := 0
 	# [gambar, gambar alternatif, x tengah, y alas, skala, cermin, bagian terlihat (0..1), alpha]
 	const SPEC := [
-		["kupluk/chair", "kupluk/happy", 96.0, 700.0, 0.68, false, 1.0, 1.0],     # 0 meja payung kiri
-		["siswi/chair", "siswi/happy", 368.0, 700.0, 0.68, true, 1.0, 1.0],        # 1
-		["nenek/chair", "nenek/happy", 505.0, 596.0, 0.58, false, 1.0, 1.0],      # 2 meja payung tengah
-		["kakek/chair", "kakek/happy", 741.0, 596.0, 0.58, true, 1.0, 1.0],       # 3
-		["flanel/chair", "flanel/happy", 1160.0, 925.0, 0.78, false, 1.0, 1.0],    # 4 meja dalam
-		["kutu/chair", "kutu/happy", 1385.0, 925.0, 0.78, true, 1.0, 1.0],         # 5
+		["kupluk/chair", "kupluk/happy", 82.0, 704.0, 0.68, false, 1.0, 1.0],     # 0 meja payung kiri
+		["siswi/chair", "siswi/happy", 398.0, 684.0, 0.68, true, 1.0, 1.0],        # 1
+		["nenek/chair", "nenek/happy", 492.0, 600.0, 0.58, false, 1.0, 1.0],      # 2 meja payung tengah
+		["kakek/chair", "kakek/happy", 768.0, 582.0, 0.58, true, 1.0, 1.0],       # 3
+		["flanel/chair", "flanel/happy", 1150.0, 930.0, 0.78, false, 1.0, 1.0],    # 4 meja dalam
+		["kutu/chair", "kutu/happy", 1400.0, 912.0, 0.78, true, 1.0, 1.0],         # 5
 		["barista/idle", "barista/happy", 1330.0, 650.0, 0.66, true, 1.0, 1.0],    # 6 di balik bar
 		["ojol/ride", "ojol/ride2", 300.0, 488.0, 0.46, false, 1.0, 1.0],         # 7 ojol parkir di luar
 	]
@@ -1794,16 +1794,16 @@ class _Props extends Node2D:
 
 	func _draw() -> void:
 		if front:
-			_table(Vector2(232, 700), 0.68)
-			_table(Vector2(623, 596), 0.58)
-			_table(Vector2(1272, 925), 0.78)
+			_table(Vector2(238, 694), 0.62)
+			_table(Vector2(628, 591), 0.52)
+			_table(Vector2(1272, 921), 0.7)
 			_counter()
 			_plant(Vector2(860, 575), 0.95)
 			_plant(Vector2(-10, 785), 0.9)
 		else:
 			_shelves()
-			_umbrella(Vector2(232, 700 - 130), 400.0, 330.0, Color("f4e6c6"), Color("e3b97c"))
-			_umbrella(Vector2(623, 596 - 110), 340.0, 290.0, Color("f4e6c6"), Color("cfe0b4"))
+			_umbrella(Vector2(238, 694 - 118), 400.0, 330.0, Color("f4e6c6"), Color("e3b97c"))
+			_umbrella(Vector2(628, 591 - 99), 340.0, 290.0, Color("f4e6c6"), Color("cfe0b4"))
 			_plant(Vector2(440, 500), 0.7)
 
 	## Meja bundar kaki satu; p = titik lantai di tengah meja.
