@@ -658,14 +658,14 @@ class _CafeLife extends Node2D:
 	var _g := 0
 	# [gambar, gambar alternatif, x tengah, y alas, skala, cermin, bagian terlihat (0..1), alpha]
 	const SPEC := [
-		["kupluk/chair", "kupluk/happy", 130.0, 712.0, 0.5, false, 1.0, 1.0],     # 0 meja payung kiri
-		["siswi/chair", "siswi/happy", 330.0, 712.0, 0.5, true, 1.0, 1.0],        # 1
-		["nenek/chair", "nenek/happy", 518.0, 598.0, 0.42, false, 1.0, 1.0],      # 2 meja payung tengah
-		["kakek/chair", "kakek/happy", 690.0, 598.0, 0.42, true, 1.0, 1.0],       # 3
-		["flanel/chair", "flanel/happy", 1160.0, 905.0, 0.6, false, 1.0, 1.0],    # 4 meja dalam
-		["kutu/chair", "kutu/happy", 1365.0, 905.0, 0.6, true, 1.0, 1.0],         # 5
-		["barista/idle", "barista/happy", 1330.0, 640.0, 0.5, true, 1.0, 1.0],    # 6 di balik bar
-		["ojol/ride", "ojol/ride2", 330.0, 478.0, 0.34, false, 1.0, 1.0],         # 7 ojol parkir di luar
+		["kupluk/chair", "kupluk/happy", 96.0, 700.0, 0.68, false, 1.0, 1.0],     # 0 meja payung kiri
+		["siswi/chair", "siswi/happy", 368.0, 700.0, 0.68, true, 1.0, 1.0],        # 1
+		["nenek/chair", "nenek/happy", 505.0, 596.0, 0.58, false, 1.0, 1.0],      # 2 meja payung tengah
+		["kakek/chair", "kakek/happy", 741.0, 596.0, 0.58, true, 1.0, 1.0],       # 3
+		["flanel/chair", "flanel/happy", 1160.0, 925.0, 0.78, false, 1.0, 1.0],    # 4 meja dalam
+		["kutu/chair", "kutu/happy", 1385.0, 925.0, 0.78, true, 1.0, 1.0],         # 5
+		["barista/idle", "barista/happy", 1330.0, 650.0, 0.66, true, 1.0, 1.0],    # 6 di balik bar
+		["ojol/ride", "ojol/ride2", 300.0, 488.0, 0.46, false, 1.0, 1.0],         # 7 ojol parkir di luar
 	]
 	const TALKS := [
 		[[0, 1], ["Eh, tugas kelompok udah?", "Belum, nanti malam ya!", "Aku traktir kopi deh.", "Serius? Asyik!"]],
@@ -1794,17 +1794,17 @@ class _Props extends Node2D:
 
 	func _draw() -> void:
 		if front:
-			_table(Vector2(230, 712), 0.5)
-			_table(Vector2(604, 598), 0.42)
-			_table(Vector2(1262, 905), 0.6)
+			_table(Vector2(232, 700), 0.68)
+			_table(Vector2(623, 596), 0.58)
+			_table(Vector2(1272, 925), 0.78)
 			_counter()
-			_plant(Vector2(790, 590), 0.8)
-			_plant(Vector2(40, 770), 0.7)
+			_plant(Vector2(860, 575), 0.95)
+			_plant(Vector2(-10, 785), 0.9)
 		else:
 			_shelves()
-			_umbrella(Vector2(230, 712 - 96), 330.0, 230.0, Color("f4e6c6"), Color("e3b97c"))
-			_umbrella(Vector2(604, 598 - 80), 280.0, 200.0, Color("f4e6c6"), Color("cfe0b4"))
-			_plant(Vector2(470, 520), 0.55)
+			_umbrella(Vector2(232, 700 - 130), 400.0, 330.0, Color("f4e6c6"), Color("e3b97c"))
+			_umbrella(Vector2(623, 596 - 110), 340.0, 290.0, Color("f4e6c6"), Color("cfe0b4"))
+			_plant(Vector2(440, 500), 0.7)
 
 	## Meja bundar kaki satu; p = titik lantai di tengah meja.
 	func _table(p: Vector2, sc: float) -> void:
