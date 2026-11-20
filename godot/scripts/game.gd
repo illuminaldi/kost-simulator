@@ -102,6 +102,11 @@ func _ready() -> void:
 	if int(S.speed) > 2: S.speed = 2
 	if int(S.speed) == 2 and int(W.turbo_min) <= 0: S.speed = 1
 	_refresh_world()
+	if not args.has("--fresh"): _offline_gain()
+	for a0 in args:
+		if a0.begins_with("--away="):
+			S.saved_at = Time.get_unix_time_from_system() - float(a0.substr(7)) * 3600.0
+			_offline_gain()
 	# Tangga & cat ruang tangga dibuat sebelum save dimuat, jadi segarkan lagi di sini.
 	_refresh_stairs()
 	_refresh_hall_paint()
@@ -136,6 +141,10 @@ func _maybe_intro(args: PackedStringArray) -> void:
 				for _i in range(int(a.substr(10))): cs._next()
 	elif int(S.get("tut", -1)) >= 0:
 		ui.tutorial.start(int(S.tut))
+	elif not away.is_empty():
+		ui.open_sheet("away")
+	if restored_from != "":
+		ui.toast("Data utama rusak, dipulihkan dari cadangan otomatis." if restored_from != "gagal" else "Data save rusak dan tidak bisa dipulihkan. Mulai kost baru.", "bad")
 
 
 func _tapat(p: Vector2, delay: float = 1.5) -> void:
@@ -155,6 +164,51 @@ func _tapat(p: Vector2, delay: float = 1.5) -> void:
 	await get_tree().create_timer(0.5).timeout
 	await get_tree().create_timer(1.5).timeout
 	print("TAP money=", S.money, " due=", due_total(), " sheet=", ui.kind, " brand=", get_children().any(func(c): return c is BrandIntro), " cut=", get_children().any(func(c): return c is Cutscene))
+
+
+func _bagdrag_test() -> void:
+	await get_tree().create_timer(0.6).timeout
+	if OS.get_cmdline_user_args().has("--bighouse"):
+		S.lvl = 24
+		S.fac["lift"] = true
+		_refresh_lift()
+		for id in D.ROOMS:
+			if D.fl(id) <= 9:
+				S.rooms[id].built = true
+				S.rooms[id].furn = {"kasur": 1}
+				S.rooms[id].tenant = gen_person("l")
+		_refresh_world()
+		_sync_npcs()
+		jump_to_floor(7)
+		await get_tree().create_timer(0.6).timeout
+	var e0: Array = each_tenant()
+	if OS.get_cmdline_user_args().has("--bighouse"):
+		e0 = e0.filter(func(x): return x[0] == "7R")
+	drop_bag(str(e0[0][1].tenant.id), str(e0[0][1].tenant.name), e0[0][0], "mie ayam")
+	await get_tree().create_timer(0.3).timeout
+	var bp: Vector2 = bag_nodes[0].position + Vector2(0, -50)
+	var rp: Vector2 = D.rect_of(e0[0][0]).get_center() + Vector2(0, scroll)
+	print("BAGTEST bag at ", bp, " room ", e0[0][0], " at ", rp)
+	var seq := [[bp, true]]
+	for k in range(1, 9): seq.append([bp.lerp(rp, k / 8.0), null])
+	seq.append([rp, false])
+	for st in seq:
+		var ev: InputEvent
+		if st[1] == null:
+			ev = InputEventMouseMotion.new()
+		else:
+			ev = InputEventMouseButton.new()
+			ev.button_index = MOUSE_BUTTON_LEFT
+			ev.pressed = st[1]
+		ev.position = st[0]
+		ev.global_position = st[0]
+		Input.warp_mouse(st[0])
+		Input.parse_input_event(ev)
+		await get_tree().create_timer(0.08).timeout
+	await get_tree().create_timer(0.5).timeout
+	print("BAGTEST drag=", drag, " bags=", S.bags.size(), " frames ok")
+	await get_tree().create_timer(1.0).timeout
+	print("BAGTEST still alive, min=", S.min)
 
 
 func _clicktest() -> void:
@@ -1016,10 +1070,88 @@ func shop_buy(k: String) -> void:
 	ui.refresh_sheet()
 
 
+const SAVE_VER := 2
+const BACKUPS := ["user://kost_backup_1.json", "user://kost_backup_2.json", "user://kost_backup_3.json"]
+var _backup_acc := 0.0
+
+
 func save_game() -> void:
+	if S.is_empty(): return
+	S.ver = SAVE_VER
+	S.saved_at = Time.get_unix_time_from_system()
+	var txt := JSON.stringify(S)
+	# Tulis ke file sementara dulu, cek bisa dibaca, baru timpa save utama (anti save rusak).
+	var tmp := SAVE_PATH + ".tmp"
+	var f := FileAccess.open(tmp, FileAccess.WRITE)
+	if f == null: return
+	f.store_string(txt)
+	f.close()
+	if typeof(JSON.parse_string(FileAccess.get_file_as_string(tmp))) != TYPE_DICTIONARY: return
+	var g := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	if g:
+		g.store_string(txt)
+		g.close()
+	# Cadangan berputar tiap ±5 menit main (3 cadangan terakhir).
+	if Time.get_ticks_msec() / 1000.0 - _backup_acc > 300.0 or _backup_acc == 0.0:
+		_backup_acc = Time.get_ticks_msec() / 1000.0
+		for i in range(BACKUPS.size() - 1, 0, -1):
+			if FileAccess.file_exists(BACKUPS[i - 1]):
+				var t0 := FileAccess.get_file_as_string(BACKUPS[i - 1])
+				var b := FileAccess.open(BACKUPS[i], FileAccess.WRITE)
+				if b: b.store_string(t0)
+		var b0 := FileAccess.open(BACKUPS[0], FileAccess.WRITE)
+		if b0: b0.store_string(txt)
+
+
+## Kode cadangan: save + dompet, dikompres & base64. Bisa ditempel di HP lain.
+func export_code() -> String:
+	save_game()
+	var pack := JSON.stringify({"cozy": 1, "S": S, "W": W})
+	var raw := pack.to_utf8_buffer()
+	var z := raw.compress(FileAccess.COMPRESSION_GZIP)
+	return "COZY1:" + str(raw.size()) + ":" + Marshalls.raw_to_base64(z)
+
+
+## Muat dari kode. Mengembalikan "" kalau sukses, atau alasan gagal.
+func import_code(code: String) -> String:
+	code = code.strip_edges().replace("\n", "").replace(" ", "")
+	if not code.begins_with("COZY1:"): return "Kode tidak dikenali. Pastikan menyalin seluruh kode yang diawali COZY1:"
+	var parts := code.split(":")
+	if parts.size() != 3: return "Kode tidak lengkap."
+	var z := Marshalls.base64_to_raw(parts[2])
+	if z.is_empty(): return "Kode rusak atau terpotong."
+	var raw := z.decompress(int(parts[1]), FileAccess.COMPRESSION_GZIP)
+	var d = JSON.parse_string(raw.get_string_from_utf8())
+	if typeof(d) != TYPE_DICTIONARY or not d.has("S") or typeof(d.S) != TYPE_DICTIONARY or not d.S.has("rooms"):
+		return "Kode rusak atau terpotong."
+	# Simpan save lama sebagai cadangan dulu, lalu pasang yang baru dan muat ulang game.
+	if FileAccess.file_exists(SAVE_PATH):
+		var b := FileAccess.open("user://kost_before_import.json", FileAccess.WRITE)
+		if b: b.store_string(FileAccess.get_file_as_string(SAVE_PATH))
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	if f:
-		f.store_string(JSON.stringify(S))
+	if f == null: return "Gagal menulis data."
+	d.S.saved_at = Time.get_unix_time_from_system()   # tidak dihitung sebagai "pergi"
+	f.store_string(JSON.stringify(d.S))
+	f.close()
+	if typeof(d.get("W")) == TYPE_DICTIONARY:
+		W = d.W
+		save_wallet()
+	_no_save = true
+	get_tree().reload_current_scene()
+	return ""
+
+
+var _no_save := false
+
+
+## Unduh kode cadangan sebagai file teks (versi web).
+func download_backup() -> void:
+	var code := export_code()
+	if OS.has_feature("web"):
+		JavaScriptBridge.download_buffer(code.to_utf8_buffer(), "cozykost-cadangan-hari%d.txt" % int(S.day), "text/plain")
+	else:
+		var f := FileAccess.open("user://cozykost-cadangan.txt", FileAccess.WRITE)
+		if f: f.store_string(code)
 
 
 func _load_game_raw() -> Dictionary:
@@ -1028,13 +1160,22 @@ func _load_game_raw() -> Dictionary:
 	return d if typeof(d) == TYPE_DICTIONARY else {}
 
 
+var restored_from := ""
+
+
 func _load_game() -> Dictionary:
-	if not FileAccess.file_exists(SAVE_PATH):
+	var d = null
+	for path in [SAVE_PATH] + BACKUPS:
+		if not FileAccess.file_exists(path): continue
+		var cand = JSON.parse_string(FileAccess.get_file_as_string(path))
+		if typeof(cand) == TYPE_DICTIONARY and cand.has("rooms") and cand.has("lvl"):
+			d = cand
+			if path != SAVE_PATH: restored_from = path
+			break
+	if d == null:
+		if FileAccess.file_exists(SAVE_PATH): restored_from = "gagal"
 		return {}
-	var txt := FileAccess.get_file_as_string(SAVE_PATH)
-	var d = JSON.parse_string(txt)
-	if typeof(d) != TYPE_DICTIONARY or not d.has("rooms"):
-		return {}
+	d = _migrate(d)
 	# JSON mengubah semua angka jadi float; kembalikan yang perlu bulat.
 	for k in ["lvl", "day", "min", "price", "speed"]:
 		d[k] = int(d[k])
@@ -1085,6 +1226,22 @@ func _load_game() -> Dictionary:
 	for o in d.orders: o.t = float(o.t)
 	for j in d.jobs:
 		j.t = float(j.t)
+	return d
+
+
+## Migrasi save lama ke format terbaru. Tambahkan langkah baru di sini setiap format berubah.
+func _migrate(d: Dictionary) -> Dictionary:
+	var v := int(d.get("ver", 1))
+	if v < 2:
+		# v1 -> v2: kunci baru yang diperkenalkan setelah rilis demo.
+		for k in ["out", "flv", "hall_paint", "side", "slv", "renov", "fire"]:
+			if not d.has(k): d[k] = {}
+		if not d.has("bags"): d.bags = []
+		if not d.has("cargo_to"): d.cargo_to = []
+		if not d.has("fac"): d.fac = {}
+		if not d.has("staff"): d.staff = {}
+		v = 2
+	d.ver = v
 	return d
 
 
@@ -1270,6 +1427,7 @@ func _process(dt: float) -> void:
 			guard += 1
 			for i in range(sp):
 				_step()
+	_drag_watchdog(dt)
 	_separate_npcs()
 	_chat_tick(dt)
 	_thief_tick(dt)
@@ -1322,13 +1480,14 @@ func _process(dt: float) -> void:
 			ui.refresh_sheet()
 	ui.update_hud()
 	_save_acc += dt
-	if _save_acc > 10.0:
+	if _save_acc > 10.0 and not _no_save:
 		_save_acc = 0.0
 		save_game()
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED:
+	if _no_save: return
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
 		if not S.is_empty():
 			save_game()
 
@@ -1717,6 +1876,69 @@ func out_upgrade(k: String) -> void:
 	add_xp(15)
 	ui.toast("%s sekarang: %s!" % [D.OUTSRC[k].n, nx.n], "gold")
 	dirty = true
+
+
+# ================= Penghasilan saat game ditutup =================
+const AWAY_MAX_H := 12.0          # maksimal jam yang dihitung
+const AWAY_DAYS_PER_H := 1.5      # 1 jam nyata = 1,5 hari di kost
+var away := {}
+
+
+func _salary_total() -> float:
+	var s := float(D.OUTSRC.sampah.lv[out_lv("sampah")].get("fee", 0))
+	for k in S.staff:
+		if S.staff[k]: s += staff_sal(k)
+	for k in S.apps:
+		s += roundf(float(D.APPS[k].fee))
+	return s
+
+
+func _facil_income_est() -> float:
+	var occ := each_tenant().size()
+	var inc := 0.0
+	var seen := {}
+	for f in S.facil:
+		var fc: Dictionary = D.FACIL[S.facil[f]]
+		var bi: int = int(seen.get(S.facil[f], 0))
+		seen[S.facil[f]] = bi + 1
+		var mult := 1.0 if bi == 0 else maxf(0.3, 0.85 - 0.15 * bi)
+		if fc.has("staff"):
+			var on: bool = S.staff.get(fc.staff, false)
+			if S.facil[f] == "laundry": mult = 2.0 if on else 1.0
+			else: mult = mult if on else 0.0
+		mult *= FACIL_LV_INC[facil_lv(str(f))]
+		inc += float(fc.inc) * mult * occ
+	return inc
+
+
+## Waktu di kost tidak berjalan saat game ditutup (tidak ada kejadian buruk), tapi sewa,
+## pemasukan fasilitas, dan gaji tetap dihitung untuk maks. 12 jam.
+func _offline_gain() -> void:
+	away = {}
+	var t0 := float(S.get("saved_at", 0.0))
+	if t0 <= 0.0: return
+	var secs := Time.get_unix_time_from_system() - t0
+	if secs < 600.0: return
+	var hrs := minf(secs / 3600.0, AWAY_MAX_H)
+	var days := hrs * AWAY_DAYS_PER_H
+	var rent := 0.0
+	for e in each_tenant(): rent += rent_of(e[1])
+	rent *= days
+	var fac := _facil_income_est() * days
+	var sal := _salary_total() * days
+	var due := 0.0
+	if has_app("kelolapro"):
+		S.money = float(S.money) + rent
+	else:
+		# Tanpa KelolaPro sewa menunggu ditagih (ketuk koin di kamar).
+		for e in each_tenant():
+			var a := rent_of(e[1]) * days
+			e[1].due = float(e[1].get("due", 0.0)) + a
+			due += a
+	S.money = float(S.money) + fac - sal
+	S.total.rent = float(S.total.rent) + rent + fac
+	away = {"secs": secs, "hrs": hrs, "days": days, "rent": rent, "due": due, "fac": fac, "sal": sal, "capped": secs / 3600.0 > AWAY_MAX_H}
+	S.saved_at = Time.get_unix_time_from_system()
 
 
 func _pay_salary() -> void:
@@ -4080,7 +4302,31 @@ func room_at(p: Vector2) -> String:
 
 
 ## Mulai menyeret: kind = "guest" (id calon penyewa) | "furn" (tipe perabot) | "build".
+## Pengaman: di HP kadang event "jari diangkat" hilang (gestur browser), sehingga barang yang
+## diseret menempel di jari dan game terasa macet. Kalau tidak ada jari/tombol yang menekan
+## lagi, akhiri seret di posisi terakhir.
+var _drag_free_t := 0.0
+var _last_ptr := Vector2.ZERO
+var _touching := false
+
+
+func _drag_watchdog(dt: float) -> void:
+	if drag.is_empty():
+		_drag_free_t = 0.0
+		return
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or _touching:
+		_drag_free_t = 0.0
+		return
+	_drag_free_t += dt
+	if _drag_free_t > 0.3:
+		_drag_free_t = 0.0
+		if drag.get("active", false): _end_drag(_last_ptr)
+		else: drag = {}
+
+
 func begin_drag(kind: String, item: String, start: Vector2, active: bool) -> void:
+	_last_ptr = start
+	_touching = true
 	drag = {"kind": kind, "item": item, "start": start, "active": false}
 	if active:
 		_activate_drag()
@@ -4303,6 +4549,16 @@ func _input(e: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	var p := get_global_mouse_position()
+	if e is InputEventScreenTouch and e.index == 0:
+		_touching = e.pressed
+		if not e.pressed and not drag.is_empty():
+			# Jari diangkat: akhiri seret walau event mouse tiruan tidak datang.
+			_end_drag(drag.get("last", p) if drag.get("active", false) else p)
+			get_viewport().set_input_as_handled()
+			return
+	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT:
+		_touching = e.pressed
+	if e is InputEventMouseMotion or e is InputEventScreenDrag: _last_ptr = p
 	if not _lswipe.is_empty():
 		if e is InputEventMouseMotion and not _lswipe.done:
 			var d: Vector2 = p - _lswipe.start
@@ -4346,10 +4602,16 @@ func _input(e: InputEvent) -> void:
 		return
 	if drag.is_empty():
 		return
+	if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and drag.get("active", false):
+		# Seret sebelumnya tidak pernah "dilepas" (event hilang): ketukan baru menjatuhkannya.
+		_end_drag(drag.get("last", p))
+		get_viewport().set_input_as_handled()
+		return
 	if e is InputEventMouseMotion:
 		if not drag.active and p.distance_to(drag.start) > 18.0:
 			_activate_drag()
 		if drag.active:
+			drag.last = p
 			ui.move_ghost(p)
 			var id := room_at(p)
 			if drag.kind == "facil" or (drag.kind == "guest" and id == ""):
@@ -4987,6 +5249,22 @@ func _handle_cli(args: PackedStringArray) -> void:
 			get_tree().create_timer(0.5).timeout.connect(func():
 				lift_send({"kind": "cargo", "item": "0"})
 				lift_send({"kind": "cargo", "item": "0"}))
+		elif a == "--loadinfo":
+			print("LOADINFO lvl=", S.lvl, " day=", S.day, " restored=", restored_from, " ver=", S.get("ver"))
+		elif a.begins_with("--econsim="):
+			S.seen = true
+			ui.close_sheet()
+			var es := EconSim.new(self)
+			es.run(int(a.substr(10)))
+			get_tree().quit()
+		elif a == "--bagdrag":
+			_bagdrag_test.call_deferred()
+		elif a == "--codetest":
+			var c := export_code()
+			var parts := c.split(":")
+			var raw := Marshalls.base64_to_raw(parts[2]).decompress(int(parts[1]), FileAccess.COMPRESSION_GZIP)
+			var d = JSON.parse_string(raw.get_string_from_utf8())
+			print("CODE len=", c.length(), " ok=", typeof(d) == TYPE_DICTIONARY and d.S.has("rooms"), " lvl=", d.S.lvl)
 		elif a == "--newfac":
 			S.lvl = 8
 			S.facil = {"1": "hidroponik", "2": "lele", "3": "petshop", "4": "bunga", "5": "koperasi", "6": "warteg"}

@@ -939,6 +939,8 @@ func refresh_sheet(keep: bool = true) -> void:
 		c.queue_free()
 	match kind:
 		"welcome": _sheet_welcome()
+		"away": _sheet_away()
+		"backup": _sheet_backup()
 		"rename": _sheet_rename()
 		"preman": _sheet_preman()
 		"fire": _sheet_fire()
@@ -1389,6 +1391,86 @@ func _sheet_rename() -> void:
 	box.add_child(le)
 	var f := _flow(box)
 	f.add_child(_btn("Simpan", D.C_YELLOW, func(): _do("rename", le.text); close_sheet()))
+
+
+func _sheet_away() -> void:
+	var a: Dictionary = game.away
+	_header("Selamat datang kembali!")
+	var tr := TextureRect.new()
+	tr.texture = load("res://assets/chars/penjaga/happy_L.png")
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.custom_minimum_size = Vector2(0, 280)
+	box.add_child(tr)
+	var h := int(float(a.secs) / 3600.0)
+	var m := int(fmod(float(a.secs), 3600.0) / 60.0)
+	var pergi := ("%d jam %d menit" % [h, m]) if h > 0 else ("%d menit" % m)
+	box.add_child(_text("\"Kamu pergi %s. Kost aman kok, aku yang jaga!\"" % pergi, 36, D.C_INK))
+	var v := _card()
+	_row(v, _label("Sewa kamar", 36, D.C_INK, true), _label(("+" + D.short(float(a.rent))) if float(a.due) <= 0.0 else "menunggu ditagih", 38, Color("2f7a2a")))
+	if float(a.fac) > 0.0:
+		_row(v, _label("Pemasukan fasilitas", 36, D.C_INK, true), _label("+" + D.short(float(a.fac)), 38, Color("2f7a2a")))
+	if float(a.sal) > 0.0:
+		_row(v, _label("Gaji & langganan", 36, D.C_INK, true), _label("-" + D.short(float(a.sal)), 38, Color("b5543c")))
+	var net := float(a.rent) - float(a.due) + float(a.fac) - float(a.sal)
+	_row(v, _label("Masuk ke kas", 40), _label(("+" if net >= 0 else "") + D.short(net), 44, Color("2f7a2a") if net >= 0 else Color("b5543c")))
+	if float(a.due) > 0.0:
+		box.add_child(_text("Sewa %s menunggu ditagih: ketuk koin di tiap kamar. Pakai KelolaPro supaya sewa langsung masuk." % D.short(float(a.due)), 30, D.C_MUTED))
+	box.add_child(_text("Dihitung setara %.0f hari di kost%s. Saat game ditutup tidak ada kejadian buruk." % [float(a.days), " (maks. 12 jam)" if a.capped else ""], 28, D.C_MUTED))
+	box.add_child(_btn("Mantap!", D.C_YELLOW, close_sheet))
+
+
+func _sheet_backup() -> void:
+	_header("Cadangan Data")
+	box.add_child(_text("Progres tersimpan otomatis di perangkat ini, ditambah 3 cadangan otomatis. Untuk pindah HP atau berjaga-jaga kalau browser dibersihkan, simpan kode cadangan di bawah.", 32, D.C_MUTED))
+	var v := _card()
+	v.add_child(_label("Simpan cadangan", 40))
+	var code: String = game.export_code()
+	var te := TextEdit.new()
+	te.text = code
+	te.editable = false
+	te.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	te.custom_minimum_size = Vector2(0, 200)
+	te.add_theme_font_size_override("font_size", 22)
+	_te_style(te)
+	v.add_child(te)
+	var f := _flow(v)
+	f.add_child(_btn("Salin Kode", D.C_YELLOW, func():
+		DisplayServer.clipboard_set(code)
+		toast("Kode cadangan disalin. Simpan di catatan atau kirim ke dirimu sendiri.", "gold")))
+	f.add_child(_btn("Unduh File", D.C_CREAM, func():
+		game.download_backup()
+		toast("File cadangan diunduh.", "gold")))
+	var w := _card()
+	w.add_child(_label("Pulihkan dari kode", 40))
+	w.add_child(_text("Tempel kode COZY1:... lalu ketuk Pulihkan. Progres di perangkat ini akan diganti.", 30, D.C_MUTED))
+	var ti := TextEdit.new()
+	ti.placeholder_text = "Tempel kode di sini"
+	ti.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	ti.custom_minimum_size = Vector2(0, 180)
+	ti.add_theme_font_size_override("font_size", 22)
+	_te_style(ti)
+	w.add_child(ti)
+	var g := _flow(w)
+	g.add_child(_btn("Tempel", D.C_CREAM, func(): ti.text = DisplayServer.clipboard_get()))
+	g.add_child(_btn("Pulihkan", D.C_GREEN, func():
+		var why: String = game.import_code(ti.text)
+		if why != "": toast(why, "bad")))
+
+
+func _te_style(te: TextEdit) -> void:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color("fffaf0")
+	sb.border_color = D.C_LINE
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(14)
+	sb.content_margin_left = 14
+	sb.content_margin_right = 14
+	sb.content_margin_top = 10
+	for k in ["normal", "focus", "read_only"]: te.add_theme_stylebox_override(k, sb)
+	te.add_theme_color_override("font_color", D.C_INK)
+	te.add_theme_color_override("font_readonly_color", Color(D.C_INK, 0.8))
+	te.add_theme_color_override("font_placeholder_color", D.C_MUTED)
 
 
 func _sheet_welcome() -> void:
@@ -2008,6 +2090,7 @@ func _sheet_manage() -> void:
 	var nf := _flow(nv)
 	nf.add_child(_btn("Ulangi tutorial", D.C_CREAM, func(): _do("tutorial")))
 	nf.add_child(_btn("Putar cerita awal", D.C_CREAM, func(): _do("intro")))
+	nf.add_child(_btn("Cadangan Data", D.C_CREAM, func(): open_sheet("backup")))
 	if S.events.is_empty():
 		_card().add_child(_text("Tidak ada masalah. Kost aman & tenteram.", 34, Color("2f7a2a")))
 	for e in S.events:
