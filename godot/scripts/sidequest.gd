@@ -88,7 +88,7 @@ func _arrive(to: String) -> void:
 			_close()
 			game.keeper_say("Sudah pulang! Kost aman kan?", 2.5)
 		"cafe": _show_cafe_ext()
-		"padel": _show_padel()
+		"padel": _show_padel_ext()
 
 
 # ---------------- Tampilan bantu ----------------
@@ -211,6 +211,22 @@ func _show_cafe_ext() -> void:
 	var tip := _panel(Rect2(250, 2160, 940, 110), Color(1, 0.98, 0.94, 0.92))
 	tip.add_child(_lbl("Geser kiri: ke Lapangan Padel · Geser kanan: pulang", 32, D.C_MUTED, true))
 	_bottom([["Masuk Cafe", D.C_GREEN, _show_cafe_in], ["Lanjut ke Padel", D.C_YELLOW, func(): _walk(-1)], ["Balik ke Kost", D.C_PINK, func(): _walk(1)]])
+
+
+## Pintu masuk lapangan padel (sebelum main).
+func _show_padel_ext() -> void:
+	_clear()
+	view = "padel_ext"
+	_bg("res://assets/side/padel_ext.jpg")
+	var m := TextureRect.new()
+	m.texture = load("res://assets/chars/penjaga/happy_L.png")
+	m.size = m.texture.get_size() * 1.25
+	m.position = Vector2(560 - m.size.x / 2.0, 2240 - m.size.y)
+	m.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_layer.add_child(m)
+	var tip := _panel(Rect2(250, 2290, 940, 100), Color(1, 0.98, 0.94, 0.92))
+	tip.add_child(_lbl("Geser kiri: pulang · Geser kanan: ke Cafe", 32, D.C_MUTED, true))
+	_bottom([["Masuk Lapangan", D.C_GREEN, _show_padel], ["Balik ke Cafe", D.C_YELLOW, func(): _walk(1)], ["Balik ke Kost", D.C_PINK, func(): _walk(-1)]])
 
 
 # ---------------- Cafe Book: membaca ----------------
@@ -795,7 +811,7 @@ func _show_padel() -> void:
 	_clear()
 	view = "padel"
 	_bg("res://assets/side/padel.jpg")
-	_opp = _sprite("res://assets/chars/%s/ready_L.png" % FOES[foe][2], 0.55, Vector2(800, 1140))
+	_opp = _sprite("res://assets/chars/%s/ready_L.png" % FOES[foe][2], 0.6, Vector2(800, 1060))
 	_ball = _Ball.new()
 	_layer.add_child(_ball)
 	_mar = _sprite("res://assets/chars/padel_back/ready_L.png", 1.7, Vector2(820, 2130))
@@ -1170,7 +1186,7 @@ func _gui_input(e: InputEvent) -> void:
 		elif view == "cafe_in" and absf(d.x) > 120.0 and absf(d.x) > absf(d.y) * 1.5 and BOOK_R.has_point(_press):
 			_swiped = true
 			_flip(1 if d.x < 0 else -1)
-		elif view == "cafe_ext" and absf(d.x) > 160.0 and absf(d.x) > absf(d.y) * 2.0:
+		elif (view == "cafe_ext" or view == "padel_ext") and absf(d.x) > 160.0 and absf(d.x) > absf(d.y) * 2.0:
 			_swiped = true
 			_walk(-1 if d.x < 0 else 1)
 		elif view == "walk" and absf(d.x) > 160.0:
