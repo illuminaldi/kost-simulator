@@ -1005,6 +1005,7 @@ class _Walk extends Node2D:
 		ci.flip_x()
 		_city_f = ImageTexture.create_from_image(ci)
 		_make_traffic()
+		if theme != "kota": _init_park()
 		for f in ["walk", "walk2"]:
 			var tx: Texture2D = load("res://assets/chars/penjaga/%s_L.png" % f)
 			if dir < 0:
@@ -1084,7 +1085,7 @@ class _Walk extends Node2D:
 		var sc := 1.25 if kota else 1.0
 		var tw := _city.get_width() * sc
 		var th := _city.get_height() * sc
-		var top := (2320.0 - th) if kota else 440.0
+		var top := (2320.0 - th) if kota else 0.0
 		draw_rect(Rect2(0, 0, W, top + 4), _sky)
 		var start := floori(-off / tw) - 1
 		for i in range(start, start + int(W / tw) + 3):
@@ -1094,15 +1095,74 @@ class _Walk extends Node2D:
 			draw_rect(Rect2(0, 2320, W, D.IH - 2320), Color("d9d6cf"))
 			_draw_traffic(off, top + 1300.0 * sc, 70.0)
 		else:
-			draw_rect(Rect2(0, top + th - 2, W, D.IH - top - th + 2), Color("5f5a57"))
-			_draw_traffic(off, 2130.0, 60.0)
+			_draw_sky_life(off)
+			_draw_traffic(off, 2150.0, 55.0)
 		var tex: Texture2D = _frames[int(t * 6.0) % 2]
 		var s := 1.4
 		var sz := tex.get_size() * s
 		var bob := -absf(sin(t * 12.0)) * 8.0
-		var feet := (top + (1940.0 - 470.0) * sc) if kota else 2245.0
+		var feet := (top + (1940.0 - 470.0) * sc) if kota else 2350.0
 		draw_texture_rect(tex, Rect2(W / 2.0 - sz.x / 2.0, feet - sz.y + bob, sz.x, sz.y), false)
 		_label_draw()
+		if not kota: _draw_leaves(off)
+
+	# ---- Taman: awan berarak, burung terbang, daun berguguran ----
+	var _clouds: Array = []
+	var _leaves: Array = []
+	const LEAF_COLS := [Color("7fae5a"), Color("9cc46a"), Color("6a9a4c"), Color("b7cf6e")]
+
+	func _init_park() -> void:
+		var pos := [Vector2(100, 460), Vector2(515, 290), Vector2(1020, 460), Vector2(1500, 360)]
+		for i in range(4):
+			_clouds.append({"tex": load("res://assets/side/cloud%d.png" % (i % 3)), "x": pos[i].x, "y": pos[i].y, "v": randf_range(10, 22), "s": randf_range(0.85, 1.1)})
+		for i in range(16):
+			_leaves.append(_new_leaf(true))
+
+	func _new_leaf(anywhere: bool) -> Dictionary:
+		return {"x": randf_range(-100, D.IW + 200), "y": randf_range(700, 2000) if anywhere else randf_range(820, 1250),
+			"vx": randf_range(-70, -30), "vy": randf_range(40, 90), "r": randf() * TAU, "vr": randf_range(-2.5, 2.5),
+			"ph": randf() * TAU, "sz": randf_range(20, 34), "c": LEAF_COLS.pick_random()}
+
+	func _draw_sky_life(off: float) -> void:
+		var W := float(D.IW)
+		for c in _clouds:
+			var tex: Texture2D = c.tex
+			var sz: Vector2 = tex.get_size() * float(c.s)
+			var x := fposmod(float(c.x) + float(c.v) * t + off * 0.06, W + sz.x + 200) - sz.x - 100
+			draw_texture_rect(tex, Rect2(x, float(c.y), sz.x, sz.y), false)
+		# Kawanan burung: sayap mengepak (huruf V yang naik-turun)
+		for f in range(2):
+			var fx := fposmod(t * (90.0 + f * 30.0) + f * 900.0 + off * 0.1, W + 600) - 300
+			var fy := 700.0 + f * 120.0 + sin(t * 0.8 + f) * 25.0
+			for b in range(4):
+				var p := Vector2(fx - b * 55 - (b % 2) * 20, fy + absf(b - 1.5) * 26)
+				var flap := sin(t * 9.0 + b * 1.3 + f) * 10.0
+				var w := 18.0
+				var col := Color("6f7d99")
+				draw_polyline(PackedVector2Array([p + Vector2(-w, -flap), p + Vector2(-w * 0.45, -flap * 0.3 + 3), p, p + Vector2(w * 0.45, -flap * 0.3 + 3), p + Vector2(w, -flap)]), col, 4.0, true)
+
+	func _draw_leaves(off: float) -> void:
+		var dt := get_process_delta_time()
+		var mv := 420.0 * float(-dir) * dt   # ikut bergeser bersama pemandangan
+		for i in range(_leaves.size()):
+			var l: Dictionary = _leaves[i]
+			l.x = float(l.x) + (float(l.vx) + sin(t * 2.0 + float(l.ph)) * 40.0) * dt + mv * 0.9
+			l.y = float(l.y) + float(l.vy) * dt
+			l.r = float(l.r) + float(l.vr) * dt
+			if float(l.y) > 2250.0 or float(l.x) < -150.0 or float(l.x) > D.IW + 250.0:
+				var n := _new_leaf(false)
+				n.x = randf_range(150, D.IW + 150) if dir < 0 else randf_range(-150, D.IW - 150)
+				_leaves[i] = n
+				continue
+			var c := Vector2(float(l.x), float(l.y))
+			var sz := float(l.sz)
+			var flip := cos(t * 3.0 + float(l.ph))   # daun berputar seperti melayang
+			var ax := Vector2(cos(float(l.r)), sin(float(l.r))) * sz
+			var ay := Vector2(-sin(float(l.r)), cos(float(l.r))) * sz * 0.45 * flip
+			var pts := PackedVector2Array([c - ax, c - ax * 0.3 + ay, c + ax, c - ax * 0.3 - ay])
+			draw_colored_polygon(pts, l.c)
+			draw_polyline(PackedVector2Array([c - ax, c - ax * 0.3 + ay, c + ax, c - ax * 0.3 - ay, c - ax]), Color("4a5d32"), 2.5, true)
+			draw_line(c - ax * 0.8, c + ax * 0.8, Color("4a5d32", 0.7), 1.5)
 
 	func _draw_traffic(off: float, base_y: float, lane_gap: float) -> void:
 		var W := float(D.IW)
