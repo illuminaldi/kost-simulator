@@ -6,8 +6,8 @@ extends Control
 
 const RING := ["kost", "cafe", "padel"]
 # Pemandangan di antara dua tujuan, searah "kiri" (indeks naik).
-const SCENERY := {"kost>cafe": "kota", "cafe>padel": "taman", "padel>kost": "kota"}
-const NAMES := {"kost": "Kost", "cafe": "Cafe Book", "padel": "Lapangan Padel", "kota": "Jalan Kota", "taman": "Taman Kota"}
+const SCENERY := {"kost>cafe": "kota", "cafe>padel": "taman", "padel>kost": "gunung"}
+const NAMES := {"gunung": "Jalan Desa", "kost": "Kost", "cafe": "Cafe Book", "padel": "Lapangan Padel", "kota": "Jalan Kota", "taman": "Taman Kota"}
 
 var game: Node
 var ui: Node
@@ -999,6 +999,15 @@ class _Walk extends Node2D:
 	const INK := Color("4a3626")
 
 	func _ready() -> void:
+		_jalan = load("res://assets/side/jalan.png")
+		if theme == "gunung":
+			_make_traffic()
+			_init_park()
+			_init_gunung()
+			for f in ["walk", "walk2"]:
+				var tx0: Texture2D = load("res://assets/chars/penjaga/%s_L.png" % f)
+				_frames.append(_flip_tex(tx0) if dir < 0 else tx0)
+			return
 		_city = load("res://assets/side/kota.jpg" if theme == "kota" else "res://assets/side/taman.png")
 		var ci := _city.get_image()
 		_sky = ci.get_pixel(ci.get_width() / 2, 4)
@@ -1026,6 +1035,9 @@ class _Walk extends Node2D:
 		var H := float(D.IH)
 		var off := t * 420.0 * float(-dir)   # pemandangan bergeser berlawanan arah langkah
 		var kota := theme == "kota"
+		if theme == "gunung":
+			_draw_gunung(off)
+			return
 		if _city:
 			_draw_city(off)
 			return
@@ -1098,7 +1110,7 @@ class _Walk extends Node2D:
 			draw_rect(Rect2(0, H * 0.45 * i / 16.0, W, H * 0.45 / 16.0 + 2), c0.lerp(c1, i / 15.0))
 		_draw_sky_life(off)
 		draw_texture_rect(_city, Rect2(x, top, tw, th), false)
-		if top + th < H: draw_rect(Rect2(0, top + th - 1, W, H - top - th + 1), Color8(82, 85, 90))
+		_draw_jalan(x * 3.0)
 		_draw_leaves(x)
 		var tex: Texture2D = _frames[int(t * 6.0) % 2]
 		var sz := tex.get_size() * 1.4
@@ -1106,6 +1118,125 @@ class _Walk extends Node2D:
 		draw_texture_rect(tex, Rect2(W / 2.0 - sz.x / 2.0, 2080.0 - sz.y + bob, sz.x, sz.y), false)
 		_draw_traffic(x, 2600.0, 90.0)   # sepeda di jalan, lebih dekat ke kamera dari Maryam
 		_label_draw()
+
+	# ---- Trotoar + jalan bersama (dipakai taman & gunung), di-tile tanpa cermin ----
+	var _jalan: Texture2D
+	const JALAN_Y := 1884.0
+	func _draw_jalan(off: float) -> void:
+		var W := float(D.IW)
+		var tw := _jalan.get_width() * PARK_S
+		var th := _jalan.get_height() * PARK_S
+		var x0 := fposmod(off, tw) - tw
+		while x0 < W:
+			draw_texture_rect(_jalan, Rect2(x0, JALAN_Y, tw + 1, th), false)
+			x0 += tw
+		draw_rect(Rect2(0, JALAN_Y + th - 2, W, D.IH - JALAN_Y - th + 2), Color8(82, 85, 90))
+
+	# ---- Pemandangan gunung (Lapangan Padel ↔ Kost) ----
+	var _hills: Array = []
+	func _init_gunung() -> void:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 7
+		# [parallax, warna, garis dasar, tinggi, titik]
+		var layers := [[0.05, Color("9fb8c9"), 1250.0, 620.0], [0.12, Color("8fb39a"), 1450.0, 420.0], [0.25, Color("7fae6e"), 1620.0, 260.0]]
+		for L in layers:
+			var pts: Array = []
+			var x := -400.0
+			while x < 6000.0:
+				pts.append(Vector2(x, float(L[2]) - rng.randf_range(0.25, 1.0) * float(L[3]) * (0.6 + 0.4 * sin(x * 0.0021))))
+				x += rng.randf_range(260, 480)
+			_hills.append({"p": float(L[0]), "c": L[1], "base": float(L[2]), "pts": pts})
+
+	func _hill_poly(h: Dictionary, off: float) -> PackedVector2Array:
+		var span := 6000.0
+		var sh := fposmod(off * float(h.p), span) - span
+		var pts := PackedVector2Array()
+		for rep in range(3):
+			for p in h.pts:
+				pts.append(Vector2(p.x + sh + rep * span, p.y))
+		# lengkungkan puncak: titik tengah dihaluskan
+		var out := PackedVector2Array()
+		for i in range(pts.size() - 1):
+			var a := pts[i]
+			var b := pts[i + 1]
+			for k in range(6):
+				var u := k / 6.0
+				var y := lerpf(a.y, b.y, (1.0 - cos(u * PI)) * 0.5)
+				out.append(Vector2(lerpf(a.x, b.x, u), y))
+		return out
+
+	func _draw_gunung(off: float) -> void:
+		var W := float(D.IW)
+		var H := float(D.IH)
+		var c0 := Color8(157, 222, 226)
+		var c1 := Color8(236, 240, 222)
+		for i in range(20):
+			draw_rect(Rect2(0, 1700.0 * i / 20.0, W, 1700.0 / 20.0 + 2), c0.lerp(c1, i / 19.0))
+		draw_circle(Vector2(1120, 520), 90, Color("fff1c4"))
+		draw_circle(Vector2(1120, 520), 70, Color("ffe08a"))
+		_draw_sky_life(off * 0.3)
+		# Gunung kembar di kejauhan (khas Jawa), lalu bukit berlapis
+		var far := off * 0.03
+		for g in [[Vector2(380, 1300), 520.0, 760.0], [Vector2(980, 1300), 640.0, 900.0]]:
+			var c: Vector2 = g[0] + Vector2(fposmod(far, 1800.0) - 300.0, 0)
+			var hw: float = g[2]
+			var ht: float = g[1]
+			var poly := PackedVector2Array([c + Vector2(-hw, 0), c + Vector2(-hw * 0.2, -ht * 0.92), c + Vector2(-hw * 0.07, -ht), c + Vector2(hw * 0.07, -ht), c + Vector2(hw * 0.2, -ht * 0.92), c + Vector2(hw, 0)])
+			draw_colored_polygon(poly, Color("a9bfd0"))
+			draw_polyline(poly, Color(INK, 0.55), 4, true)
+			# salju/awan tipis di puncak
+			draw_colored_polygon(PackedVector2Array([c + Vector2(-hw * 0.12, -ht * 0.86), c + Vector2(-hw * 0.07, -ht), c + Vector2(hw * 0.07, -ht), c + Vector2(hw * 0.12, -ht * 0.86), c + Vector2(0, -ht * 0.82)]), Color("eef3f6"))
+		for h in _hills:
+			var pts := _hill_poly(h, off)
+			var vis := PackedVector2Array()
+			for i in range(pts.size() - 1):
+				var a := pts[i]
+				var b := pts[i + 1]
+				if b.x < -20 or a.x > W + 20: continue
+				draw_colored_polygon(PackedVector2Array([a, b, Vector2(b.x, JALAN_Y + 10), Vector2(a.x, JALAN_Y + 10)]), h.c)
+				vis.append(a)
+			if vis.size() > 1: draw_polyline(vis, Color(INK, 0.6), 4, true)
+		# Sawah terasering di depan
+		var sx := fposmod(off * 0.6, 300.0) - 300.0
+		draw_rect(Rect2(0, 1640, W, JALAN_Y - 1640), Color("9cc46a"))
+		for r in range(5):
+			var y := 1660.0 + r * 46.0
+			draw_line(Vector2(0, y), Vector2(W, y), Color("7aa552"), 3)
+			var x := sx + (r % 2) * 150.0
+			while x < W:
+				for k in range(4):
+					draw_line(Vector2(x + k * 14, y + 6), Vector2(x + k * 14 - 6, y - 14), Color("6c9a45"), 3)
+				x += 300.0
+		# Pepohonan & pondok di pinggir sawah
+		var tx := fposmod(off * 0.85, 1100.0) - 400.0
+		while tx < W + 400:
+			_tree(Vector2(tx, 1700), 1.0)
+			_tree(Vector2(tx + 420, 1720), 0.8)
+			_hut(Vector2(tx + 700, 1735))
+			tx += 1100.0
+		_draw_jalan(off)
+		var tex: Texture2D = _frames[int(t * 6.0) % 2]
+		var sz := tex.get_size() * 1.4
+		var bob := -absf(sin(t * 12.0)) * 8.0
+		draw_texture_rect(tex, Rect2(W / 2.0 - sz.x / 2.0, 2080.0 - sz.y + bob, sz.x, sz.y), false)
+		_draw_traffic(off, 2600.0, 90.0)
+		_label_draw()
+
+	func _tree(p: Vector2, s: float) -> void:
+		draw_rect(Rect2(p.x - 10 * s, p.y - 90 * s, 20 * s, 90 * s), Color("8a5a3a"))
+		draw_rect(Rect2(p.x - 10 * s, p.y - 90 * s, 20 * s, 90 * s), INK, false, 3)
+		for c in [Vector2(0, -150), Vector2(-55, -115), Vector2(55, -115), Vector2(0, -95)]:
+			draw_circle(p + c * s, 62 * s, Color("5f9a4c"))
+		for c in [Vector2(0, -150), Vector2(-55, -115), Vector2(55, -115)]:
+			draw_arc(p + c * s, 62 * s, PI * 0.9, PI * 2.1, 16, INK, 3)
+
+	func _hut(p: Vector2) -> void:
+		draw_rect(Rect2(p.x - 70, p.y - 80, 140, 80), Color("d9b48a"))
+		draw_rect(Rect2(p.x - 70, p.y - 80, 140, 80), INK, false, 3)
+		var roof := PackedVector2Array([p + Vector2(-95, -78), p + Vector2(0, -150), p + Vector2(95, -78)])
+		draw_colored_polygon(roof, Color("b5663e"))
+		draw_polyline(PackedVector2Array([roof[0], roof[1], roof[2], roof[0]]), INK, 3)
+		draw_rect(Rect2(p.x - 18, p.y - 50, 36, 50), Color("7a4f33"))
 
 	func _draw_city(off: float) -> void:
 		var W := float(D.IW)

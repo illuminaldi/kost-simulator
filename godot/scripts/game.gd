@@ -4721,6 +4721,7 @@ func _handle_cli(args: PackedStringArray) -> void:
 				ui.set_nav_visible(false)
 				if sv == "walk": ui.side._walk(-1)
 				elif sv == "park": ui.side.loc = "cafe"; ui.side._walk(-1)
+				elif sv == "gunung": ui.side.loc = "padel"; ui.side._walk(-1)
 				elif sv == "cafe": ui.side._arrive("cafe")
 				elif sv == "cafein": ui.side.loc = "cafe"; ui.side._show_cafe_in()
 				else: ui.side.loc = "padel"; ui.side._arrive("padel"))
