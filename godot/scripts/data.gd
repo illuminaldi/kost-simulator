@@ -40,10 +40,10 @@ static func setup_floors(top: int) -> void:
 		ROOMS.append("%dR" % f)
 	EDGES = [["lobby", "S1"]]
 	for f in range(1, TOP_FLOOR + 1):
-		if is_hub(f): continue
+		if f < TOP_FLOOR: EDGES.append(["S%d" % f, "S%d" % (f + 1)])
+		if is_hub(f): continue   # lantai lobi: tangga tetap tersambung, tanpa kamar
 		EDGES.append(["S%d" % f, "%dL" % f])
 		EDGES.append(["S%d" % f, "%dR" % f])
-		if f < TOP_FLOOR: EDGES.append(["S%d" % f, "S%d" % (f + 1)])
 	FLOOR_LV = {}
 	for f in range(1, TOP_FLOOR + 1): FLOOR_LV[f] = f
 	BUILDING_TOP = -(TOP_FLOOR - 4) * EXTRA_PITCH

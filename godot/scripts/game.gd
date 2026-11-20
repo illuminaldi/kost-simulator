@@ -1466,6 +1466,7 @@ func float_at(id: String, text: String, col: Color) -> void:
 # ================= Waktu & ekonomi =================
 var _beat_acc := 0.0
 var _cull_acc := 0.0
+var _npccheck := OS.get_cmdline_user_args().has("--npccheck")
 
 
 ## Hanya lantai yang terlihat (plus 1 di atas & bawah) yang digambar dan dianimasikan.
@@ -3585,9 +3586,9 @@ func _leave(n: Npc) -> void:
 	if h > 0:
 		# Penghuni lantai atas keluar lewat Lobi Langit di lantainya, bukan turun ke lobi bawah.
 		n.plan("S%d" % h, D.hub_spot(h), "stand", func(x: Npc):
-			x.fade_state = "out"
-			x.fade_to = x.scene
-			get_tree().create_timer(0.6).timeout.connect(func(): if is_instance_valid(x): _remove_npc(x)))
+			var tw := x.create_tween()
+			tw.tween_property(x, "modulate:a", 0.0, 0.5)
+			tw.tween_callback(func(): if is_instance_valid(x): _remove_npc(x)))
 		return
 	n.plan("lobby", Vector2(D.OUT_X, D.LOBBY_Y), "stand", func(x: Npc): _remove_npc(x))
 
@@ -3665,6 +3666,9 @@ func _separate_npcs() -> void:
 func _reparent_npcs() -> void:
 	for n in npcs.values():
 		if not is_instance_valid(n): continue
+		if _npccheck and Engine.get_process_frames() % 30 == 0:
+			var badk: bool = (n.get_parent() == npc_layer and n.k > 0.95) or (n.get_parent() == npc_lobby and (n.scene != "lobby" or n.position.y < 1700.0) and n.fade_state == "")
+			if badk: print("NPCBAD ", n.id, " kind=", n.kind, " scene=", n.scene, " k=", n.k, " pos=", n.position, " fade=", n.fade_state, " route=", n.route.size(), " r0=", (n.route[0] if n.route.size() > 0 else {}), " goal=", n.goal_key, " tgt=", n.target)
 		var want: Node2D = npc_lobby if n.scene == "lobby" else npc_layer
 		if n.get_parent() != want:
 			n.reparent(want, false)
@@ -6541,6 +6545,18 @@ class _HubSign extends Node2D:
 		var space := String(info.get("n", "")).find("Angkasa") >= 0
 		_calc_quad()
 		_outside(space, k)
+		var key: String = {"Lobi": "parkir", "Gerbang": "tol", "Helipad": "heli"}.get(k, "roket" if space else "kereta")
+		var bgt := _tex("hub_" + key)
+		if bgt:
+			# Ilustrasi lantai penuh + kendaraan bergerak (sprite)
+			draw_texture_rect(bgt, Rect2(0, y0, 1438, fy + 18 - y0), false)
+			match key:
+				"parkir": _a_parkir()
+				"tol": _a_tol()
+				"kereta": _a_kereta()
+				"heli": _a_heli()
+				"roket": _a_roket()
+			return
 		_stair_col(space, c)
 		for reg in [Vector2(L0, L1), Vector2(R0, R1)]:
 			var r := Rect2(reg.x, y0, reg.y - reg.x, fy - y0 + 18)
@@ -6573,6 +6589,125 @@ class _HubSign extends Node2D:
 		draw_style_box(sb, box)
 		if font:
 			draw_string(font, box.position + Vector2(0, 38), str(info.get("n", "")), HORIZONTAL_ALIGNMENT_CENTER, w, 28, Color.WHITE)
+
+	# ---------- versi ilustrasi (gambar dari Rin) ----------
+	static var _texc := {}
+	func _tex(n: String) -> Texture2D:
+		if not _texc.has(n):
+			var path := "res://assets/hub/%s.png" % n
+			_texc[n] = load(path) if ResourceLoader.exists(path) else null
+		return _texc[n]
+
+	## Koordinat y pada gambar asli lantai (tinggi 412) -> layar.
+	func Y(cy: float) -> float:
+		return y0 + cy * (fy + 18.0 - y0) / 412.0
+
+	## Gambar sprite (alas di tengah-bawah = p), bisa dicermin, dipotong agar tidak menutupi badan tangga.
+	func _spr(n: String, p: Vector2, h: float, flip := false, clip := false, a := 1.0) -> void:
+		var tx := _tex(n)
+		if tx == null: return
+		var sz := tx.get_size()
+		var w := sz.x * h / sz.y
+		var r := Rect2(p.x - w / 2.0, p.y - h, w, h)
+		var parts := [Vector2(r.position.x, r.end.x)]
+		if clip:
+			var q0: float = quad[0].x
+			var q1: float = quad[2].x
+			parts = [Vector2(r.position.x, minf(r.end.x, q0)), Vector2(maxf(r.position.x, q1), r.end.x)]
+		for pt in parts:
+			if pt.y <= pt.x: continue
+			var u0: float = (float(pt.x) - r.position.x) / w
+			var u1: float = (float(pt.y) - r.position.x) / w
+			if flip:
+				var t0: float = 1.0 - u1
+				u1 = 1.0 - u0
+				u0 = t0
+			var src := Rect2(u0 * sz.x, 0, (u1 - u0) * sz.x, sz.y)
+			var dst := Rect2(pt.x, r.position.y, pt.y - pt.x, h)
+			if flip:
+				draw_set_transform(Vector2(dst.position.x * 2.0 + dst.size.x, 0), 0.0, Vector2(-1, 1))
+				draw_texture_rect_region(tx, dst, src, Color(1, 1, 1, a))
+				draw_set_transform(Vector2.ZERO)
+			else:
+				draw_texture_rect_region(tx, dst, src, Color(1, 1, 1, a))
+
+	func _a_parkir() -> void:
+		# mobil datang dari kanan, berhenti di depan palang, lalu mundur keluar
+		var cyc := fmod(t, 13.0)
+		var x := 990.0
+		if cyc < 4.0: x = lerpf(1560.0, 990.0, ease(cyc / 4.0, 0.5))
+		elif cyc > 8.0: x = lerpf(990.0, 1560.0, ease(clampf((cyc - 8.0) / 4.0, 0, 1), 2.0))
+		_spr("car_white", Vector2(x, Y(410)), 66, true)
+
+	func _a_tol() -> void:
+		var cars := ["car_red", "car_blue", "car_green", "car_white"]
+		for i in range(4):
+			var right := i % 2 == 0
+			var x := fmod(t * 170.0 + i * 430.0, 1800.0) - 180.0
+			if not right: x = 1438.0 - x
+			_spr(cars[i], Vector2(x, Y(376) if right else Y(408)), 58, not right)
+
+	func _a_kereta() -> void:
+		var cyc := fmod(t, 16.0)
+		var hx := 0.0   # tepi kanan kepala kereta
+		if cyc < 4.0: hx = lerpf(-200.0, 1060.0, ease(cyc / 4.0, 0.4))
+		elif cyc < 9.0: hx = 1060.0
+		else: hx = lerpf(1060.0, 3400.0, ease((cyc - 9.0) / 7.0, 2.2))
+		var h := 190.0
+		var by := Y(330)
+		var head := _tex("train_head")
+		var mid := _tex("train_mid")
+		if head == null or mid == null: return
+		var hw := head.get_size().x * h / head.get_size().y
+		var mw := mid.get_size().x * h / mid.get_size().y
+		var xs := [hx - hw / 2.0]
+		var cur := hx - hw
+		for i in range(3):
+			xs.append(cur - mw / 2.0 + 6)
+			cur -= mw - 6
+		for i in range(xs.size() - 1, -1, -1):
+			var cx: float = xs[i]
+			if i == 0: _spr("train_head", Vector2(cx, by), h, false, true)
+			else: _spr("train_mid", Vector2(cx, by), h, false, true)
+		# roda bogie
+		for i in range(xs.size()):
+			var cx2: float = xs[i]
+			for dx in [-0.3, 0.3]:
+				var wx: float = cx2 + dx * (hw if i == 0 else mw)
+				if wx > quad[0].x - 20 and wx < quad[2].x + 20: continue
+				draw_rect(Rect2(wx - 34, by - 2, 68, 12), Color("4a4f57"))
+				draw_circle(Vector2(wx - 18, by + 10), 9, Color("2e3a4a"))
+				draw_circle(Vector2(wx + 18, by + 10), 9, Color("2e3a4a"))
+
+	func _a_heli() -> void:
+		var cyc := fmod(t, 14.0)
+		var hy := 0.0
+		if cyc < 4.0: hy = lerpf(-280.0, 0.0, ease(cyc / 4.0, 0.4))
+		elif cyc > 9.0: hy = lerpf(0.0, -340.0, ease((cyc - 9.0) / 5.0, 2.0))
+		var p := Vector2(1228, Y(376) + hy)
+		var a := clampf((p.y - 110.0 - y0) / 60.0, 0.0, 1.0)
+		if a <= 0.0: return
+		_spr("heli", p, 140, true, false, a)
+		if cyc < 4.0 or cyc > 8.0:
+			var rw := 150.0 * absf(cos(t * 18.0)) + 40.0
+			draw_line(Vector2(p.x - rw, p.y - 134), Vector2(p.x + rw, p.y - 134), Color(0.3, 0.3, 0.3, 0.5 * a), 6)
+
+	func _a_roket() -> void:
+		var cyc := fmod(t, 15.0)
+		var ry := 0.0
+		if cyc > 8.0: ry = -pow((cyc - 8.0) * 1.6, 2.2) * 10.0
+		var a := 1.0
+		if cyc < 1.0: a = cyc
+		var base := Vector2(480, Y(333) + ry)
+		a *= clampf((base.y - 180.0 - (y0 - 60.0)) / 60.0, 0.0, 1.0)
+		if a <= 0.0: return
+		if cyc > 7.0:
+			var fl := 50.0 + sin(t * 30.0) * 12.0
+			draw_colored_polygon(PackedVector2Array([base + Vector2(-22, -6), base + Vector2(22, -6), base + Vector2(0, fl)]), Color(1.0, 0.64, 0.23, a))
+			draw_colored_polygon(PackedVector2Array([base + Vector2(-11, -6), base + Vector2(11, -6), base + Vector2(0, fl * 0.6)]), Color(1.0, 0.92, 0.5, a))
+			for i in range(4):
+				draw_circle(Vector2(380 + i * 70, Y(330)) + Vector2(sin(t * 5 + i) * 10, 0), 26 + (cyc - 7.0) * 4, Color(1, 1, 1, 0.35))
+		_spr("rocket", base, 200, false, false, a)
 
 	## Sudut badan tangga lantai genap (gambar ruang tangga "3S").
 	func _calc_quad() -> void:

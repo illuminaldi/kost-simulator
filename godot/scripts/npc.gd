@@ -270,6 +270,12 @@ func plan(to: String, spot: Vector2, p_pose: String, done: Callable = Callable()
 		fade_t = 0.0
 	var path := D.bfs(scene, to)
 	route = []
+	if path.is_empty() and to != scene:
+		# Tujuan tak terjangkau (mis. lantai berubah): jangan jalan menembus lantai, selesaikan saja.
+		idle_pose = p_pose
+		on_done = done
+		work = {}
+		return
 	var cur := scene
 	for i in range(1, path.size()):
 		var nxt: String = path[i]

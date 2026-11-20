@@ -208,9 +208,9 @@ func _show_cafe_ext() -> void:
 	m.position = Vector2(522 - m.size.x / 2.0, 2095 - m.size.y)
 	m.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_layer.add_child(m)
-	var tip := _panel(Rect2(250, 2160, 940, 110), Color(1, 0.98, 0.94, 0.92))
+	var tip := _panel(Rect2(250, 2120, 940, 96), Color(1, 0.98, 0.94, 0.92))
 	tip.add_child(_lbl("Geser kiri: ke Lapangan Padel · Geser kanan: pulang", 32, D.C_MUTED, true))
-	_bottom([["Masuk Cafe", D.C_GREEN, _show_cafe_in], ["Lanjut ke Padel", D.C_YELLOW, func(): _walk(-1)], ["Balik ke Kost", D.C_PINK, func(): _walk(1)]])
+	_bottom([["Lanjut ke Padel", D.C_YELLOW, func(): _walk(-1)], ["Masuk Cafe", D.C_GREEN, _show_cafe_in], ["Balik ke Kost", D.C_PINK, func(): _walk(1)]])
 
 
 ## Pintu masuk lapangan padel (sebelum main).
@@ -221,12 +221,12 @@ func _show_padel_ext() -> void:
 	var m := TextureRect.new()
 	m.texture = load("res://assets/chars/penjaga/happy_L.png")
 	m.size = m.texture.get_size() * 1.25
-	m.position = Vector2(560 - m.size.x / 2.0, 2240 - m.size.y)
+	m.position = Vector2(560 - m.size.x / 2.0, 2190 - m.size.y)
 	m.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_layer.add_child(m)
-	var tip := _panel(Rect2(250, 2290, 940, 100), Color(1, 0.98, 0.94, 0.92))
+	var tip := _panel(Rect2(250, 2120, 940, 96), Color(1, 0.98, 0.94, 0.92))
 	tip.add_child(_lbl("Geser kiri: pulang · Geser kanan: ke Cafe", 32, D.C_MUTED, true))
-	_bottom([["Masuk Lapangan", D.C_GREEN, _show_padel], ["Balik ke Cafe", D.C_YELLOW, func(): _walk(1)], ["Balik ke Kost", D.C_PINK, func(): _walk(-1)]])
+	_bottom([["Balik ke Kost", D.C_PINK, func(): _walk(-1)], ["Masuk Lapangan", D.C_GREEN, _show_padel], ["Balik ke Cafe", D.C_YELLOW, func(): _walk(1)]])
 
 
 # ---------------- Cafe Book: membaca ----------------
@@ -939,14 +939,7 @@ func _show_padel() -> void:
 	_hint.size = Vector2(D.IW, 70)
 	_layer.add_child(_hint)
 	_bottom([["Balik ke Kost", D.C_GREEN, func(): _walk(-1)],
-		["Ganti Lawan", D.C_PINK, func():
-			if not game.S.side.get("aji", false):
-				_ray_say("Belum ada lawan lain. Main dulu sama Mustofa~")
-				return
-			foe = (foe + 1) % FOES.size()
-			_opose("ready")
-			_ray_say("Lawan baru: %s! %s" % [FOES[foe][0], "Dia santai, cocok buat pemanasan." if foe == 0 else "Pak John pukulannya keras, fokus ya!"])
-			_new_match()],
+		["Ganti Lawan", D.C_PINK, _ganti_lawan],
 		["Main Lagi", D.C_YELLOW, func():
 			_ray_say("Ulang dari nol. Atur napas dulu, Mbak!")
 			_new_match()]], 2248)
@@ -961,14 +954,105 @@ func _show_padel() -> void:
 		_chat("Mustofa", [["Mustofa", "Mbak Maryam, sore ini padel yuk? Aku udah booking lapangan di taman."],
 			["Maryam", "Boleh! Lagi pusing ngurus kost, pas banget buat olahraga."],
 			["Mustofa", "Sip! Aku ajarin dulu ya, gampang kok."]], func():
-				_ray_say("Lawanmu %s. Maryam lari sendiri ke arah bola. Ketuk layar saat bola masuk lingkaran putih!" % FOES[foe][0])
-				_new_match())
+				_how_to(func():
+					_ray_say("Lawanmu %s. Tunggu bola, lalu ketuk saat lingkaran putih muncul!" % FOES[foe][0])
+					_new_match()))
 		return
 	if _tut == 0:
-		_ray_say("Lawanmu hari ini %s. Perhatikan bola dari seberang net, pukul saat masuk lingkaran putih." % FOES[foe][0])
+		_how_to(func():
+			_ray_say("Lawanmu hari ini %s. Pukul saat bola masuk lingkaran putih." % FOES[foe][0])
+			_new_match())
+		return
 	else:
 		_ray_say("Selamat datang lagi! Lawanmu %s. Ketuk saat bola masuk lingkaran putih." % FOES[foe][0])
 	_new_match()
+
+
+func _ganti_lawan() -> void:
+	_close_modal()
+	if not game.S.side.get("aji", false):
+		_ray_say("Belum ada lawan lain. Main dulu sama Mustofa~")
+		_new_match()
+		return
+	foe = (foe + 1) % FOES.size()
+	_opose("ready")
+	_ray_say("Lawan baru: %s! %s" % [FOES[foe][0], "Dia santai, cocok buat pemanasan." if foe == 0 else "Pak John pukulannya keras, fokus ya!"])
+	_new_match()
+
+
+# ---------- Kartu modal (cara main & hasil pertandingan) ----------
+var _modal: Control
+
+
+func _close_modal() -> void:
+	if _modal and is_instance_valid(_modal): _modal.queue_free()
+	_modal = null
+
+
+## Kartu di tengah layar. btns = [[teks, warna, callback], ...]
+func _show_modal(title: String, title_col: Color, lines: Array, btns: Array) -> void:
+	_close_modal()
+	_modal = Control.new()
+	_modal.size = size
+	_modal.mouse_filter = Control.MOUSE_FILTER_STOP
+	_layer.add_child(_modal)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.45)
+	dim.size = size
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_modal.add_child(dim)
+	var h := 330.0 + lines.size() * 92.0
+	var card := _panel(Rect2(130, 1180 - h / 2.0, D.IW - 260, h), Color("fbf3e6"))
+	_layer.remove_child(card)
+	_modal.add_child(card)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 16)
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	card.add_child(v)
+	var tl := _lbl(title, 84, title_col)
+	tl.add_theme_color_override("font_outline_color", D.C_LINE)
+	tl.add_theme_constant_override("outline_size", 10)
+	v.add_child(tl)
+	for ln in lines:
+		var l := _lbl(str(ln), 38, D.C_INK, true)
+		l.custom_minimum_size = Vector2(D.IW - 320, 0)
+		v.add_child(l)
+	var hb := HBoxContainer.new()
+	hb.alignment = BoxContainer.ALIGNMENT_CENTER
+	hb.add_theme_constant_override("separation", 22)
+	v.add_child(hb)
+	for b in btns:
+		var bt := Button.new()
+		bt.text = str(b[0])
+		bt.custom_minimum_size = Vector2(minf(330.0, (D.IW - 380.0) / btns.size()), 120)
+		bt.focus_mode = Control.FOCUS_NONE
+		bt.action_mode = BaseButton.ACTION_MODE_BUTTON_PRESS
+		bt.add_theme_font_override("font", font)
+		bt.add_theme_font_size_override("font_size", 40)
+		bt.add_theme_color_override("font_color", D.C_INK)
+		bt.add_theme_color_override("font_pressed_color", D.C_INK)
+		bt.add_theme_color_override("font_hover_color", D.C_INK)
+		for st in ["normal", "hover", "pressed", "focus"]:
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = b[1] if st != "pressed" else Color(b[1]).darkened(0.12)
+			sb.border_color = D.C_LINE
+			sb.set_border_width_all(6)
+			sb.set_corner_radius_all(40)
+			bt.add_theme_stylebox_override(st, sb)
+		bt.pressed.connect(b[2])
+		hb.add_child(bt)
+
+
+## Kartu cara main untuk pemain baru, lalu pertandingan dimulai.
+func _how_to(then: Callable) -> void:
+	_ball.serve(999.0)
+	_show_modal("Cara Main", Color("5fae4f"), [
+		"1. Lingkaran KUNING = tempat bola jatuh. Maryam lari sendiri ke sana.",
+		"2. Saat bola masuk lingkaran PUTIH, KETUK layar untuk memukul.",
+		"3. Terlalu cepat atau telat = bola lolos. Menangkan 4 poin (selisih 2)!"],
+		[["Siap!", D.C_GREEN, func():
+			_close_modal()
+			then.call()]])
 
 
 ## Pesan arahan tampil di satu papan kecil di bawah skor (menggantikan pesan sebelumnya).
@@ -988,6 +1072,7 @@ func _ray_say(t: String) -> void:
 
 func _new_match() -> void:
 	if not is_instance_valid(_foe_lbl) or view != "padel": return
+	_close_modal()
 	pts = [0, 0]
 	_rally = 0
 	_foe_lbl.text = FOES[foe][0]
@@ -1081,9 +1166,26 @@ func _process(_dt: float) -> void:
 		_tut = 2
 		_ray_say("Lingkaran putih = zona pukul. Ketuk layar sekarang!")
 	_ball.show_guide = _tut < 4
+	# Tutorial: bola "ditahan" di zona pukul dan ada ajakan KETUK sampai pemain berhasil memukul.
+	_ball.hold = _tut < 4
+	if _tut < 4 and zone and _ball.near():
+		if _coach == null or not is_instance_valid(_coach):
+			_coach = _TapCoach.new()
+			_coach.font = font
+			_layer.add_child(_coach)
+		_coach.p = _ball.b
+	elif _coach and is_instance_valid(_coach):
+		_coach.queue_free()
+		_coach = null
+
+
+var _coach: Node2D
 
 
 func _on_hit() -> void:
+	if _coach and is_instance_valid(_coach):
+		_coach.queue_free()
+		_coach = null
 	_rally += 1
 	game.sfx("pop", -4.0)
 	_mpose("follow", 0.7)
@@ -1218,24 +1320,31 @@ func _point(who: int) -> void:
 	_opose("cheer" if who == 1 else _foe_lose(), 1.3)
 	_mpose("cheer" if who == 0 else "tired", 1.2)
 	if pts[who] >= 4 and pts[who] - pts[1 - who] >= 2:
+		var final := "Maryam %d - %d %s" % [pts[0], pts[1], FOES[foe][0]]
+		_render_score()
+		_ball.serve(999.0)
+		var reward := ""
 		if who == 0:
 			_say("GAME! Maryam menang!")
 			_mpose("cheer", 2.2)
-			_ray_say("Hebat, Mbak Maryam menang! %s minta tanding ulang tuh." % FOES[foe][0])
 			if _toast_once("padel"):
 				game.add_xp(25)
 				for e in game.each_tenant():
 					e[1].tenant.happy = clampf(float(e[1].tenant.happy) + 3.0, 0, 100)
 				game.maybe_review("padel")
-				game.ui.toast("Maryam menang lawan %s! Badan segar, semangat mengurus kost (+25 XP, penghuni +3 senang)." % FOES[foe][0], "gold")
+				reward = "Hadiah: +25 XP, semua penghuni +3 senang."
 			else:
-				game.ui.toast("Menang lagi! Hadiah harian sudah diambil, main santai saja~")
+				reward = "Hadiah harian sudah diambil, main santai saja~"
 		else:
 			_say("%s menang game ini." % FOES[foe][0])
-			_ray_say("Nggak apa-apa! Pukul sedikit lebih lambat, pas bola di tengah lingkaran.")
+			reward = "Tips: ketuk sedikit lebih lambat, pas bola di tengah lingkaran putih."
+		var won := who == 0
+		get_tree().create_timer(1.3).timeout.connect(func():
+			if view != "padel": return
+			_show_modal("MENANG!" if won else "KALAH", Color("5fae4f") if won else Color("e0533d"),
+				[final, reward],
+				[["Main Lagi", D.C_YELLOW, func(): _new_match()], ["Ganti Lawan", D.C_PINK, _ganti_lawan], ["Selesai", D.C_GREEN, func(): _close_modal(); _show_padel_ext()]]))
 		pts = [0, 0]
-		_render_score()
-		_ball.serve(2.4)
 		return
 	if who == 0:
 		_say("Poin Maryam!")
@@ -1262,7 +1371,7 @@ func _gui_input(e: InputEvent) -> void:
 			_pressed = true
 			_swiped = false
 			# Padel: cukup ketuk saat bola masuk lingkaran putih (Maryam bergerak sendiri).
-			if view == "padel" and e.position.y > 900 and e.position.y < 2240:
+			if view == "padel" and e.position.y > 900 and e.position.y < 2240 and (_modal == null or not is_instance_valid(_modal)):
 				_swiped = true
 				_ball.swing()
 		else:
@@ -1748,6 +1857,7 @@ class _Ball extends Node2D:
 	var b := Vector2(900, 1720)
 	var player: TextureRect
 	var show_guide := false
+	var hold := false
 	var _wait := 0.0
 	var _swing_t := 0.0
 	var _clock := 0.0
@@ -1770,6 +1880,8 @@ class _Ball extends Node2D:
 			queue_redraw()
 			return
 		t += dt
+		if hold and state == "in" and t > dur * 0.9 and near():
+			t = dur * 0.9   # tutorial: bola menunggu di zona pukul
 		if state == "in" and t > dur + 0.2:
 			state = "idle"
 			missed.emit()
@@ -2014,3 +2126,25 @@ class _Props extends Node2D:
 			var a := TAU * i / 32.0
 			pts.append(c + Vector2(cos(a) * rx, sin(a) * ry))
 		draw_polyline(pts, col, w)
+
+
+## Ajakan "KETUK!" berdenyut di zona pukul (tutorial padel).
+class _TapCoach extends Node2D:
+	var p := Vector2.ZERO
+	var font: Font
+	var t := 0.0
+	func _process(dt: float) -> void:
+		t += dt
+		queue_redraw()
+	func _draw() -> void:
+		var k := 0.5 + 0.5 * sin(t * 7.0)
+		draw_arc(p, 90 + k * 30, 0, TAU, 40, Color(1, 1, 1, 0.9 - k * 0.5), 10)
+		draw_arc(p, 60, 0, TAU, 40, Color(1, 0.88, 0.4, 0.9), 6)
+		# jari menunjuk
+		var hp := p + Vector2(70, 60 + k * 18)
+		draw_circle(hp, 26, Color("f1c9a5"))
+		draw_rect(Rect2(hp + Vector2(-10, -70), Vector2(20, 60)), Color("f1c9a5"))
+		draw_arc(hp, 26, 0, TAU, 24, Color("4a3426"), 4)
+		if font:
+			draw_string_outline(font, p + Vector2(-360, -160), "KETUK SEKARANG!", HORIZONTAL_ALIGNMENT_CENTER, 720, 54, 14, Color("4a3426"))
+			draw_string(font, p + Vector2(-360, -160), "KETUK SEKARANG!", HORIZONTAL_ALIGNMENT_CENTER, 720, 54, Color("ffe28a"))
