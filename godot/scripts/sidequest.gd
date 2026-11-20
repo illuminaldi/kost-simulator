@@ -586,11 +586,12 @@ class _Mug extends Node2D:
 	var _wig := 0.0
 	var t := 0.0
 	var _tex: Texture2D = preload("res://assets/side/cafe_mug.png")
-	const ORG := Vector2(880, 1630)
-	const PIV := Vector2(1130, 1870)
-	const C := Vector2(1060, 1768)
-	const RX := 138.0
-	const RY := 56.0
+	var _tex_sip: Texture2D = preload("res://assets/side/cafe_mug_sip.png")
+	const ORG := Vector2(876, 1600)
+	const PIV := Vector2(1284, 1824)
+	const C := Vector2(1053, 1697)
+	const RX := 168.0
+	const RY := 74.0
 	const DUR := 1.5
 
 	var _inited := false
@@ -636,14 +637,19 @@ class _Mug extends Node2D:
 		var piv := PIV + Vector2(-10, -25) * e + Vector2(sin(t * 40.0) * 8.0 * _wig, 0)
 		draw_set_transform(piv, -0.08 * e, Vector2(z, z))
 		var o := -PIV
+		if e > 0.35:
+			# saat diseruput: gelas miring, kopinya bergoyang ke bibir gelas
+			draw_texture(_tex_sip, ORG + o)
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			return
 		draw_texture(_tex, ORG + o)
 		var c := C + o
-		_ell(c, RX - 6, RY - 4, Color("d9c3a6"))
+		_ell(c, RX - 6, RY - 4, Color("c99a6d"))
 		var lv := _shown
 		if lv > 0.01:
 			var drop := (1.0 - lv) * 48.0
 			var s := 1.0 - (1.0 - lv) * 0.2
-			_ell(c + Vector2(0, drop), (RX - 14) * s, (RY - 12) * s, Color("6e4632"))
+			_ell(c + Vector2(0, drop), (RX - 14) * s, (RY - 12) * s, Color("5e3626"))
 			_ell(c + Vector2(-20, drop - 6), (RX - 60) * s, (RY - 34) * s, Color(1, 1, 1, 0.12))
 			if e > 0.5:
 				draw_arc(c + Vector2(0, drop), (RX - 40) * (0.6 + 0.4 * sin(t * 9.0)), 0, TAU, 32, Color(1, 1, 1, 0.3), 4)
