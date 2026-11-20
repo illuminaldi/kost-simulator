@@ -927,6 +927,7 @@ func refresh_sheet(keep: bool = true) -> void:
 		"rename": _sheet_rename()
 		"preman": _sheet_preman()
 		"fire": _sheet_fire()
+		"tired": _sheet_tired()
 		"toko": _sheet_toko()
 		"floors": _sheet_floors()
 		"beli": _sheet_beli()
@@ -1321,6 +1322,25 @@ func _sheet_preman() -> void:
 		var arg: String = o[2]
 		v.add_child(_btn(o[0], o[1], func(): _do("preman", arg)))
 		v.add_child(_text(o[3], 30, D.C_MUTED))
+
+
+func _sheet_tired() -> void:
+	_header("Maryam mulai capek")
+	var tr := TextureRect.new()
+	tr.texture = load("res://assets/chars/penjaga/tired_L.png")
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.custom_minimum_size = Vector2(0, 300)
+	box.add_child(tr)
+	box.add_child(_text("\"Udah 2 jam jaga kost terus nih... Kepala mulai pusing. Boleh aku istirahat sebentar?\"", 34, D.C_INK))
+	box.add_child(_text("Main terlalu lama juga bikin kamu capek, lho. Yuk rehat sejenak bareng Maryam!", 30, D.C_MUTED))
+	for o in [["Ngopi Cantik di Cafe Book", D.C_PINK, "cafe", "Minum kopi sambil baca buku klasik."],
+			["Main Padel di Taman", D.C_GREEN, "padel", "Olahraga sebentar melawan Ryan atau Aji."]]:
+		var v := _card()
+		var w: String = o[2]
+		v.add_child(_btn(o[0], o[1], func(): game.go_side(w)))
+		v.add_child(_text(o[3], 28, D.C_MUTED))
+	box.add_child(_btn("Nanti saja", Color.WHITE, close_sheet))
 
 
 func _sheet_fire() -> void:

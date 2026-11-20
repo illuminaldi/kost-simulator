@@ -1164,6 +1164,7 @@ func _process(dt: float) -> void:
 	_cat_tick(dt)
 	_facil_tick(dt)
 	_auto_acc += dt
+	_tired_tick(dt)
 	if _auto_acc > 3.0:
 		_auto_acc = 0.0
 		if not S.queue.is_empty(): _auto_checkin()
@@ -1449,6 +1450,34 @@ func _auto_checkin() -> void:
 
 
 var _auto_acc := 0.0
+
+# ---------------- Maryam capek setelah 2 jam main nonstop ----------------
+const TIRED_SECS := 2 * 3600.0
+var play_secs := 0.0
+
+
+func _tired_tick(dt: float) -> void:
+	if ui.side.active():
+		# Istirahat di cafe / padel memulihkan Maryam dengan cepat.
+		play_secs = maxf(0.0, play_secs - dt * 40.0)
+		return
+	play_secs += dt
+	if play_secs < TIRED_SECS: return
+	if ui.kind != "" or not drag.is_empty() or cutscene_on or int(S.get("tut", -1)) >= 0: return
+	play_secs = TIRED_SECS - 1800.0   # kalau ditunda, ditanya lagi 30 menit kemudian
+	keeper_say("Huft... capek juga ya. Ngopi dulu yuk?", 4.0)
+	ui.open_sheet("tired")
+
+
+func go_side(where: String) -> void:
+	ui.close_sheet()
+	if npcs.has("keeper"):
+		ui.toast("Maryam selesaikan tugasnya dulu, sebentar lagi berangkat.")
+		return
+	ui.side.visible = true
+	ui.set_nav_visible(false)
+	ui.side.loc = "kost" if where == "cafe" else "cafe"
+	ui.side._walk(-1)
 
 
 func has_app(k: String) -> bool:
@@ -4604,6 +4633,10 @@ func _handle_cli(args: PackedStringArray) -> void:
 		elif a == "--sampah":
 			S.out = {"sampah": 2}
 			get_tree().create_timer(0.5).timeout.connect(spawn_sampah)
+		elif a == "--sip":
+			get_tree().create_timer(1.5).timeout.connect(func(): ui.side._sip())
+		elif a == "--tired":
+			play_secs = TIRED_SECS - 1.0
 		elif a.begins_with("--side="):
 			var sv := a.substr(7)
 			get_tree().create_timer(0.3).timeout.connect(func():
