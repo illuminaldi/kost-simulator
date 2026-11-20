@@ -308,6 +308,9 @@ func _show_cafe_in() -> void:
 	_hit(Rect2(1218, 1125, 152, 150), func(): _flip(1))
 	_hit(Rect2(1160, 2020, 230, 190), _sip)
 	_hit(Rect2(900, 1690, 330, 330), _sip)
+	var deco := _CafeDeco.new()
+	deco.font = font
+	_layer.add_child(deco)
 	_lt_dim = _dim(Rect2(70, 1125, 152, 150))
 	_rt_dim = _dim(Rect2(1218, 1125, 152, 150))
 	_cafe_hint = _panel(Rect2(360, 2150, 760, 96), Color("5a4434"))
@@ -437,6 +440,41 @@ class _Book extends Node2D:
 	var _ln: Label
 	var _rn: Label
 
+	func _draw_book() -> void:
+		# Buku digambar sendiri (latar cafe baru tidak punya buku).
+		var ink := Color("5a4030")
+		var tl: Vector2 = LP[0]; var tm: Vector2 = LP[1]; var tr: Vector2 = RP[1]
+		var br: Vector2 = RP[2]; var bm: Vector2 = LP[2]; var bl: Vector2 = LP[3]
+		var c := (tl + tr + br + bl) / 4.0
+		var grow := func(v: Vector2, d: float) -> Vector2: return v + (v - c).normalized() * d
+		# bayangan di meja
+		var sh := PackedVector2Array()
+		for v in [tl, tm, tr, br, bm, bl]: sh.append(grow.call(v, 26.0) + Vector2(18, 26))
+		draw_colored_polygon(sh, Color(0.25, 0.15, 0.08, 0.22))
+		# sampul
+		var cov := PackedVector2Array()
+		for v in [tl, tm, tr, br, bm, bl]: cov.append(grow.call(v, 20.0))
+		draw_colored_polygon(cov, Color("9c5a3c"))
+		cov.append(cov[0]); draw_polyline(cov, ink, 5.0)
+		# tumpukan halaman (tebal)
+		for i in range(4, 0, -1):
+			var o := Vector2(0, i * 4.0)
+			draw_colored_polygon(PackedVector2Array([tl + o, tm + o, bm + o, bl + o]), Color("e9dcc0"))
+			draw_colored_polygon(PackedVector2Array([tm + o, tr + o, br + o, bm + o]), Color("e9dcc0"))
+		# halaman
+		draw_colored_polygon(PackedVector2Array([tl, tm, bm, bl]), Color("fbf1da"))
+		draw_colored_polygon(PackedVector2Array([tm, tr, br, bm]), Color("fdf5e2"))
+		for q in [[tl, tm, bm, bl], [tm, tr, br, bm]]:
+			var pl := PackedVector2Array(q); pl.append(q[0])
+			draw_polyline(pl, ink, 3.0)
+		# lipatan tengah
+		for i in range(6):
+			var a := 0.16 - i * 0.025
+			var off := (tr - tm).normalized() * (i * 5.0)
+			draw_line(tm + off, bm + off, Color(0.45, 0.32, 0.2, a), 6.0)
+			draw_line(tm - off, bm - off, Color(0.45, 0.32, 0.2, a), 6.0)
+		draw_line(tm, bm, ink, 3.0)
+
 	func _ready() -> void:
 		_lh = _holder(LP, Vector2(420, 560))
 		_rh = _holder(RP, Vector2(410, 560))
@@ -497,6 +535,7 @@ class _Book extends Node2D:
 			queue_redraw()
 
 	func _draw() -> void:
+		_draw_book()
 		var paper := Color("fdf0d2")
 		for q in [LP, RP]:
 			var pts := PackedVector2Array()
@@ -619,25 +658,17 @@ class _CafeLife extends Node2D:
 	var _g := 0
 	# [gambar, gambar alternatif, x tengah, y alas, skala, cermin, bagian terlihat (0..1), alpha]
 	const SPEC := [
-		["kupluk/chair", "kupluk/happy", 72.0, 815.0, 0.9, false, 1.0, 1.0],       # 0 meja kiri
-		["flanel/chair", "flanel/happy", 160.0, 618.0, 0.7, false, 0.55, 1.0],     # 1 di balik meja
-		["siswi/chair", "siswi/happy", 272.0, 800.0, 0.88, true, 1.0, 1.0],        # 2
-		["nenek/chair", "nenek/happy", 600.0, 606.0, 0.66, false, 1.0, 1.0],       # 3 meja tengah
-		["kakek/chair", "kakek/happy", 786.0, 600.0, 0.66, true, 1.0, 1.0],        # 4
-		["siswi/chair", "siswi/happy", 995.0, 772.0, 0.92, false, 1.0, 0.6],       # 5 di balik kaca
-		["kutu/chair", "kutu/happy", 1150.0, 797.0, 0.95, true, 1.0, 1.0],         # 6
-		["barista/idle", "barista/happy", 1362.0, 478.0, 0.85, false, 0.44, 1.0],  # 7 di balik meja bar
-		["flanel/chair", "flanel/happy", 1400.0, 952.0, 1.2, true, 1.0, 1.0],      # 8
-		["kasir/idle", "kasir/happy", 252.0, 318.0, 0.5, false, 0.42, 1.0],        # 9 penjual kios
-		["ojol/ride", "ojol/ride2", 410.0, 516.0, 0.62, false, 1.0, 1.0],          # 10 ojol parkir
+		["siswi/idle", "siswi/happy", 150.0, 660.0, 0.5, false, 1.0, 1.0],      # 0 teras kiri
+		["kutu/idle", "kutu/happy", 270.0, 650.0, 0.5, true, 1.0, 1.0],        # 1
+		["nenek/idle", "nenek/happy", 600.0, 560.0, 0.42, false, 1.0, 1.0],    # 2 teras tengah
+		["kakek/idle", "kakek/happy", 700.0, 552.0, 0.42, true, 1.0, 1.0],     # 3
+		["barista/idle", "barista/happy", 1230.0, 860.0, 0.7, false, 1.0, 0.85],  # 4 di balik pintu kaca
+		["flanel/idle", "flanel/happy", 1360.0, 880.0, 0.72, true, 1.0, 0.85],    # 5
 	]
 	const TALKS := [
-		[[0, 1, 2], ["Eh, tugas kelompok udah?", "Belum, nanti malam ya!", "Aku traktir kopi deh.", "Serius? Asyik!"]],
-		[[3, 4], ["Kopinya enak banget.", "Iya, gula arennya pas.", "Minggu depan ke sini lagi?", "Boleh, bawa cucu sekalian."]],
-		[[5, 6], ["Gimana kerjaan?", "Lagi sibuk, tapi seru.", "Jangan lupa istirahat.", "Siap, makanya ngopi dulu."]],
-		[[7, 8], ["Satu latte, siap!", "Makasih, Kak!", "Latte art-nya bentuk hati~", "Lucu banget!"]],
-		[[9], ["Gorengan anget, gorengan!", "Pisang goreng baru matang~"]],
-		[[10], ["Nunggu orderan dulu...", "Mantap, dapat orderan!"]],
+		[[0, 1], ["Eh, tugas kelompok udah?", "Belum, nanti malam ya!", "Aku traktir kopi deh.", "Serius? Asyik!"]],
+		[[2, 3], ["Kopinya enak banget.", "Iya, gula arennya pas.", "Minggu depan ke sini lagi?", "Boleh, bawa cucu sekalian."]],
+		[[4, 5], ["Satu latte, siap!", "Makasih, Kak!", "Latte art-nya bentuk hati~", "Lucu banget!"]],
 	]
 
 	func _ready() -> void:
@@ -652,12 +683,6 @@ class _CafeLife extends Node2D:
 			var p := {"sp": s, "tex": tex, "alt": alt, "x": float(sp[2]), "y": float(sp[3]), "sc": float(sp[4]), "vis": float(sp[6]), "bob": 0.0, "ph": randf() * TAU}
 			people.append(p)
 			_set_tex(p, tex)
-		# Pagar depan menutupi kaki pengunjung meja kiri.
-		var fg := Sprite2D.new()
-		fg.texture = load("res://assets/side/cafe_fg.png")
-		fg.centered = false
-		fg.position = Vector2(0, 695)
-		add_child(fg)
 		_top = _Top.new()
 		_top.life = self
 		add_child(_top)
@@ -1707,3 +1732,44 @@ class _Ball extends Node2D:
 				draw_arc(hp, 26, 0, TAU, 20, Color("6b4f3a"), 4)
 		draw_circle(p, r, Color("e6e85a"))
 		draw_arc(p, r, 0, TAU, 20, Color("6b6a20"), 3)
+
+
+## Tombol panah & "Hirup Kopi" (dulu bagian dari ilustrasi).
+class _CafeDeco extends Node2D:
+	var font: Font
+	var _mug: Texture2D = preload("res://assets/side/cafe_mug.png")
+
+	func _card(r: Rect2) -> void:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color("fbf3e4")
+		sb.border_color = Color("5a4030")
+		sb.set_border_width_all(5)
+		sb.set_corner_radius_all(26)
+		sb.shadow_color = Color(0, 0, 0, 0.18)
+		sb.shadow_size = 8
+		sb.shadow_offset = Vector2(0, 6)
+		draw_style_box(sb, r)
+
+	func _draw() -> void:
+		var ink := Color("4a3426")
+		for side in [-1, 1]:
+			var r: Rect2 = Rect2(70, 1125, 152, 150) if side < 0 else Rect2(1218, 1125, 152, 150)
+			r = r.grow(-10)
+			_card(r)
+			var c := r.get_center()
+			var d: float = 18.0 * float(side)
+			draw_polyline(PackedVector2Array([c + Vector2(-d, -32), c + Vector2(d, 0), c + Vector2(-d, 32)]), ink, 12.0)
+		var sr := Rect2(1170, 2030, 210, 170)
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color("8a5a3a")
+		sb.border_color = ink
+		sb.set_border_width_all(5)
+		sb.set_corner_radius_all(26)
+		draw_style_box(sb, sr)
+		draw_circle(sr.position + Vector2(105, 62), 44, Color("fbf3e4"))
+		draw_rect(Rect2(sr.position + Vector2(78, 46), Vector2(48, 36)), Color("fbf3e4"))
+		draw_rect(Rect2(sr.position + Vector2(80, 44), Vector2(44, 40)), Color("6b4430"), false, 4)
+		draw_arc(sr.position + Vector2(130, 62), 12, -PI / 2, PI / 2, 10, Color("6b4430"), 4)
+		draw_rect(Rect2(sr.position + Vector2(82, 46), Vector2(40, 10)), Color("5a3a26"))
+		if font:
+			draw_string(font, sr.position + Vector2(0, 150), "Hirup Kopi", HORIZONTAL_ALIGNMENT_CENTER, sr.size.x, 34, Color.WHITE)
