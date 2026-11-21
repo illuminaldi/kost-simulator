@@ -211,6 +211,10 @@ func _art_tex(p: String) -> Texture2D:
 	# Siklus langkah: bergantian kaki depan & kaki berpapasan.
 	if (p == "walk" or p == "climb") and _has(base + "2") and int(anim * (4.0 if p == "walk" else 3.0)) % 2 == 1:
 		base = base + "2"
+	# Pose kerja beranimasi: base -> base2 -> base3 -> base2 (atau 2 frame bila base3 tak ada).
+	elif base in ["wring", "work"] and _has(base + "2"):
+		var seq := [base, base + "2", base + "3", base + "2"] if _has(base + "3") else [base, base + "2"]
+		base = seq[int(anim * 2.5) % seq.size()]
 	var path := "res://assets/chars/%s/%s_%s.png" % [char_id, base, "L" if k > 1.5 else "R"]
 	if not _art_cache.has(path):
 		_art_cache[path] = load(path)
@@ -419,7 +423,7 @@ func _refresh() -> void:
 	elif pose == "sweep" or pose == "fix":
 		frame = int(anim * 3.0) % 2
 	var use_art := art   # karakter ilustrasi selalu pakai gambar; pose tak dikenal -> idle
-	var key := "%s|%d|%.1f|%s|%s|%s|%s|%s|%d|%d" % [pose, frame, k, use_art, char_id, mood, react_pose, speed_mul > 1.6, int(anim * 4.0) % 2, int(anim / 3.5) % 6]
+	var key := "%s|%d|%.1f|%s|%s|%s|%s|%s|%d|%d" % [pose, frame, k, use_art, char_id, mood, react_pose, speed_mul > 1.6, int(anim * 4.0) % 2, int(anim / 3.5) % 6 * 10 + int(anim * 2.5) % 4]
 	if key != _tex_key:
 		_tex_key = key
 		var t: Texture2D

@@ -1413,7 +1413,7 @@ func _sheet_tired() -> void:
 	box.add_child(_text("\"Udah 2 jam jaga kost terus nih... Kepala mulai pusing. Boleh aku istirahat sebentar?\"", 34, D.C_INK))
 	box.add_child(_text("Main terlalu lama juga bikin kamu capek, lho. Yuk rehat sejenak bareng Maryam!", 30, D.C_MUTED))
 	for o in [["Ngopi Cantik di Cafe Book", D.C_PINK, "cafe", "Minum kopi sambil baca buku klasik."],
-			["Main Padel di Taman", D.C_GREEN, "padel", "Olahraga sebentar melawan Mustofa atau John."]]:
+			["Main Padel di Taman", D.C_GREEN, "padel", "Olahraga sebentar melawan Boy atau John."]]:
 		var v := _card()
 		var w: String = o[2]
 		v.add_child(_btn(o[0], o[1], func(): game.go_side(w)))
@@ -1739,7 +1739,7 @@ func _sheet_room() -> void:
 	if not S.staff.get("cleaner", false):
 		f.add_child(_btn("Bersihkan (Rp 15rb)", D.C_GREEN, func(): _do("clean", id), float(r.clean) >= 99 or float(S.money) < 15000, false, "Kamar sudah bersih (%d%%)." % roundi(float(r.clean)) if float(r.clean) >= 99 else money_why(15000)))
 	else:
-		f.add_child(_label("Mustofa membersihkan otomatis", 30, Color("2f7a2a"), true))
+		f.add_child(_label("Boy membersihkan otomatis", 30, Color("2f7a2a"), true))
 	_furn_card(id)
 	var dv := _card()
 	var pp: Dictionary = r.get("paint", {})

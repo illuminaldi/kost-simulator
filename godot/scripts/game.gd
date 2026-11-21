@@ -2255,8 +2255,8 @@ const MOOD_FRIEND := {
 	"lelah": [["Capek ya? Mau kubikinin mie?", "Boleh banget... laper.", "Yuk ke dapur bareng!"]],
 }
 const MOOD_STAFF := {
-	"cleaner": [["Mas Mustofa, kamarku tolong dibersihin dong.", "Siap, habis ini langsung saya ke sana!"]],
-	"teknisi": [["Mas Boy, ada yang rusak di kamarku...", "Oke, saya bawa perkakas dulu, ya."]],
+	"cleaner": [["Mas Boy, kamarku tolong dibersihin dong.", "Siap, habis ini langsung saya ke sana!"]],
+	"teknisi": [["Mas Aji, ada yang rusak di kamarku...", "Oke, saya bawa perkakas dulu, ya."]],
 	"satpam": [["Pak John, paketku kok hilang ya?", "Saya cek CCTV & buku tamu dulu, Kak."]],
 }
 
@@ -4373,6 +4373,9 @@ func _spawn_staff(role: String, on: bool, ci: int) -> void:
 			elif role in ["laundry", "kantin", "barista", "kasir", "tani", "lele", "petshop", "florist", "koperasi", "warteg"]:
 				n.char_id = role
 				n.art_map = {"walk": "walk", "stand": "happy" if role == "laundry" else "idle", "counter": "happy" if role == "laundry" else ["idle", "happy"]}
+				# Pose kerja (work, work2, work3) bila gambarnya ada; tanpa gambar -> jatuh ke idle.
+				if role in ["laundry", "tani", "barista", "kasir"]:
+					n.art_map["counter"] = ["work", "work", "happy" if role == "laundry" else "idle"]
 				if role == "lele":
 					n.art_map["counter"] = ["idle", "lift", "happy", "stack"]   # beri pakan, panen, rapikan jaring
 			elif role == "teknisi":
