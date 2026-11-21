@@ -28,7 +28,9 @@ func setup(g: Node) -> void:
 	add_child(billing)
 	billing.connected.connect(_on_connected)
 	billing.disconnected.connect(func(): status = "Terputus dari Google Play"; changed.emit())
-	billing.connect_error.connect(func(code: int, msg: String): status = "Google Play belum siap (%d)" % code; changed.emit())
+	billing.connect_error.connect(func(code: int, msg: String):
+		status = "Tidak bisa terhubung ke Google Play (kode %d). Pastikan aplikasi dipasang dari Play Store dan akun Google sudah masuk." % code
+		changed.emit())
 	billing.query_product_details_response.connect(_on_details)
 	billing.query_purchases_response.connect(_on_purchases)
 	billing.on_purchase_updated.connect(_on_purchases)
@@ -60,8 +62,12 @@ func price(pid: String, fallback: String) -> String:
 	return str(prices.get(pid, fallback))
 
 
+func can_buy(pid: String) -> bool:
+	return billing != null and billing.is_ready() and prices.has(pid)
+
+
 func buy(pid: String) -> void:
-	if not ready_to_buy():
+	if not can_buy(pid):
 		game.ui.toast("Google Play belum siap. Coba lagi sebentar.", "bad")
 		if billing: billing.start_connection()
 		return
@@ -70,19 +76,42 @@ func buy(pid: String) -> void:
 		game.ui.toast("Tidak bisa membuka pembayaran (%s)" % str(r.get("debug_message", r.get("response_code", "?"))), "bad")
 
 
+## Dipanggil saat toko dibuka: sambung ulang / minta ulang daftar produk bila belum ada harga.
+func refresh() -> void:
+	if billing == null: return
+	if not billing.is_ready():
+		billing.start_connection()
+	elif prices.is_empty():
+		billing.query_product_details(PackedStringArray(PRODUCTS.keys()), BillingClient.ProductType.INAPP)
+
+
 func _on_connected() -> void:
-	status = ""
+	status = "Terhubung ke Google Play, memuat daftar Diamond..."
+	changed.emit()
 	billing.query_product_details(PackedStringArray(PRODUCTS.keys()), BillingClient.ProductType.INAPP)
 	# Pembelian yang belum selesai (mis. aplikasi tertutup sebelum verifikasi) diproses ulang.
 	billing.query_purchases(BillingClient.ProductType.INAPP)
 
 
 func _on_details(res: Dictionary) -> void:
-	if int(res.get("response_code", -1)) != BillingClient.BillingResponseCode.OK: return
+	var code := int(res.get("response_code", -1))
+	if code != BillingClient.BillingResponseCode.OK:
+		status = "Google Play menolak memuat produk (kode %d: %s)." % [code, str(res.get("debug_message", ""))]
+		changed.emit()
+		return
 	for d in res.get("product_details", []):
 		var offers = d.get("one_time_purchase_offer_details_list")
 		if offers is Array and offers.size() > 0:
 			prices[str(d.product_id)] = str(offers[0].get("formatted_price", ""))
+	var missing := []
+	for pid in PRODUCTS:
+		if not prices.has(pid): missing.append(pid)
+	if prices.is_empty():
+		status = "Produk Diamond belum ditemukan di Google Play (%s). Produk harus dibuat & diaktifkan di Play Console, dan aplikasi dipasang dari Play Store oleh akun penguji." % ", ".join(missing)
+	elif not missing.is_empty():
+		status = "Sebagian paket belum aktif di Google Play: %s." % ", ".join(missing)
+	else:
+		status = ""
 	changed.emit()
 
 
