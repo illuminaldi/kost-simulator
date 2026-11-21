@@ -1410,8 +1410,8 @@ func _sheet_tired() -> void:
 	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	tr.custom_minimum_size = Vector2(0, 300)
 	box.add_child(tr)
-	box.add_child(_text("\"Udah 2 jam jaga kost terus nih... Kepala mulai pusing. Boleh aku istirahat sebentar?\"", 34, D.C_INK))
-	box.add_child(_text("Main terlalu lama juga bikin kamu capek, lho. Yuk rehat sejenak bareng Maryam!", 30, D.C_MUTED))
+	box.add_child(_text("\"Udah sejam jaga kost terus nih... Kepala mulai pusing. Boleh aku healing sebentar?\"", 34, D.C_INK))
+	box.add_child(_text("Main terlalu lama juga bikin kamu capek, lho. Yuk rehat sejenak bareng Maryam! Bisa juga langsung geser lobi ke kiri (Cafe Book) atau ke kanan (Padel).", 30, D.C_MUTED))
 	for o in [["Ngopi Cantik di Cafe Book", D.C_PINK, "cafe", "Minum kopi sambil baca buku klasik."],
 			["Main Padel di Taman", D.C_GREEN, "padel", "Olahraga sebentar melawan Boy atau John."]]:
 		var v := _card()

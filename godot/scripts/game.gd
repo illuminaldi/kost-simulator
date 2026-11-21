@@ -1648,7 +1648,7 @@ func _process(dt: float) -> void:
 		if _keeper_t > 0.0:
 			_keeper_t -= dt
 			if _keeper_t <= 0.0:
-				_set_keeper("idle")
+				_set_keeper("tired" if maryam_tired else "idle")
 		recep_art.position.y = 1962 + sin(Time.get_ticks_msec() / 600.0) * 1.5
 	_brain_acc += dt
 	if _brain_acc >= 0.5:
@@ -1974,22 +1974,98 @@ func _auto_checkin() -> void:
 
 var _auto_acc := 0.0
 
-# ---------------- Maryam capek setelah 2 jam main nonstop ----------------
-const TIRED_SECS := 2 * 3600.0
+# ---------------- Maryam capek setelah 1 jam (waktu nyata) jaga lobi nonstop ----------------
+# 1 jam nyata = 3.600 dtk x 20 menit game = 1.200 jam game (+-50 hari game pada kecepatan 1x).
+const TIRED_SECS := 3600.0
 var play_secs := 0.0
+var maryam_tired := false     # capek: pose lelah di meja + petunjuk geser < > ke Cafe / Padel
+var _swipe_hint: Node2D
+var _tired_say_t := 0.0
 
 
 func _tired_tick(dt: float) -> void:
 	if ui.side.active():
-		# Istirahat di cafe / padel memulihkan Maryam dengan cepat.
+		# Istirahat (healing) di cafe / padel memulihkan Maryam dengan cepat.
 		play_secs = maxf(0.0, play_secs - dt * 40.0)
+		if maryam_tired and play_secs <= TIRED_SECS * 0.25: _set_tired(false)
+		_show_swipe_hint(false)
 		return
 	play_secs += dt
+	var calm := ui.kind == "" and drag.is_empty() and not cutscene_on and int(S.get("tut", -1)) < 0
+	_show_swipe_hint(maryam_tired and calm and not npcs.has("keeper"))
+	if maryam_tired:
+		_tired_say_t -= dt
+		if _tired_say_t <= 0.0 and calm:
+			_tired_say_t = randf_range(70.0, 120.0)
+			keeper_say(["Huft... pegel banget.", "Butuh healing nih...", "Ngopi dulu kali ya?", "Pengen main padel bentar..."].pick_random(), 3.0)
 	if play_secs < TIRED_SECS: return
-	if ui.kind != "" or not drag.is_empty() or cutscene_on or int(S.get("tut", -1)) >= 0: return
+	if not calm: return
 	play_secs = TIRED_SECS - 1800.0   # kalau ditunda, ditanya lagi 30 menit kemudian
+	_set_tired(true)
 	keeper_say("Huft... capek juga ya. Ngopi dulu yuk?", 4.0)
 	ui.open_sheet("tired")
+
+
+func _set_tired(on: bool) -> void:
+	if maryam_tired == on: return
+	maryam_tired = on
+	_tired_say_t = 60.0
+	_set_keeper("tired" if on else "idle")
+	if not on:
+		_show_swipe_hint(false)
+		ui.toast("Maryam segar lagi setelah healing!", "gold")
+
+
+func _show_swipe_hint(on: bool) -> void:
+	if on and _swipe_hint == null:
+		_swipe_hint = _SwipeHint.new()
+		_swipe_hint.font = font
+		_swipe_hint.z_index = 60
+		lobby_root.add_child(_swipe_hint)
+	if _swipe_hint: _swipe_hint.visible = on
+
+
+## Petunjuk geser di lobi saat Maryam capek: kiri ke Cafe Book, kanan ke Lapangan Padel.
+class _SwipeHint extends Node2D:
+	var font: Font
+	var t := 0.0
+	const Y := 2060.0
+
+	func _process(dt: float) -> void:
+		if not visible: return
+		t += dt
+		queue_redraw()
+
+	func _pill(r: Rect2, col: Color) -> void:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = col
+		sb.set_corner_radius_all(int(r.size.y / 2.0))
+		sb.border_color = Color("5a3d2b")
+		sb.set_border_width_all(4)
+		draw_style_box(sb, r)
+
+	func _chev(x: float, dir: float, a: float) -> void:
+		var c := Color(1, 1, 1, a)
+		var p := PackedVector2Array([Vector2(x - dir * 18, Y - 30), Vector2(x + dir * 14, Y), Vector2(x - dir * 18, Y + 30)])
+		draw_polyline(p, Color(0.35, 0.24, 0.17, a), 18, true)
+		draw_polyline(p, c, 10, true)
+
+	func _draw() -> void:
+		var pulse := 0.6 + 0.4 * sin(t * 3.0)
+		# kiri: Cafe Book (geser ke kiri)
+		for i in range(3):
+			var k := fmod(t * 1.2 + i / 3.0, 1.0)
+			_chev(150 - k * 90, -1.0, (1.0 - k) * pulse)
+		_pill(Rect2(26, Y + 54, 260, 96), Color("f6b8c6"))
+		draw_string(font, Vector2(26, Y + 96), "Cafe Book", HORIZONTAL_ALIGNMENT_CENTER, 260, 32, Color("5a3d2b"))
+		draw_string(font, Vector2(26, Y + 132), "geser ke kiri", HORIZONTAL_ALIGNMENT_CENTER, 260, 24, Color("7a5a48"))
+		# kanan: Lapangan Padel (geser ke kanan)
+		for i in range(3):
+			var k := fmod(t * 1.2 + i / 3.0, 1.0)
+			_chev(D.IW - 150 + k * 90, 1.0, (1.0 - k) * pulse)
+		_pill(Rect2(D.IW - 286, Y + 54, 260, 96), Color("bfe3a8"))
+		draw_string(font, Vector2(D.IW - 286, Y + 96), "Padel", HORIZONTAL_ALIGNMENT_CENTER, 260, 32, Color("5a3d2b"))
+		draw_string(font, Vector2(D.IW - 286, Y + 132), "geser ke kanan", HORIZONTAL_ALIGNMENT_CENTER, 260, 24, Color("4f6b3f"))
 
 
 func go_side(where: String) -> void:
