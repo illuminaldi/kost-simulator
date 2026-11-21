@@ -183,6 +183,9 @@ func _art_tex(p: String) -> Texture2D:
 	if art_map.has(p):
 		var m = art_map[p]
 		base = m[int(anim / 3.5) % m.size()] if m is Array else m
+		# Karyawan/tamu yang memetakan "walk" juga melangkah 2 frame (walk/walk2) seperti penghuni.
+		if p == "walk" and base == "walk" and int(anim * 4.0) % 2 == 1 and _has("walk2"):
+			base = "walk2"
 	else:
 		match p:
 			"walk":
