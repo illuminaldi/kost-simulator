@@ -98,10 +98,15 @@ jobs:
           if [ -z "$KS_B64" ] || [ -z "$KS_PASS" ] || [ -z "$KS_ALIAS" ]; then
             echo "::error::Secrets keystore belum diisi (ANDROID_KEYSTORE_BASE64 / _PASSWORD / _ALIAS)."; exit 1
           fi
-          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          # Buang spasi/baris baru yang sering ikut tersalin saat paste secret dari HP.
+          PASS=$(printf '%s' "$KS_PASS" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          ALIAS=$(printf '%s' "$KS_ALIAS" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          printf '%s' "$KS_B64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/release.keystore"
+          keytool -list -keystore "$RUNNER_TEMP/release.keystore" -storepass "$PASS" -alias "$ALIAS" > /dev/null \
+            || { echo "::error::Keystore, password, atau alias tidak cocok. Cek isi ketiga secret."; exit 1; }
           echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
-          echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=$KS_ALIAS" >> "$GITHUB_ENV"
-          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=$KS_PASS" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=$ALIAS" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=$PASS" >> "$GITHUB_ENV"
 
       - name: Versi
         working-directory: ${{ env.PROJECT_DIR }}
