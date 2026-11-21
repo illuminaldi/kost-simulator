@@ -1345,11 +1345,14 @@ func _shop_view() -> void:
 	box.add_child(g2)
 	var i := 0
 	var st: Store = game.store
-	var can: bool = Store.available() and st != null and st.ready_to_buy()
+	if st and Store.available() and not st.ready_to_buy(): st.refresh()
 	for pk in game.DIAMOND_PACKS:
 		var pid: String = pk[0]
 		var lbl: String = st.price(pid, pk[2]) if st else pk[2]
-		var why := "Pembelian Diamond tersedia di aplikasi Android." if not Store.available() else "Menghubungkan ke Google Play..."
+		var can: bool = Store.available() and st != null and st.can_buy(pid)
+		var why := "Pembelian Diamond tersedia di aplikasi Android."
+		if Store.available():
+			why = st.status if st and st.status != "" else "Menghubungkan ke Google Play..."
 		g2.add_child(_shop_card(PACK_PIC[i], "%s Diamond" % pk[1], "", PACK_BADGE[i],
 			_btn(lbl, D.C_GREEN, func(): st.buy(pid), not can, true, why), 170.0))
 		i += 1

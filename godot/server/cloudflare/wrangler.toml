@@ -1,0 +1,9 @@
+name = "cozy-kost-verify"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+workers_dev = true
+
+# id diisi otomatis oleh workflow .github/workflows/deploy-verify.yml
+[[kv_namespaces]]
+binding = "PURCHASES"
+id = "KV_ID_PLACEHOLDER"
