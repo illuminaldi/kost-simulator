@@ -5501,7 +5501,7 @@ func _handle_cli(args: PackedStringArray) -> void:
 			S.seen = true
 			ui.close_sheet()
 			S.speed = 0
-			var chars := ["kutu", "kakek", "siswi", "flanel", "nenek", "kupluk"]
+			var chars := ["kutu", "kakek", "siswi", "flanel", "nenek", "kupluk", "pendaki"]
 			for ci in range(chars.size()):
 				for ti in range(Npc.TINTS.size()):
 					var n := Npc.new()
