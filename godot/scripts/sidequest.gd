@@ -707,6 +707,7 @@ class _Mug extends Node2D:
 	var t := 0.0
 	var _tex: Texture2D = load("res://assets/side/cafe_mug.png")
 	var _tex_sip: Texture2D = load("res://assets/side/cafe_mug_sip.png")
+	var _tex_sip_liq: Texture2D = load("res://assets/side/cafe_mug_sip_liq.png")   # topeng isi gelas (diwarnai sesuai minuman)
 	const ORG := Vector2(852.67, 1600)   # tekstur ditambal 70px (3x) di kiri
 	const PIV := Vector2(1284, 1824)
 	const C := Vector2(1042.67, 1697.5)   # tengah mulut cangkir (tekstur 380,195 / HR)
@@ -764,6 +765,7 @@ class _Mug extends Node2D:
 		if e > 0.12:
 			# saat diseruput: gelas miring mendekat ke kamera, kopinya bergoyang ke bibir gelas
 			draw_texture_rect(_tex_sip, Rect2(ORG + o, sz), false)
+			draw_texture_rect(_tex_sip_liq, Rect2(ORG + o, sz), false, liq.lightened(0.12))
 			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 			return
 		draw_texture_rect(_tex, Rect2(ORG + o, sz), false)
