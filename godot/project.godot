@@ -44,4 +44,4 @@ textures/vram_compression/import_etc2_astc=true
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/GodotGooglePlayBilling/plugin.cfg")
+enabled=PackedStringArray("res://addons/GodotGooglePlayBilling/plugin.cfg", "res://addons/cozy_android/plugin.cfg")
