@@ -7,7 +7,8 @@
  *     memakai service account Google (secret GOOGLE_SA_JSON).
  *  2. Memastikan statusnya "purchased", produknya dikenal, dan accountId cocok
  *     (obfuscatedExternalAccountId yang diset aplikasi saat membeli).
- *  3. Mencatat token di KV (PURCHASES) -> satu token hanya bisa ditukar sekali.
+ *  3. Meng-consume pembelian langsung di Google Play -> satu token hanya bisa ditukar sekali
+ *     (pembelian yang sudah di-consume ditolak sebagai "already_granted"). Tidak butuh database.
  *  4. Mengembalikan jumlah Diamond. Aplikasi baru menambah Diamond setelah jawaban ok.
  */
 const PACKAGE = "kelolapro.cozykost";
@@ -20,11 +21,6 @@ const json = (status, body) =>
 const b64url = (buf) =>
   btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const b64urlStr = (s) => b64url(new TextEncoder().encode(s));
-
-async function sha256Hex(s) {
-  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
-  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 // Token akses Google (OAuth2 JWT bearer) dari service account; disimpan sementara di memori.
 let cached = { token: "", exp: 0 };
@@ -70,16 +66,12 @@ export default {
       return json(400, { ok: false, reason: "bad_request" });
     }
 
-    const id = await sha256Hex(purchaseToken);
-    if (await env.PURCHASES.get(id)) return json(409, { ok: false, reason: "already_granted" });
-
     // 1) Tanya Google Play.
-    let p;
+    const api = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE}/purchases/products/${productId}/tokens/${encodeURIComponent(purchaseToken)}`;
+    let p, at;
     try {
-      const at = await googleToken(env);
-      const r = await fetch(
-        `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE}/purchases/products/${productId}/tokens/${encodeURIComponent(purchaseToken)}`,
-        { headers: { Authorization: `Bearer ${at}` } });
+      at = await googleToken(env);
+      const r = await fetch(api, { headers: { Authorization: `Bearer ${at}` } });
       if (r.status === 400 || r.status === 404 || r.status === 410) return json(400, { ok: false, reason: "invalid" });
       if (!r.ok) {
         console.warn("Google Play error", r.status, await r.text());
@@ -97,13 +89,16 @@ export default {
       return json(400, { ok: false, reason: "invalid" });
     }
 
-    // 2) Satu token = satu kali hadiah.
+    // 2) Satu token = satu kali hadiah: sudah di-consume berarti sudah pernah ditukar.
+    if (p.consumptionState === 1) return json(409, { ok: false, reason: "already_granted" });
+    const c = await fetch(`${api}:consume`, { method: "POST", headers: { Authorization: `Bearer ${at}` } });
+    if (!c.ok) {
+      console.warn("consume gagal", c.status, await c.text());
+      // Kemungkinan permintaan lain sudah meng-consume lebih dulu.
+      return json(409, { ok: false, reason: "already_granted" });
+    }
     const diamonds = PRODUCTS[productId];
-    await env.PURCHASES.put(id, JSON.stringify({
-      productId, diamonds, orderId: p.orderId || orderId || "", accountId: accountId || "",
-      purchaseTimeMillis: Number(p.purchaseTimeMillis || 0), test: p.purchaseType === 0,
-      grantedAt: new Date().toISOString(),
-    }));
+    console.log("Diamond diberikan", productId, diamonds, p.orderId || orderId || "", p.purchaseType === 0 ? "(uji)" : "");
     return json(200, { ok: true, diamonds, productId });
   },
 };

@@ -1,0 +1,9 @@
+# Server verifikasi pembelian Diamond (Cloudflare Workers, dideploy otomatis oleh Workers Builds
+# setiap ada push ke main). Kode: godot/server/cloudflare/worker.js
+# Secret yang wajib diisi di dashboard Worker (Settings > Variables and Secrets):
+#   GOOGLE_SA_JSON = isi file JSON key service account Google
+name = "cozy-kost-verify"
+main = "godot/server/cloudflare/worker.js"
+compatibility_date = "2025-01-01"
+workers_dev = true
+keep_vars = true
