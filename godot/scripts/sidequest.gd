@@ -202,6 +202,9 @@ func _show_cafe_ext() -> void:
 	_clear()
 	view = "cafe_ext"
 	_bg("res://assets/side/cafe_ext.jpg")
+	var plang := _CafeSign.new()
+	plang.font = font
+	_layer.add_child(plang)
 	var m := TextureRect.new()
 	m.texture = load("res://assets/chars/penjaga/happy_L.png")
 	m.size = m.texture.get_size() * 1.32
@@ -2342,3 +2345,35 @@ class _TapCoach extends Node2D:
 		if font:
 			draw_string_outline(font, p + Vector2(-360, -160), "KETUK SEKARANG!", HORIZONTAL_ALIGNMENT_CENTER, 720, 54, 14, Color("4a3426"))
 			draw_string(font, p + Vector2(-360, -160), "KETUK SEKARANG!", HORIZONTAL_ALIGNMENT_CENTER, 720, 54, Color("ffe28a"))
+
+
+## Plang "Cafe Book" di papan gantung kosong pada ilustrasi tampak luar cafe.
+class _CafeSign extends Node2D:
+	var font: Font
+	var t := 0.0
+	const R := Rect2(919, 1002, 148, 140)   # papan pada ilustrasi (1:1 dengan layar)
+
+	func _process(dt: float) -> void:
+		t += dt
+		queue_redraw()
+
+	func _draw() -> void:
+		# papan sedikit berayun ditiup angin, berporos di gantungan atas
+		var piv := Vector2(R.get_center().x, R.position.y - 18)
+		draw_set_transform(piv, sin(t * 1.3) * 0.015, Vector2.ONE)
+		var r := Rect2(R.position - piv, R.size)
+		draw_rect(r, Color("5a3b2c"))
+		draw_rect(r.grow(-7), Color("f3d9a4"), false, 4.0)
+		var cream := Color("fff1d6")
+		var gold := Color("f2c46d")
+		# cangkir kecil + uap
+		var c := r.position + Vector2(r.size.x / 2.0, 34)
+		draw_rect(Rect2(c + Vector2(-15, -6), Vector2(30, 20)), gold)
+		draw_arc(c + Vector2(17, 4), 7, -PI / 2, PI / 2, 10, gold, 4)
+		draw_line(c + Vector2(-20, 15), c + Vector2(20, 15), gold, 4)
+		for i in range(2):
+			var x := -6.0 + i * 12.0
+			draw_line(c + Vector2(x, -12), c + Vector2(x + sin(t * 3.0 + i) * 3.0, -24), Color(1, 0.95, 0.85, 0.8), 3)
+		draw_string(font, r.position + Vector2(0, 88), "Cafe", HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 40, cream)
+		draw_string(font, r.position + Vector2(0, 126), "Book", HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 40, gold)
+		draw_set_transform(Vector2.ZERO)
