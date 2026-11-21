@@ -871,14 +871,16 @@ func _update_light() -> void:
 	var h: float = S.min / 60.0
 	canvas_mod.color = _lerp_keys(TINT, h)
 	var gl := glow_level()
+	var vr := _vis_last if _vis_last.y >= 0 else vis_floors()
 	for id in D.ROOMS:
 		var r: Dictionary = S.rooms[id]
-		var on: bool = gl > 0.02 and r.built and r.tenant != null and r.furn.has("lampu") and str(r.broken) != "Lampu mati" and presence(r.tenant) != "away"
+		var fid := D.fl(id)
+		var on: bool = fid >= vr.x and fid <= vr.y and gl > 0.02 and r.built and r.tenant != null and r.furn.has("lampu") and str(r.broken) != "Lampu mati" and presence(r.tenant) != "away"
 		for pl in room_lights[id]:
 			pl.enabled = on
 			pl.energy = gl * 1.15
 	for f in facil_lights:
-		facil_lights[f].enabled = gl > 0.02 and S.facil.has(str(f))
+		facil_lights[f].enabled = gl > 0.02 and S.facil.has(str(f)) and int(f) >= vr.x and int(f) <= vr.y
 		facil_lights[f].energy = gl * 1.0
 	for pl in fixed_lights:
 		pl.enabled = gl > 0.02
@@ -1469,6 +1471,23 @@ var _cull_acc := 0.0
 var _npccheck := OS.get_cmdline_user_args().has("--npccheck")
 
 
+## Rentang lantai yang terlihat di layar (plus 1 lantai cadangan atas & bawah).
+func vis_floors() -> Vector2i:
+	var top := -scroll - 420.0
+	var bot := D.LOBBY_TOP - scroll + 420.0
+	var lo := 999999
+	var hi := 0
+	for f in range(1, D.TOP_FLOOR + 1):
+		var r: Vector2 = D.ROWS[f]
+		if r.y > top and r.x < bot:
+			lo = mini(lo, f); hi = maxi(hi, f)
+	if hi == 0: return Vector2i(0, -1)
+	return Vector2i(lo, hi)
+
+
+var _vis_last := Vector2i(-1, -1)
+
+
 ## Hanya lantai yang terlihat (plus 1 di atas & bawah) yang digambar dan dianimasikan.
 func _cull() -> void:
 	if bld == null or OS.get_cmdline_user_args().has("--nocull"): return
@@ -1486,6 +1505,23 @@ func _cull() -> void:
 		var r: Rect2 = D.rect_of(id)
 		var on := r.end.y > top and r.position.y < bot
 		if fx.is_processing() != on: fx.set_process(on)
+		if fx.visible != on: fx.visible = on
+	var vr := vis_floors()
+	for i in stair_nodes.size():
+		var st: Node2D = stair_nodes[i]
+		var on2 := i + 1 >= vr.x and i + 1 <= vr.y
+		if st.visible != on2:
+			st.visible = on2
+			st.set_process(on2)
+	for hf in hub_nodes:
+		var hn: Node2D = hub_nodes[hf]
+		var on3: bool = int(hf) >= vr.x and int(hf) <= vr.y
+		if hn.visible != on3:
+			hn.visible = on3
+			hn.set_process(on3)
+	if vr != _vis_last:
+		_vis_last = vr
+		_sync_npcs()
 var _probe := false
 var _probe_t := 0
 
@@ -3699,7 +3735,24 @@ func _spawn(pid: String, w: Dictionary, start: Vector2 = Vector2(D.OUT_X, D.LOBB
 	return n
 
 
+## Penghuni "tidur" (dormant): sedang di kamar/fasilitas lantai yang tidak terlihat.
+## Mereka hanya data (tanpa node NPC) sampai lantainya muncul di layar lagi.
+var _dormant := {}
+
+
+func _scene_floor(sc: String) -> int:
+	if sc == "lobby": return 0
+	if sc.begins_with("S"): return int(sc.substr(1))
+	return D.fl(sc)
+
+
+func _scene_visible(sc: String, vr: Vector2i) -> bool:
+	var f := _scene_floor(sc)
+	return f == 0 or (f >= vr.x and f <= vr.y)
+
+
 func _sync_npcs() -> void:
+	var vr := vis_floors()
 	var want := {}
 	var q: Array = S.queue
 	for i in range(q.size()):
@@ -3728,6 +3781,14 @@ func _sync_npcs() -> void:
 		n.kind = w.kind
 		n.mood = _mood_of(w, n.gender)
 		var g := _goal_of(w)
+		# Sudah sampai tujuan di lantai yang tak terlihat -> jadikan data saja.
+		if w.kind == "res" and g.key != "out" and n.goal_key == g.key and n.route.is_empty() \
+				and n.fade_state == "" and not _scene_visible(str(g.scene), vr) and n.scene == str(g.scene) \
+				and not (drag.get("npc") == n):
+			_dormant[nid] = true
+			npcs.erase(nid)
+			n.queue_free()
+			continue
 		if n.goal_key != g.key:
 			if str(g.key).begins_with("wait") and not str(n.goal_key).begins_with("wait"):
 				keeper_say("Silakan tunggu di Ruang Tunggu ya~")
@@ -3739,7 +3800,23 @@ func _sync_npcs() -> void:
 			var w: Dictionary = want[pid]
 			var g := _goal_of(w)
 			if g.key == "out":
+				_dormant.erase(pid)
 				continue
+			if w.kind == "res" and str(g.scene) != "lobby" and not _scene_visible(str(g.scene), vr):
+				_dormant[pid] = true   # tetap data sampai lantainya terlihat
+				continue
+			if _dormant.has(pid) and str(g.scene) != "lobby":
+				# Muncul langsung di tempatnya (tanpa berjalan dari lobi).
+				_dormant.erase(pid)
+				var dn := _spawn(pid, w, g.spot)
+				dn.scene = str(g.scene)
+				dn.k = Npc.K_ROOM
+				dn.reparent(npc_layer, false)
+				dn.position = g.spot
+				_apply_goal(dn, g)
+				_bubble_for(dn, w)
+				continue
+			_dormant.erase(pid)
 			if str(g.key).begins_with("wait"):
 				keeper_say("Silakan tunggu di Ruang Tunggu ya~")
 				ui.toast("%s mengarahkan %s ke Ruang Tunggu (waiting list)" % [D.STAFF.resep.nama, w.p.name])
@@ -3755,6 +3832,8 @@ func _sync_npcs() -> void:
 			_apply_goal(n, g)
 			_bubble_for(n, w)
 
+	for did in _dormant.keys():
+		if not want.has(did): _dormant.erase(did)
 
 func _mood_of(w: Dictionary, g: String) -> String:
 	var p: Dictionary = w.p
@@ -5565,6 +5644,28 @@ func _handle_cli(args: PackedStringArray) -> void:
 				hn.fixed = Rect2(0, 0, 10, 367)
 				hn.position = Vector2(0, 40 + i * 470)
 				cl.add_child(hn)
+		elif a.begins_with("--stress="):
+			var nf := int(a.get_slice("=", 1))
+			S.seen = true; S.tut = -1; ui.close_sheet()
+			S.lvl = 40; S.money = 2000000000.0; S.speed = 2; W.turbo_min = 99999
+			S.open_floor = nf - 1
+			for k in D.STAFF: S.staff[k] = true
+			for k in D.FAC: S.fac[k] = true
+			for id in D.ROOMS:
+				S.rooms[id].built = true
+				S.rooms[id].furn = {"kasur": 2, "lampu": 2, "kipas": 2, "tanaman": 1}
+				if S.rooms[id].tenant == null: S.rooms[id].tenant = gen_person(["p", "l"].pick_random())
+			S.stair_lv = 4
+			save_game()
+			_refresh_stairs(); _refresh_lift(); _refresh_world(); _sync_npcs()
+			var perf_t := Timer.new(); perf_t.wait_time = 4.0; perf_t.autostart = true; add_child(perf_t)
+			perf_t.timeout.connect(func():
+				var vis := 0
+				for n in npcs.values():
+					if is_instance_valid(n) and n.visible: vis += 1
+				print("PERF top=%d rooms=%d npcs=%d vis=%d nodes=%d fps=%d proc_ms=%.1f mem_mb=%.0f" % [D.TOP_FLOOR, D.ROOMS.size(), npcs.size(), vis,
+					Performance.get_monitor(Performance.OBJECT_NODE_COUNT), Performance.get_monitor(Performance.TIME_FPS),
+					Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0]))
 		elif a == "--big24":
 			S.seen = true; S.tut = -1; ui.close_sheet()
 			S.lvl = 24; S.money = 200000000.0; S.speed = 2; W.turbo_min = 99999
@@ -5877,9 +5978,13 @@ class _SideDecor extends Node2D:
 	var game: Node
 	var t := 0.0
 	const INK := Color("3e2b1d")
+	var _rd := 0.0
 	func _process(dt: float) -> void:
 		t += dt
-		queue_redraw()
+		_rd += dt
+		if _rd > 0.066:   # cukup ~15 fps untuk kipas AC
+			_rd = 0.0
+			queue_redraw()
 	func _has_ac(f: int) -> bool:
 		for c in ["L", "R"]:
 			var r: Dictionary = game.S.rooms.get("%d%s" % [f, c], {})
@@ -5901,7 +6006,8 @@ class _SideDecor extends Node2D:
 		draw_rect(Rect2(58, top - 14, 40, 18), Color("98a2ab"))
 		draw_rect(Rect2(58, top - 14, 40, 18), INK, false, 3.0)
 		# Unit AC luar
-		for f in range(1, D.TOP_FLOOR + 1):
+		var vr: Vector2i = game.vis_floors()
+		for f in range(maxi(1, vr.x), mini(D.TOP_FLOOR, vr.y) + 1):
 			if not _has_ac(f): continue
 			var yy: float = D.ROWS[f].x + 170.0
 			var box := Rect2(6, yy, 60, 52)
