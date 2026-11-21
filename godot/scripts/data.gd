@@ -667,6 +667,8 @@ static func short(n: float) -> String:
 
 
 # ---- Outsource: jasa luar yang bisa di-upgrade ----
+## Masalah yang ditangani rutin oleh Pest Control (outsource "pest").
+const PEST_EV := ["hama", "nyamuk", "rayap"]
 const OUTSRC := {
 	"kurir": {"nama": "Bang Jali", "n": "Kurir Perabot", "pic": "kurir/idle", "lv": [
 		{"n": "Kurir Motor", "cost": 0, "d": "Angkut 2 kotak sekali jalan. Barang tiba ± 45 menit."},
@@ -685,6 +687,11 @@ const OUTSRC := {
 		{"n": "Angkut 3 Hari Sekali", "cost": 250000, "fee": 5000, "d": "Kamar kotor normal. Iuran Rp 5rb/hari."},
 		{"n": "Angkut Harian", "cost": 600000, "fee": 8000, "d": "Kamar 15% lebih lambat kotor. Iuran Rp 8rb/hari."},
 		{"n": "Pilah & Daur Ulang", "cost": 1500000, "fee": 12000, "d": "Kamar 25% lebih lambat kotor, penghuni +1 senang tiap hari. Iuran Rp 12rb/hari."}]},
+	"pest": {"nama": "Mas Dimas", "n": "Pest Control", "pic": "pest/happy", "lv": [
+		{"n": "Belum Langganan", "cost": 0, "fee": 0, "d": "Tikus, kecoa, nyamuk & rayap harus ditangani manual tiap kali muncul."},
+		{"n": "Semprot Mingguan", "cost": 400000, "fee": 5000, "d": "Datang tiap 7 hari membasmi tikus, kecoa, nyamuk & rayap. Hama 50% lebih jarang. Iuran Rp 5rb/hari."},
+		{"n": "Semprot 3 Hari Sekali", "cost": 1000000, "fee": 9000, "d": "Datang tiap 3 hari, termasuk fogging nyamuk. Hama 80% lebih jarang. Iuran Rp 9rb/hari."},
+		{"n": "Kontrak Anti Hama", "cost": 2500000, "fee": 14000, "d": "Datang tiap hari, hama hampir tidak pernah muncul, penghuni +1 senang tiap kunjungan. Iuran Rp 14rb/hari."}]},
 	"tukang": {"nama": "Pak Joko", "n": "Tukang Bangunan", "pic": "tukang/hold", "dia": true, "lv": [
 		{"n": "Tukang Harian", "cost": 0, "d": "Bangun kamar & ruang fasilitas dengan kecepatan normal."},
 		{"n": "Tukang + Kenek", "cost": 25, "d": "Pembangunan 60% lebih cepat."},
@@ -702,7 +709,7 @@ const OUTSRC := {
 		{"n": "Endorse Bulanan", "cost": 2000000, "d": "Datang tiap ± 12 hari bikin konten. Kost viral 2 hari, calon penyewa membludak."},
 		{"n": "Brand Ambassador", "cost": 8000000, "d": "Datang tiap ± 6 hari, viral 3 hari, rating +0,1 tiap konten."}]},
 }
-const OUTSRC_ORDER := ["kurir", "galon", "ojol", "sampah", "tukang", "polisi", "damkar", "influencer"]
+const OUTSRC_ORDER := ["kurir", "galon", "ojol", "sampah", "pest", "tukang", "polisi", "damkar", "influencer"]
 
 # Pengacau: kejadian yang mengganggu kost. Ditampilkan di Karyawan > Pengacau.
 const PENGACAU := [
