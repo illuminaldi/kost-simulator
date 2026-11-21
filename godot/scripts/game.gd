@@ -6316,20 +6316,88 @@ func spawn_sampah() -> void:
 	n.setup("sampah", "visitor", D.STAFF_LOOK.teknisi, Vector2(-260, D.LOBBY_Y), font)
 	n.art = true
 	n.char_id = "sampah"
-	n.art_map = {"walk": "walk", "stand": "idle", "pick": "cart", "happy": "wave"}
+	# Datang dengan gerobak kosong; terisi tiap kantong yang diangkut; pergi kalau penuh.
+	n.art_map = {"walk": "walk_e", "stand": "cart_e", "pick": "pick", "happy": "wave"}
 	n.set_meta("nama", D.OUTSRC.sampah.nama)
+	n.set_meta("load", 0)
 	npcs["sampah"] = n
 	sampah = n
-	n.plan("lobby", Vector2(560, D.LOBBY_Y), "stand", func(m: Npc):
+	n.plan("lobby", Vector2(520, D.LOBBY_Y), "stand", func(m: Npc):
+		m.dir = 1
 		m.say(["Sampaaah! Permisi, Mbak Maryam~", "Pagi! Mang Ujang ambil sampah ya.", "Sampahnya sudah dipilah? Mantap!"].pick_random(), 2.8)
-		m.work = {"t": 3.0, "pose": "pick", "fn": func(k: Npc):
-			if out_lv("sampah") >= 3:
-				for e in each_tenant():
-					e[1].tenant.happy = clampf(float(e[1].tenant.happy) + 1.0, 0, 100)
-			k.work = {"t": 1.6, "pose": "happy", "fn": func(z: Npc):
-				z.plan("lobby", Vector2(-300, D.LOBBY_Y), "stand", func(y: Npc):
-					_remove_npc(y)
-					sampah = null)}})
+		_trash_trip(m))
+
+
+const TRASH_TRIPS := 2
+
+
+## Satu kantong sampah dibawa ke gerobak: oleh petugas kebersihan (Boy) bila ada, kalau tidak Mang Ujang memungut sendiri.
+func _trash_trip(m: Npc) -> void:
+	if not is_instance_valid(m): return
+	var boy = npcs.get("staff-cleaner")
+	var boy_ok: bool = boy != null and is_instance_valid(boy) and not boy.leaving and boy.fade_state == "" and S.staff.get("cleaner", false)
+	if boy_ok:
+		# Boy naik ke kamar penghuni mengambil kantong sampah, lalu turun membawanya ke gerobak.
+		var rooms := []
+		var lo := 99
+		for e in each_tenant(): lo = mini(lo, D.fl(e[0]))
+		for e in each_tenant():
+			if D.fl(e[0]) <= lo + 1: rooms.append(e[0])   # lantai terdekat, supaya Mang Ujang tidak menunggu lama
+		var R: String = rooms.pick_random() if not rooms.is_empty() else ""
+		boy.work = {}
+		var to_cart := func(b: Npc):
+			if not b.has_node("TrashBag"):
+				var bag := Sprite2D.new()
+				bag.texture = _trash_bag_tex()
+				bag.position = Vector2(30, -118)
+				bag.scale = Vector2.ONE * 0.5
+				bag.name = "TrashBag"
+				b.add_child(bag)
+			b.plan("lobby", Vector2(m.position.x + 230, D.LOBBY_Y), "stand", func(c: Npc):
+				c.dir = -1
+				c.work = {"t": 1.0, "pose": "stand", "fn": func(z: Npc):
+					if z.has_node("TrashBag"): z.get_node("TrashBag").queue_free()
+					z.say(["Ini, Mang!", "Satu lagi nih~", "Titip ya, Mang."].pick_random(), 1.8)
+					_trash_load(m)})
+		if R != "":
+			boy.plan(R, _spot_in(R), "sweep", func(b: Npc): b.work = {"t": 1.2, "pose": "sweep", "fn": to_cart})
+		else:
+			to_cart.call(boy)
+	else:
+		m.work = {"t": 2.4, "pose": "pick", "fn": func(k: Npc): _trash_load(k)}
+
+
+func _trash_load(m: Npc) -> void:
+	if not is_instance_valid(m): return
+	var ld := int(m.get_meta("load", 0)) + 1
+	m.set_meta("load", ld)
+	sfx("pop", -10.0)
+	if ld < TRASH_TRIPS:
+		m.art_map["stand"] = "cart_h"
+		m.work = {"t": 1.2, "pose": "stand", "fn": func(k: Npc): _trash_trip(k)}
+		return
+	# Gerobak penuh: pamit lalu pergi.
+	m.art_map["stand"] = "cart"
+	m.art_map["walk"] = "walk"
+	if out_lv("sampah") >= 3:
+		for e in each_tenant():
+			e[1].tenant.happy = clampf(float(e[1].tenant.happy) + 1.0, 0, 100)
+	for e in S.events.duplicate():
+		if str(e.type) == "sampah": _resolve_event(e, "fix", 0, true)
+	m.say(["Penuh! Makasih ya~", "Udah penuh, Mang Ujang cabut dulu!", "Beres, sampai jumpa!"].pick_random(), 2.4)
+	m.work = {"t": 1.4, "pose": "stand", "fn": func(k: Npc):
+		k.work = {"t": 1.0, "pose": "happy", "fn": func(z: Npc):
+			z.plan("lobby", Vector2(-300, D.LOBBY_Y), "stand", func(y: Npc):
+				_remove_npc(y)
+				sampah = null)}}
+
+
+var _bag_tex: Texture2D
+func _trash_bag_tex() -> Texture2D:
+	if _bag_tex == null:
+		var img := (load("res://assets/chars/sampah/cart_L.png") as Texture2D).get_image()
+		_bag_tex = ImageTexture.create_from_image(img.get_region(Rect2i(108, 10, 100, 140)))
+	return _bag_tex
 
 
 # ---------------- Mas Dimas, Pest Control (outsource) ----------------
