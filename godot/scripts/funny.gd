@@ -164,7 +164,7 @@ func sheet(k: String) -> Dictionary:
 		"beruang":
 			return {"t": "Anak Beruang di Lobi", "d": "Mpus menghilang... dan di bantalnya malah tidur seekor anak beruang! Calon penyewa takut masuk. Induknya pasti sedang mencari.",
 				"o": [["Tunggu induknya datang", D.C_CREAM, 0.0, func(): game.ui.close_sheet(); game.keeper_say("Sabar ya, Dek Beruang. Mamamu pasti datang.", 3.5)],
-					["Telepon Damkar (langsung dijemput)", D.C_YELLOW, 200000.0, func(): game.ui.close_sheet(); _call_damkar()]]}
+					["Telepon Damkar (langsung dijemput)", D.C_YELLOW, 100000.0, func(): game.ui.close_sheet(); _call_damkar()]]}
 		"durian":
 			return {"t": "Kotak Durian Nyasar", "d": "Pickup salah kirim sekotak durian Medan. Lobi bau menyengat! Sebagian penghuni suka, sebagian mual.",
 				"o": [["Pesta durian bareng penghuni!", D.C_GREEN, 0.0, func(): game.ui.close_sheet(); _durian_party()],
@@ -240,9 +240,9 @@ func _mama_comes() -> void:
 
 
 func _call_damkar() -> void:
-	if float(S.money) < 200000:
-		game.ui.toast(game.ui.money_why(200000), "bad"); return
-	game.spend(200000, "other")
+	if float(S.money) < 100000:
+		game.ui.toast(game.ui.money_why(100000), "bad"); return
+	game.spend(100000, "other")
 	if mama != null: return
 	_bear_done(false)
 	game.ui.toast("Petugas Damkar menjemput anak beruang dengan aman. Mpus pulang dari atap!", "gold")

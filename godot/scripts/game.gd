@@ -787,7 +787,7 @@ func _refresh_world() -> void:
 	for id in room_fx:
 		var ev_id := event_at(id)
 		S.rooms[id]["_ev"] = "" if ev_id.is_empty() else str(ev_id.type)
-		room_fx[id].refresh(S.rooms[id], int(S.lvl), build_cost(), font)
+		room_fx[id].refresh(S.rooms[id], int(S.lvl), build_cost(id), font)
 		room_fx[id].set_floor_lock(floor_lock_sign(D.fl(id)))
 	dirty = false
 
@@ -1335,14 +1335,16 @@ func can_rent(id: String) -> bool:
 	return r.built and r.tenant == null and r.get("furn", {}).has("kasur") and str(r.get("broken", "")) != Funny.GOSONG and not (funny and funny.game and funny.haunted(id))
 
 
-func build_cost() -> float:
+## Biaya bangun kamar: kamar ke-5 Rp1 jt, naik Rp1 jt tiap kamar sampai maks Rp15 jt,
+## lalu dikali kenaikan sewa per lantai (+3%/lantai) supaya balik modalnya tetap ± sama.
+func build_cost(id := "") -> float:
 	var n := 0
-	for id in D.ROOMS:
-		if S.rooms[id].built:
+	for rid in D.ROOMS:
+		if S.rooms[rid].built:
 			n += 1
-	# Sedikit makin mahal untuk gedung besar supaya uang late-game tetap berarti.
-	var big := maxi(0, n - 12)
-	return roundf((600000.0 + n * 250000.0 + big * big * 12000.0) / 50000.0) * 50000.0
+	var c := clampf(1000000.0 * (n - 3), 1000000.0, 15000000.0)
+	if id != "": c *= 1.0 + 0.03 * (D.fl(id) - 1)
+	return roundf(c / 50000.0) * 50000.0
 
 
 func xp_need(l: int) -> float:
@@ -1491,7 +1493,7 @@ func _materialize(f: int) -> void:
 		fx.building = job_for(id, "build") != {}
 		var ev_id := event_at(id)
 		S.rooms[id]["_ev"] = "" if ev_id.is_empty() else str(ev_id.type)
-		fx.refresh(S.rooms[id], int(S.lvl), build_cost(), font)
+		fx.refresh(S.rooms[id], int(S.lvl), build_cost(id), font)
 		fx.set_floor_lock(floor_lock_sign(f))
 		var lt: Texture2D = load(D.furn_tex(id, "lampu", 1))
 		var lr := D.furn_rect(id, "lampu", lt.get_size())
@@ -2001,7 +2003,26 @@ func staff_rank(k: String) -> String:
 func staff_sal(k: String) -> float:
 	var lv := staff_lv(k)
 	var m := 1.0 + 0.4 * (mini(lv, 7) - 1) + 0.2 * maxi(lv - 7, 0)
-	return roundf(float(D.STAFF[k].sal) * m / 1000.0) * 1000.0
+	return roundf(float(D.STAFF[k].sal) * part_time() * m / 1000.0) * 1000.0
+
+
+## Kost kecil cukup karyawan paruh waktu: gaji 60% saat 4 kamar, penuh (UMK) mulai 15 kamar.
+func part_time() -> float:
+	var n := 0
+	for rid in D.ROOMS:
+		if S.rooms[rid].built: n += 1
+	return clampf(0.25 + 0.05 * n, 0.6, 1.0)
+
+
+## Gaji awal (Lv 1) saat merekrut.
+func staff_hire_sal(k: String) -> float:
+	return roundf(float(D.STAFF[k].sal) * part_time() / 1000.0) * 1000.0
+
+
+## Jam nyata (unix). sim_offset dipakai simulasi ekonomi untuk memajukan waktu.
+var sim_offset := 0.0
+func now_unix() -> float:
+	return Time.get_unix_time_from_system() + sim_offset
 
 
 func staff_up_cost(k: String) -> float:
@@ -2125,10 +2146,10 @@ func _facil_income_est() -> float:
 		var mult := 1.0 if bi == 0 else maxf(0.3, 0.85 - 0.15 * bi)
 		if fc.has("staff"):
 			var on: bool = S.staff.get(fc.staff, false)
-			if S.facil[f] == "laundry": mult = 2.0 if on else 1.0
+			if S.facil[f] == "laundry": mult = mult if on else mult * 0.5
 			else: mult = mult if on else 0.0
 		mult *= FACIL_LV_INC[facil_lv(str(f))]
-		inc += float(fc.inc) * mult * occ
+		inc += facil_gross(fc, occ) * mult
 	return inc
 
 
@@ -2909,7 +2930,7 @@ func renovate_floor(f: int) -> void:
 		ui.toast("Pembangunan lantai %d masih berjalan." % int(S.renov.f), "bad"); return
 	spend(D.floor_cost(f), "other")
 	# Renovasi berjalan 3 hari waktu nyata (tetap berjalan walau game ditutup).
-	S.renov = {"f": f, "end": Time.get_unix_time_from_system() + RENOV_SECS}
+	S.renov = {"f": f, "end": now_unix() + RENOV_SECS}
 	ui.toast("Bangun lantai %d dimulai: selesai dalam 3 hari waktu nyata (bisa dipercepat pakai Diamond)." % f, "gold")
 	sfx("buy")
 	dirty = true
@@ -2921,7 +2942,7 @@ const GAME_MIN_PER_SEC := 20.0   # 1x: 20 menit game per detik nyata
 
 func renov_left() -> float:
 	if S.get("renov", {}).is_empty(): return 0.0
-	return maxf(0.0, float(S.renov.end) - Time.get_unix_time_from_system())
+	return maxf(0.0, float(S.renov.end) - now_unix())
 
 
 ## "23j 10m" waktu nyata.
@@ -2944,7 +2965,7 @@ func renov_speedup() -> void:
 		return
 	W.diamonds = int(W.diamonds) - c
 	save_wallet()
-	S.renov.end = Time.get_unix_time_from_system()
+	S.renov.end = now_unix()
 	_check_renov()
 
 
@@ -3109,7 +3130,7 @@ func spawn_galon() -> void:
 	npcs["galon"] = n
 	galon = n
 	var gal := maxi(2, int(ceil(each_tenant().size() / 3.0)))
-	var cost := (20000.0 if out_lv("galon") == 0 else 25000.0) * gal
+	var cost := (6000.0 if out_lv("galon") == 0 else 22000.0) * gal
 	var ff := facil_floor("kantin")
 	var scene := "S%d" % ff if ff > 0 else "lobby"
 	var spot := D.facil_spot(ff) if ff > 0 else Vector2(1000, D.LOBBY_Y)
@@ -3343,15 +3364,16 @@ func _facil_daily() -> void:
 		var mult := 1.0 if bi == 0 else maxf(0.3, 0.85 - 0.15 * bi)
 		if fc.has("staff"):
 			var on: bool = S.staff.get(fc.staff, false)
-			if S.facil[f] == "laundry": mult = 2.0 if on else 1.0
-			else: mult = 1.0 if on else 0.0
+			if S.facil[f] == "laundry": mult = mult if on else mult * 0.5
+			else: mult = mult if on else 0.0
 			if S.facil[f] == "kantin" and on and int(S.day) - int(S.get("water_day", -9)) > 3:
 				mult = 0.0
 				ui.toast("Kantin tutup: stok air galon habis. Kang Galon datang besok pagi.", "bad")
 		mult *= FACIL_LV_INC[facil_lv(str(f))]
-		inc += float(fc.inc) * mult * occ
-		if float(fc.inc) * mult * occ > 0:
-			_float_world(D.facil_spot(int(f)) + Vector2(0, -260), "+" + D.short(float(fc.inc) * mult * occ), Color("2f7a2a"))
+		var g := facil_gross(fc, occ) * mult
+		inc += g
+		if g > 0:
+			_float_world(D.facil_spot(int(f)) + Vector2(0, -260), "+" + D.short(g), Color("2f7a2a"))
 	if has_facil("mushola"): S.rep = clampf(float(S.rep) + 0.01, 1, 5)
 	if inc > 0:
 		S.money = float(S.money) + inc
@@ -3379,13 +3401,18 @@ func _float_world(p: Vector2, text: String, col: Color) -> void:
 ## Perkiraan pemasukan harian satu fasilitas.
 func facil_income(k: String) -> float:
 	var fc: Dictionary = D.FACIL[k]
-	if float(fc.inc) <= 0: return 0.0
+	if float(fc.inc) <= 0 and float(fc.get("flat", 0)) <= 0: return 0.0
 	var mult := 1.0
 	if fc.has("staff"):
 		var on: bool = S.staff.get(fc.staff, false)
-		mult = (2.0 if on else 1.0) if k == "laundry" else (1.0 if on else 0.0)
+		mult = (1.0 if on else 0.5) if k == "laundry" else (1.0 if on else 0.0)
 	mult *= FACIL_LV_INC[facil_lv(str(facil_floor(k)))]
-	return float(fc.inc) * mult * each_tenant().size()
+	return facil_gross(fc, each_tenant().size()) * mult
+
+
+## Pemasukan kotor harian: pengunjung luar (flat) + belanja penghuni (inc per penghuni).
+func facil_gross(fc: Dictionary, occ: int) -> float:
+	return float(fc.get("flat", 0)) + float(fc.inc) * occ
 
 
 func facil_happy() -> int:
@@ -3543,7 +3570,7 @@ func _new_day() -> void:
 	_facil_daily()
 	var occ := each_tenant().size()
 	if occ > 0:
-		spend(occ * 15000.0, "util")
+		spend(occ * 8000.0, "util")
 	var sum_h := 0.0
 	var n := 0
 	for e in each_tenant():
@@ -3956,7 +3983,7 @@ func add_job(type: String, room: String, item: String = "", lv: int = 0) -> void
 	elif type == "fix" and str(S.rooms.get(room, {}).get("broken", "")) == Funny.GOSONG: real = RENO_ROOM_SECS
 	if real > 0.0:
 		real /= [1.0, 1.6, 2.5][out_lv("tukang")] if type == "build" else 1.0
-		S.jobs[-1].end = Time.get_unix_time_from_system() + real
+		S.jobs[-1].end = now_unix() + real
 		if ui: ui.toast("%s selesai dalam %s waktu nyata (tetap jalan walau game ditutup)." % ["Pembangunan kamar" if type == "build" else "Renovasi kamar", fmt_real(real)], "gold")
 	dirty = true
 	_jobs_brain()
@@ -3969,7 +3996,7 @@ const RENO_ROOM_SECS := 3 * 3600.0    # renovasi kamar gosong: 3 jam waktu nyata
 ## Sisa detik nyata untuk pekerjaan berbasis waktu nyata (-1 kalau berbasis waktu game).
 func job_left_real(j: Dictionary) -> float:
 	if not j.has("end"): return -1.0
-	return maxf(0.0, float(j.end) - Time.get_unix_time_from_system())
+	return maxf(0.0, float(j.end) - now_unix())
 
 
 func _tick_jobs(mins: float) -> void:
@@ -3981,7 +4008,7 @@ func _tick_jobs(mins: float) -> void:
 			continue
 		if j.has("end"):
 			# waktu nyata: game minute tidak dipakai; tukang tetap "bekerja" sampai jamnya tiba
-			if Time.get_unix_time_from_system() >= float(j.end):
+			if now_unix() >= float(j.end):
 				_finish_job(j)
 			else:
 				j.t = maxf(float(j.t), 30.0)
@@ -4507,7 +4534,7 @@ func act(a: String, arg: String = "") -> void:
 			ui.close_sheet()
 			return
 		"build":
-			var c := build_cost()
+			var c := build_cost(arg)
 			if float(S.money) < c: return
 			if S.rooms[arg].built or job_for(arg, "build") != {}: return
 			spend(c, "other")
@@ -4521,7 +4548,7 @@ func act(a: String, arg: String = "") -> void:
 			if not r.built or not D.furn_has(rid, t): return
 			var lv := int(r.furn.get(t, 0))
 			if lv >= 3: return
-			var c: float = float(D.FURN[t].cost) * maxi(1, lv)
+			var c: float = D.furn_cost(t, lv)
 			if float(S.money) < c:
 				ui.toast("Uang belum cukup (%s)" % D.rp(c), "bad")
 				return
@@ -4931,6 +4958,14 @@ func _end_drag(p: Vector2) -> void:
 		"build": act("build", id)
 		"bag": deliver_bag(str(d.item), id)
 		"cargo":
+			var ct: String = S.cargo[int(d.item)]
+			var clv := int(S.rooms[id].furn.get(ct, 0))
+			var extra := D.furn_cost(ct, clv) - float(D.FURN[ct].cost) if clv > 0 else 0.0
+			if extra > 0.0:
+				if float(S.money) < extra:
+					ui.toast("Upgrade ke %s perlu tambahan %s" % [D.FURN[ct].get("lv_names", ["", "", "Lv 2", "Lv 3"])[clv + 1], D.rp(extra)], "bad")
+					return
+				spend(extra, "other")
 			var t: String = S.cargo.pop_at(int(d.item))
 			_cargo_sync()
 			S.cargo_to.pop_at(int(d.item))
@@ -6599,10 +6634,10 @@ func _call_damkar(rid: String) -> void:
 
 func call_damkar_paid(rid: String) -> void:
 	ui.close_sheet()
-	if float(S.money) < 500000:
-		ui.toast(ui.money_why(500000), "bad"); return
-	spend(500000, "other")
-	ui.toast("Damkar dihubungi (Rp 500rb). Mereka segera datang!")
+	if float(S.money) < 100000:
+		ui.toast(ui.money_why(100000), "bad"); return
+	spend(100000, "other")
+	ui.toast("Damkar dihubungi (Rp 100rb). Mereka segera datang!")
 	_call_damkar(rid)
 
 
@@ -6697,7 +6732,7 @@ func _refresh_hubs() -> void:
 				hr.built = false
 				hr.tenant = null
 				hr.furn = {}
-				S.money = float(S.money) + build_cost()
+				S.money = float(S.money) + build_cost(hid)
 				if tn != null:
 					var moved := false
 					for id2 in D.ROOMS:

@@ -592,7 +592,8 @@ func _furn_card(id: String) -> void:
 			right = _btn("Beli " + D.short(f.cost), D.C_GREEN, func(): _do("buy", t + "|" + id), float(S.money) < float(f.cost), false, money_why(float(f.cost)))
 		elif lv < 3:
 			var nxt: String = f.lv_names[lv + 1] if f.has("lv_names") else "Lv %d" % (lv + 1)
-			right = _btn("Upgrade ke %s · %s" % [nxt, D.short(f.cost)], D.C_YELLOW, func(): _do("buy", t + "|" + id), float(S.money) < float(f.cost), false, money_why(float(f.cost)))
+			var uc := D.furn_cost(t, lv)
+			right = _btn("Upgrade ke %s · %s" % [nxt, D.short(uc)], D.C_YELLOW, func(): _do("buy", t + "|" + id), float(S.money) < uc, false, money_why(uc))
 		else:
 			right = _label("Level maks", 32, Color("2f7a2a"), true)
 		var nm: String = f.n if lv == 0 else ("%s (Lv %d)" % [f.lv_names[lv], lv] if f.has("lv_names") else "%s Lv %d · %s" % [f.n, lv, D.FURN_LV_NAME[lv]])
@@ -1151,7 +1152,7 @@ func _sheet_beli() -> void:
 			var empty := 0
 			for id in D.ROOMS:
 				if not S.rooms[id].built and game.floor_open(D.fl(id)): empty += 1
-			_buy_row("build", at, "Kamar Baru", "Dibangun tukang di lahan kosong. Setelah jadi, beli kasur supaya bisa disewa.", "Lahan siap dibangun: %d" % empty, game.build_cost(), empty > 0, "Pilih lahan", func(): game.start_place("build", ""), false)
+			_buy_row("build", at, "Kamar Baru", "Dibangun tukang di lahan kosong. Setelah jadi, beli kasur supaya bisa disewa.", "Lahan siap dibangun: %d · harga naik 3%%/lantai" % empty, game.build_cost(), empty > 0, "Pilih lahan", func(): game.start_place("build", ""), false)
 			_floor_row()
 			for k in D.FACIL_ORDER:
 				var fc: Dictionary = D.FACIL[k]
@@ -1417,7 +1418,7 @@ func _sheet_fire() -> void:
 	box.add_child(tr)
 	box.add_child(_text("Api bisa menjalar ke kamar sebelah, atas, atau bawah kalau terlalu lama. Segera panggil pemadam!", 32, D.C_INK))
 	var v := _card()
-	v.add_child(_btn("Panggil Damkar · Rp 500rb", D.C_RED, func(): game.call_damkar_paid(rid)))
+	v.add_child(_btn("Panggil Damkar · Rp 100rb", D.C_RED, func(): game.call_damkar_paid(rid)))
 	v.add_child(_text("Langganan Damkar (menu Karyawan › Outsource) membuat damkar datang otomatis & gratis.", 28, D.C_MUTED))
 
 
@@ -1692,7 +1693,7 @@ func _sheet_room() -> void:
 			else:
 				v.add_child(_text("Bangun lantai %d dulu." % nxt, 32, D.C_MUTED))
 		else:
-			var c: float = game.build_cost()
+			var c: float = game.build_cost(id)
 			var bj: Dictionary = game.job_for(id, "build")
 			if bj != {}:
 				v.add_child(_text("%s sedang membangun kamar ini." % D.worker_label("build"), 38))
@@ -2044,13 +2045,13 @@ func _sheet_facil() -> void:
 		var lines := []
 		lines.append("+%d kebahagiaan harian semua penghuni" % (int(fc.happy) + lv - 1))
 		lines.append("Kapasitas: %d%% penghuni mampir di jam ramai" % game.FACIL_LV_CAP[lv])
-		if float(fc.inc) > 0: lines.append("Pemasukan: %s/hari (%s per penghuni ×%.1f)" % [D.rp(inc), D.short(float(fc.inc)), game.FACIL_LV_INC[lv]])
+		if float(fc.inc) > 0: lines.append("Pemasukan: %s/hari (pengunjung luar %s + %s per penghuni, ×%.1f)" % [D.rp(inc), D.short(float(fc.get("flat", 0))), D.short(float(fc.inc)), game.FACIL_LV_INC[lv]])
 		lines.append("+4% harga sewa semua kamar")
 		for ln in lines: v.add_child(_text("• " + ln, 30, Color("2f7a2a")))
 		if fc.has("staff"):
 			var st: Dictionary = D.STAFF[fc.staff]
 			var on: bool = S.staff.get(fc.staff, false)
-			_row(v, _label("%s · %s" % [st.nama, st.n], 34), _label("Sedang bekerja", 30, Color("2f7a2a"), true) if on else _btn("Rekrut " + D.short(st.sal) + "/hari", D.C_YELLOW, func(): _do("hire", fc.staff)))
+			_row(v, _label("%s · %s" % [st.nama, st.n], 34), _label("Sedang bekerja", 30, Color("2f7a2a"), true) if on else _btn("Rekrut " + D.short(game.staff_hire_sal(fc.staff)) + "/hari", D.C_YELLOW, func(): _do("hire", fc.staff)))
 		if lv < game.FACIL_LV_MAX:
 			var uc: float = game.facil_up_cost(arg)
 			v.add_child(_text("Lv %d: kapasitas %d%%, pemasukan ×%.1f, +1 kebahagiaan" % [lv + 1, game.FACIL_LV_CAP[lv + 1], game.FACIL_LV_INC[lv + 1]], 28, Color("3f6f96")))
@@ -2286,7 +2287,7 @@ func _sheet_upgrade() -> void:
 				sr = _label("Level %d" % int(st.min), 30, D.C_MUTED, true)
 			else:
 				sr = _btn("Rekrut", D.C_YELLOW, func(): _do("hire", fc.staff))
-			_row(col, _label("%s (%s) · %s/hari" % [st.nama, st.n, D.short(st.sal)], 30, D.C_INK), sr)
+			_row(col, _label("%s (%s) · %s/hari" % [st.nama, st.n, D.short(game.staff_sal(fc.staff) if S.staff.get(fc.staff, false) else game.staff_hire_sal(fc.staff))], 30, D.C_INK), sr)
 
 
 ## Ringkasan ekonomi kost: perkiraan pemasukan & pengeluaran per hari.
@@ -2307,7 +2308,7 @@ func _economy_card() -> void:
 	var sampah := float(D.OUTSRC.sampah.lv[game.out_lv("sampah")].get("fee", 0))
 	var apps := 0.0
 	for k in S.get("apps", {}): apps += roundf(float(D.APPS[k].fee))
-	var util: float = game.each_tenant().size() * 15000.0
+	var util: float = game.each_tenant().size() * 8000.0
 	var inc: float = rent + fac
 	var out: float = sal + sampah + apps + util
 	var green := Color("2f7a2a")
@@ -2319,7 +2320,7 @@ func _economy_card() -> void:
 	_row(v, _label("  Gaji %d karyawan" % sal_lines.size(), 32, D.C_INK, true), _label("-" + D.rp(sal), 32, red, true))
 	for sl in sal_lines:
 		_row(v, _label("      · " + str(sl[0]), 28, D.C_MUTED, true), _label(D.rp(float(sl[1])), 28, D.C_MUTED, true))
-	_row(v, _label("  Listrik & air (Rp 15rb/penghuni)", 32, D.C_INK, true), _label("-" + D.rp(util), 32, red, true))
+	_row(v, _label("  Listrik & air (Rp 8rb/penghuni)", 32, D.C_INK, true), _label("-" + D.rp(util), 32, red, true))
 	if sampah > 0: _row(v, _label("  Iuran sampah", 32, D.C_INK, true), _label("-" + D.rp(sampah), 32, red, true))
 	if apps > 0: _row(v, _label("  Langganan aplikasi", 32, D.C_INK, true), _label("-" + D.rp(apps), 32, red, true))
 	var net: float = inc - out

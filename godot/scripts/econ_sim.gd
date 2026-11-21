@@ -31,8 +31,11 @@ func run(days: int) -> void:
 	lv_at[cur_lv] = 0.0
 	while steps < target:
 		g._step()
+		g.sim_offset += 0.1
 		steps += 1
-		if steps % 30 == 0: _brain()
+		if steps % 30 == 0:
+			_brain()
+			g._check_renov()
 		if int(S.lvl) != cur_lv:
 			cur_lv = int(S.lvl)
 			lv_at[cur_lv] = real_min()
@@ -131,7 +134,7 @@ func _buy() -> void:
 			break
 	if free_room != "" and g.empty_rooms().is_empty() and S.rooms.values().filter(func(r): return r.built).size() < 6 + int(S.lvl) * 2:
 		# Prioritas: kamar penuh -> tabung untuk bangun kamar baru.
-		var c := float(g.build_cost())
+		var c := float(g.build_cost(free_room))
 		if m - c >= reserve:
 			g.act("build", free_room)
 			gaps.append([int(S.lvl), (steps - last_buy) * 0.1 / 60.0])
@@ -146,8 +149,8 @@ func _buy() -> void:
 			if lv >= 3: continue
 			var rr := r
 			var tt: String = t
-			opts.append([float(D.FURN[t].cost), func():
-				g.spend(float(D.FURN[tt].cost), "other")
+			opts.append([D.furn_cost(t, lv), func():
+				g.spend(D.furn_cost(tt, int(rr.furn.get(tt, 0))), "other")
 				rr.furn[tt] = int(rr.furn.get(tt, 0)) + 1
 				g.update_tier(rr)])
 			break

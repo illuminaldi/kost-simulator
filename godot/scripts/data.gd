@@ -58,9 +58,9 @@ static func col(id: String) -> String:
 	return "S" if id.begins_with("S") else id.right(1)
 
 
-## Biaya renovasi untuk membuka lantai f (lantai 9 ke atas).
+## Biaya bangun lantai f (lantai 9 ke atas): naik linear 3%/lantai, sejalan dengan kenaikan sewa per lantai.
 static func floor_cost(f: int) -> float:
-	return roundf(5000000.0 * pow(1.2, f - 9) / 500000.0) * 500000.0
+	return roundf(30000000.0 * (1.0 + 0.03 * (f - 9)) / 500000.0) * 500000.0
 
 
 static func floor_rep(f: int) -> float:
@@ -177,48 +177,49 @@ const FURN_POS2 := {
 }
 const FURN_TEX := {}
 const FURN := {
-	"kasur": {"n": "Kasur", "cost": 400000, "c": 3.0, "min": 1, "icon": "4L_kasur", "d": "Wajib ada supaya kamar bisa disewa."},
-	"lampu": {"n": "Lampu", "cost": 150000, "c": 1.0, "min": 1, "icon": "4R_lampu", "d": "Kamar terang & hangat di malam hari."},
-	"tanaman": {"n": "Tanaman", "cost": 120000, "c": 1.0, "min": 1, "icon": "4L_tanaman", "d": "Bikin kamar terasa segar."},
-	"karpet": {"n": "Karpet", "cost": 200000, "c": 1.0, "min": 1, "icon": "2L_karpet", "d": "Lantai lebih nyaman."},
-	"dekor": {"n": "Hiasan Dinding", "cost": 180000, "c": 1.0, "min": 2, "icon": "4L_dekor", "d": "Lukisan, poster, atau jemuran."},
-	"rak": {"n": "Rak Buku", "cost": 300000, "c": 2.0, "min": 2, "icon": "2L_rak", "d": "Tempat menyimpan buku & barang."},
-	"kipas": {"n": "Kipas Angin", "cost": 250000, "c": 2.0, "min": 2, "icon": "", "d": "Kamar sejuk. Naik level jadi AC, lalu AC Inverter.", "lv_names": ["", "Kipas Angin", "AC", "AC Inverter"]},
+	"kasur": {"n": "Kasur", "cost": 600000, "c": 3.0, "min": 1, "icon": "4L_kasur", "d": "Wajib ada supaya kamar bisa disewa."},
+	"lampu": {"n": "Lampu", "cost": 100000, "c": 1.0, "min": 1, "icon": "4R_lampu", "d": "Kamar terang & hangat di malam hari."},
+	"tanaman": {"n": "Tanaman", "cost": 60000, "c": 1.0, "min": 1, "icon": "4L_tanaman", "d": "Bikin kamar terasa segar."},
+	"karpet": {"n": "Karpet", "cost": 150000, "c": 1.0, "min": 1, "icon": "2L_karpet", "d": "Lantai lebih nyaman."},
+	"dekor": {"n": "Hiasan Dinding", "cost": 100000, "c": 1.0, "min": 2, "icon": "4L_dekor", "d": "Lukisan, poster, atau jemuran."},
+	"rak": {"n": "Rak Buku", "cost": 250000, "c": 2.0, "min": 2, "icon": "2L_rak", "d": "Tempat menyimpan buku & barang."},
+	"kipas": {"n": "Kipas Angin", "cost": 250000, "c": 2.0, "min": 2, "icon": "", "d": "Kamar sejuk. Naik level jadi AC, lalu AC Inverter.", "lv_names": ["", "Kipas Angin", "AC", "AC Inverter"], "lv_cost": [250000, 1500000, 2500000]},
 	"meja": {"n": "Meja Kerja", "cost": 350000, "c": 2.0, "min": 3, "icon": "2M_meja", "d": "Disukai freelancer & mahasiswa."},
 }
 # ---------- Ruang fasilitas di samping tangga ----------
-# happy: +kebahagiaan harian semua penghuni; inc: pemasukan per penghuni per hari (butuh karyawan kalau ada "staff").
+# happy: +kebahagiaan harian semua penghuni; inc: pemasukan per penghuni per hari; flat: pemasukan tetap/hari dari pengunjung luar
+# (keduanya butuh karyawan kalau ada "staff").
 # visit: jam-jam penghuni mampir.
 const FACIL := {
-	"tunggu": {"n": "Ruang Tunggu", "lv": 1, "cost": 800000, "happy": 0, "inc": 0, "visit": [], "pose": "stand",
+	"tunggu": {"n": "Ruang Tunggu", "lv": 1, "cost": 1000000, "happy": 0, "inc": 0, "flat": 0, "visit": [], "pose": "stand",
 		"d": "Waiting list: Penjaga Kost mengarahkan hingga 3 tamu menunggu di sini. Calon penyewa lebih sabar & lebih sering datang."},
-	"laundry": {"n": "Laundry", "lv": 2, "cost": 1200000, "happy": 1, "inc": 4000, "staff": "laundry", "visit": [9, 19], "pose": "stand",
+	"laundry": {"n": "Laundry", "lv": 2, "cost": 2000000, "happy": 1, "inc": 5000, "flat": 30000, "staff": "laundry", "visit": [9, 19], "pose": "stand",
 		"d": "Kamar lebih lambat kotor. Jasa cuci menambah pemasukan (2x dengan Petugas Laundry)."},
-	"mushola": {"n": "Mushola", "lv": 3, "cost": 1000000, "happy": 2, "inc": 0, "visit": [5, 12, 15, 18], "pose": "stand",
+	"mushola": {"n": "Mushola", "lv": 3, "cost": 2000000, "happy": 2, "inc": 0, "flat": 0, "visit": [5, 12, 15, 18], "pose": "stand",
 		"d": "Tempat ibadah yang tenang. Penghuni lebih betah & rating naik pelan."},
-	"dapur": {"n": "Dapur Bersama", "lv": 3, "cost": 1500000, "happy": 2, "inc": 0, "visit": [7, 19], "pose": "stand",
+	"dapur": {"n": "Dapur Bersama", "lv": 3, "cost": 2000000, "happy": 2, "inc": 0, "flat": 0, "visit": [7, 19], "pose": "stand",
 		"d": "Penghuni bisa masak sendiri. Masalah area kotor lebih jarang."},
-	"kantin": {"n": "Kantin", "lv": 4, "cost": 2000000, "happy": 2, "inc": 6000, "staff": "kantin", "visit": [12, 18], "pose": "stand",
+	"kantin": {"n": "Kantin", "lv": 4, "cost": 2500000, "happy": 2, "inc": 6000, "flat": 50000, "staff": "kantin", "visit": [12, 18], "pose": "stand",
 		"d": "Makan murah tanpa keluar kost. Pemasukan harian kalau ada Ibu Kantin."},
-	"cafe": {"n": "Cafe", "lv": 5, "cost": 2500000, "happy": 2, "inc": 8000, "staff": "barista", "visit": [15, 20], "pose": "stand",
+	"cafe": {"n": "Cafe", "lv": 5, "cost": 12000000, "happy": 2, "inc": 8000, "flat": 120000, "staff": "barista", "visit": [15, 20], "pose": "stand",
 		"d": "Tempat nongkrong & kerja. Harga sewa +5%; pemasukan harian kalau ada Barista."},
-	"gym": {"n": "Gym", "lv": 6, "cost": 3000000, "happy": 3, "inc": 5000, "staff": "trainer", "visit": [6, 17], "pose": "stand",
+	"gym": {"n": "Gym", "lv": 6, "cost": 10000000, "happy": 3, "inc": 6000, "flat": 100000, "staff": "trainer", "visit": [6, 17], "pose": "stand",
 		"d": "Penghuni olahraga pagi & sore. Kebahagiaan naik; pemasukan kelas latihan kalau ada Personal Trainer."},
-	"lift": {"n": "Lift", "lv": 6, "cost": 4000000, "happy": 0, "inc": 0, "visit": [], "pose": "stand",
+	"lift": {"n": "Lift", "lv": 6, "cost": 25000000, "happy": 0, "inc": 0, "visit": [], "pose": "stand",
 		"d": "Penghuni lantai atas tidak perlu naik tangga panjang: tidak cepat capek & tetap betah."},
-	"minimart": {"n": "Minimart", "lv": 7, "cost": 3500000, "happy": 2, "inc": 7000, "staff": "kasir", "visit": [10, 16, 21], "pose": "stand",
+	"minimart": {"n": "Minimart", "lv": 7, "cost": 15000000, "happy": 2, "inc": 6000, "flat": 150000, "staff": "kasir", "visit": [10, 16, 21], "pose": "stand",
 		"d": "Belanja kebutuhan harian tanpa keluar kost. Pemasukan harian kalau ada Kasir."},
-	"hidroponik": {"n": "Kebun Hidroponik", "lv": 4, "cost": 1800000, "happy": 2, "inc": 5000, "staff": "tani", "visit": [7, 17], "pose": "stand",
+	"hidroponik": {"n": "Kebun Hidroponik", "lv": 4, "cost": 1500000, "happy": 2, "inc": 4000, "flat": 40000, "staff": "tani", "visit": [7, 17], "pose": "stand",
 		"d": "Sayur segar dari pipa hidroponik. Penghuni lebih sehat & betah; panen dijual kalau ada Petani."},
-	"lele": {"n": "Kolam Lele", "lv": 5, "cost": 2200000, "happy": 1, "inc": 7000, "staff": "lele", "visit": [8, 16], "pose": "stand",
+	"lele": {"n": "Kolam Lele", "lv": 5, "cost": 1500000, "happy": 1, "inc": 2000, "flat": 70000, "staff": "lele", "visit": [8, 16], "pose": "stand",
 		"d": "Budidaya lele di kolam terpal. Panen rutin jadi pemasukan kalau ada Peternak Lele."},
-	"petshop": {"n": "Pet Shop", "lv": 6, "cost": 2800000, "happy": 2, "inc": 7000, "staff": "petshop", "visit": [10, 17], "pose": "stand",
+	"petshop": {"n": "Pet Shop", "lv": 6, "cost": 5000000, "happy": 2, "inc": 4000, "flat": 70000, "staff": "petshop", "visit": [10, 17], "pose": "stand",
 		"d": "Pakan & perlengkapan hewan. Penghuni pecinta kucing makin betah; pemasukan harian kalau ada Penjaga Pet Shop."},
-	"bunga": {"n": "Toko Bunga", "lv": 6, "cost": 2400000, "happy": 2, "inc": 6000, "staff": "florist", "visit": [9, 18], "pose": "stand",
+	"bunga": {"n": "Toko Bunga", "lv": 6, "cost": 3000000, "happy": 2, "inc": 3000, "flat": 70000, "staff": "florist", "visit": [9, 18], "pose": "stand",
 		"d": "Buket & tanaman hias. Kost terasa wangi dan cantik; pemasukan harian kalau ada Florist."},
-	"koperasi": {"n": "Koperasi", "lv": 7, "cost": 3000000, "happy": 3, "inc": 6000, "staff": "koperasi", "visit": [10, 19], "pose": "stand",
+	"koperasi": {"n": "Koperasi", "lv": 7, "cost": 3000000, "happy": 3, "inc": 5000, "flat": 50000, "staff": "koperasi", "visit": [10, 19], "pose": "stand",
 		"d": "Simpan pinjam & sembako murah untuk penghuni. Penghuni jarang telat bayar; pemasukan kalau ada Pengurus Koperasi."},
-	"warteg": {"n": "Warteg", "lv": 5, "cost": 2600000, "happy": 2, "inc": 9000, "staff": "warteg", "visit": [7, 12, 19], "pose": "stand",
+	"warteg": {"n": "Warteg", "lv": 5, "cost": 4000000, "happy": 2, "inc": 8000, "flat": 90000, "staff": "warteg", "visit": [7, 12, 19], "pose": "stand",
 		"d": "Nasi + lauk murah meriah sepanjang hari. Pemasukan harian besar kalau ada Ibu Warteg."},
 	"rooftop_old": {"n": "Taman Rooftop", "lv": 99, "cost": 3500000, "happy": 3, "inc": 0, "visit": [], "pose": "stand",
 		"d": "Taman hijau untuk santai sore. Rating kost naik setiap hari."},
@@ -297,9 +298,16 @@ const CHECK_ORDER := ["wawancara", "kerja", "riwayat"]
 
 const FURN_ORDER := ["kasur", "lampu", "kipas", "tanaman", "karpet", "dekor", "rak"]
 const FURN_MULT := [0.0, 1.0, 1.6, 2.3]
+
+
+## Harga perabot t untuk naik dari level lv ke lv+1 (lv 0 = beli baru).
+static func furn_cost(t: String, lv: int) -> float:
+	var f: Dictionary = FURN[t]
+	if f.has("lv_cost"): return float(f.lv_cost[clampi(lv, 0, 2)])
+	return float(f.cost) * maxi(1, lv)
 const FURN_LV_NAME := ["", "Biasa", "Bagus", "Mewah"]
-const RLV := [{}, {"n": "Standar", "rent": 60000}, {"n": "Nyaman", "rent": 100000}, {"n": "Premium", "rent": 160000}]
-const UPG := [0, 0, 1200000, 2500000]
+const RLV := [{}, {"n": "Standar", "rent": 60000}, {"n": "Nyaman", "rent": 100000}, {"n": "Premium", "rent": 140000}]
+const UPG := [0, 0, 3000000, 6000000]
 const PRICE := [{"n": "Murah", "m": 0.8, "h": 3, "c": 0.8}, {"n": "Normal", "m": 1.0, "h": 0, "c": 1.0},
 	{"n": "Mahal", "m": 1.3, "h": -4, "c": 1.35}]
 const JOBS := {
@@ -313,26 +321,26 @@ const JOBS := {
 }
 const CHAR_TUA := ["kakek", "nenek"]
 const STAFF := {
-	"cleaner": {"nama": "Mustofa", "n": "Petugas Kebersihan", "sal": 50000, "min": 1, "d": "Membersihkan kamar kotor; menangani sampah, area bersama kotor & hama."},
+	"cleaner": {"nama": "Mustofa", "n": "Petugas Kebersihan", "sal": 80000, "min": 1, "d": "Membersihkan kamar kotor; menangani sampah, area bersama kotor & hama."},
 	"resep": {"nama": "Maryam", "n": "Pemilik & Penjaga Kost", "sal": 0, "min": 1, "owner": true, "d": "Cucu Nenek dan pewaris kost. Mantan eksekutif yang memilih pulang. Berjaga di meja depan: tamu lebih sabar, menagih sewa, urus kunci hilang & tegur penghuni berisik."},
-	"teknisi": {"nama": "Boy", "n": "Teknisi", "sal": 60000, "min": 3, "d": "Memperbaiki kerusakan gratis; menangani air mati, WiFi lemot, listrik jeglek & atap bocor."},
-	"laundry": {"nama": "Budi", "n": "Petugas Laundry", "sal": 45000, "min": 2, "need": "laundry", "d": "Mengurus mesin cuci. Pemasukan Laundry jadi 2x."},
-	"kantin": {"nama": "Bu Sari", "n": "Ibu Kantin", "sal": 55000, "min": 4, "need": "kantin", "d": "Memasak di Kantin. Membuka pemasukan harian Kantin."},
-	"barista": {"nama": "Nadia", "n": "Barista", "sal": 60000, "min": 5, "need": "cafe", "d": "Meracik kopi di Cafe. Membuka pemasukan harian Cafe."},
-	"kasir": {"nama": "Sinta", "n": "Kasir Minimart", "sal": 55000, "min": 7, "need": "minimart", "d": "Menjaga kasir Minimart. Membuka pemasukan harian Minimart."},
-	"trainer": {"nama": "Kak Ray", "n": "Personal Trainer", "sal": 65000, "min": 6, "need": "gym", "d": "Melatih penghuni di Gym. Membuka pemasukan kelas latihan & penghuni lebih bugar (kebahagiaan ekstra)."},
-	"tani": {"nama": "Kang Dedi", "n": "Petani Hidroponik", "sal": 45000, "min": 4, "need": "hidroponik", "d": "Merawat & memanen sayur hidroponik. Membuka pemasukan Kebun Hidroponik."},
-	"lele": {"nama": "Pak Darto", "n": "Peternak Lele", "sal": 50000, "min": 5, "need": "lele", "d": "Memberi pakan & memanen lele. Membuka pemasukan Kolam Lele."},
-	"petshop": {"nama": "Mbak Lala", "n": "Penjaga Pet Shop", "sal": 55000, "min": 6, "need": "petshop", "d": "Melayani pembeli pakan & aksesoris hewan. Membuka pemasukan Pet Shop."},
-	"florist": {"nama": "Mbak Rosa", "n": "Florist", "sal": 55000, "min": 6, "need": "bunga", "d": "Merangkai buket bunga. Membuka pemasukan Toko Bunga."},
-	"koperasi": {"nama": "Bu Wati", "n": "Pengurus Koperasi", "sal": 60000, "min": 7, "need": "koperasi", "d": "Mengurus simpan pinjam & sembako. Membuka pemasukan Koperasi."},
-	"warteg": {"nama": "Bu Tini", "n": "Ibu Warteg", "sal": 60000, "min": 5, "need": "warteg", "d": "Memasak & melayani di Warteg. Membuka pemasukan harian Warteg."},
-	"satpam": {"nama": "John", "n": "Satpam", "sal": 55000, "min": 3, "d": "Patroli di depan kost. Mencegah pencurian; urus tamu menginap & paket hilang."},
+	"teknisi": {"nama": "Boy", "n": "Teknisi", "sal": 110000, "min": 3, "d": "Memperbaiki kerusakan gratis; menangani air mati, WiFi lemot, listrik jeglek & atap bocor."},
+	"laundry": {"nama": "Budi", "n": "Petugas Laundry", "sal": 75000, "min": 2, "need": "laundry", "d": "Mengurus mesin cuci. Pemasukan Laundry jadi 2x."},
+	"kantin": {"nama": "Bu Sari", "n": "Ibu Kantin", "sal": 85000, "min": 4, "need": "kantin", "d": "Memasak di Kantin. Membuka pemasukan harian Kantin."},
+	"barista": {"nama": "Nadia", "n": "Barista", "sal": 100000, "min": 5, "need": "cafe", "d": "Meracik kopi di Cafe. Membuka pemasukan harian Cafe."},
+	"kasir": {"nama": "Sinta", "n": "Kasir Minimart", "sal": 90000, "min": 7, "need": "minimart", "d": "Menjaga kasir Minimart. Membuka pemasukan harian Minimart."},
+	"trainer": {"nama": "Kak Ray", "n": "Personal Trainer", "sal": 120000, "min": 6, "need": "gym", "d": "Melatih penghuni di Gym. Membuka pemasukan kelas latihan & penghuni lebih bugar (kebahagiaan ekstra)."},
+	"tani": {"nama": "Kang Dedi", "n": "Petani Hidroponik", "sal": 75000, "min": 4, "need": "hidroponik", "d": "Merawat & memanen sayur hidroponik. Membuka pemasukan Kebun Hidroponik."},
+	"lele": {"nama": "Pak Darto", "n": "Peternak Lele", "sal": 80000, "min": 5, "need": "lele", "d": "Memberi pakan & memanen lele. Membuka pemasukan Kolam Lele."},
+	"petshop": {"nama": "Mbak Lala", "n": "Penjaga Pet Shop", "sal": 85000, "min": 6, "need": "petshop", "d": "Melayani pembeli pakan & aksesoris hewan. Membuka pemasukan Pet Shop."},
+	"florist": {"nama": "Mbak Rosa", "n": "Florist", "sal": 85000, "min": 6, "need": "bunga", "d": "Merangkai buket bunga. Membuka pemasukan Toko Bunga."},
+	"koperasi": {"nama": "Bu Wati", "n": "Pengurus Koperasi", "sal": 95000, "min": 7, "need": "koperasi", "d": "Mengurus simpan pinjam & sembako. Membuka pemasukan Koperasi."},
+	"warteg": {"nama": "Bu Tini", "n": "Ibu Warteg", "sal": 90000, "min": 5, "need": "warteg", "d": "Memasak & melayani di Warteg. Membuka pemasukan harian Warteg."},
+	"satpam": {"nama": "John", "n": "Satpam", "sal": 110000, "min": 3, "d": "Patroli di depan kost. Mencegah pencurian; urus tamu menginap & paket hilang."},
 }
 const FAC := {
 	"wifi": {"n": "WiFi Kencang", "cost": 800000, "min": 1, "d": ""},
-	"cctv": {"n": "CCTV", "cost": 1000000, "min": 3, "d": "Peluang pencurian turun separuh."},
-	"lift": {"n": "Lift Barang", "cost": 4000000, "min": 6, "d": "Lift barang di sisi gedung. Seret kotak perabot atau paper bag ke lift, otomatis diantar ke kamar tujuan. Penghuni lantai atas juga tidak cepat capek."},
+	"cctv": {"n": "CCTV", "cost": 2500000, "min": 3, "d": "Peluang pencurian turun separuh."},
+	"lift": {"n": "Lift Barang", "cost": 25000000, "min": 6, "d": "Lift barang di sisi gedung. Seret kotak perabot atau paper bag ke lift, otomatis diantar ke kamar tujuan. Penghuni lantai atas juga tidak cepat capek."},
 }
 # ---------- Aplikasi (langganan bulanan, ditagih per hari = bulanan/30 bersama gaji pukul 17:00) ----------
 const APPS := {
@@ -451,9 +459,9 @@ const PAINT_PRICE := 150000.0
 const STAIRS := [
 	{},
 	{"n": "Tangga Kayu", "d": "Tangga kayu bawaan Nenek.", "cost": 0, "lv": 1, "bonus": 0.0, "spd": 1.0},
-	{"n": "Tangga Keramik", "d": "Anak tangga dilapisi keramik, bersih dan tidak berderit.", "cost": 1500000, "lv": 3, "bonus": 0.02, "spd": 1.15},
-	{"n": "Tangga Karpet", "d": "Karpet merah dengan batang kuningan. Kesan kost jadi mewah.", "cost": 4000000, "lv": 5, "bonus": 0.04, "spd": 1.3},
-	{"n": "Eskalator", "d": "Tangga berjalan! Penghuni naik-turun tanpa capek, kost makin bergengsi.", "cost": 12000000, "lv": 8, "bonus": 0.08, "spd": 1.8},
+	{"n": "Tangga Keramik", "d": "Anak tangga dilapisi keramik, bersih dan tidak berderit.", "cost": 2000000, "lv": 3, "bonus": 0.02, "spd": 1.15},
+	{"n": "Tangga Karpet", "d": "Karpet merah dengan batang kuningan. Kesan kost jadi mewah.", "cost": 5000000, "lv": 5, "bonus": 0.04, "spd": 1.3},
+	{"n": "Eskalator", "d": "Tangga berjalan! Penghuni naik-turun tanpa capek, kost makin bergengsi.", "cost": 60000000, "lv": 8, "bonus": 0.08, "spd": 1.8},
 ]
 const FLOORS := {
 	"asli": {"n": "Kayu Asli", "k": 0, "c": "d2b48f", "c2": "d2b48f", "p": 0},
@@ -665,8 +673,8 @@ const OUTSRC := {
 		{"n": "Kurir Pickup", "cost": 750000, "d": "Angkut 3 kotak sekali jalan. Barang tiba ± 30 menit."},
 		{"n": "Ekspedisi Kilat", "cost": 2000000, "d": "Angkut 5 kotak sekaligus, barang tiba ± 15 menit, antar lebih cepat."}]},
 	"galon": {"nama": "Kang Asep", "n": "Kang Galon", "pic": "galon/happy", "lv": [
-		{"n": "Depot Isi Ulang", "cost": 0, "d": "Antar air ke Kantin 2 hari sekali, Rp 20rb/galon."},
-		{"n": "Air Mineral Bermerek", "cost": 600000, "d": "Rp 25rb/galon, penghuni +2 kebahagiaan tiap antar."},
+		{"n": "Depot Isi Ulang", "cost": 0, "d": "Antar air ke Kantin 2 hari sekali, Rp 6rb/galon."},
+		{"n": "Air Mineral Bermerek", "cost": 600000, "d": "Rp 22rb/galon, penghuni +2 kebahagiaan tiap antar."},
 		{"n": "Langganan Harian", "cost": 1500000, "d": "Antar tiap hari, penghuni +3 kebahagiaan."}]},
 	"ojol": {"nama": "Bang Thoyib", "n": "Ojek Online", "pic": "ojol/thumb", "lv": [
 		{"n": "Ojol Biasa", "cost": 0, "d": "Kadang mengantar makanan pesanan penghuni (+4 senang)."},
@@ -674,9 +682,9 @@ const OUTSRC := {
 		{"n": "Mitra Resmi Kost", "cost": 1200000, "d": "Hampir tiap jam makan datang, penghuni +8 senang."}]},
 	"sampah": {"nama": "Mang Ujang", "n": "Petugas Sampah", "pic": "sampah/wave", "lv": [
 		{"n": "Belum Langganan", "cost": 0, "fee": 0, "d": "Sampah menumpuk: semua kamar 30% lebih cepat kotor."},
-		{"n": "Angkut 3 Hari Sekali", "cost": 250000, "fee": 15000, "d": "Kamar kotor normal. Iuran Rp 15rb/hari."},
-		{"n": "Angkut Harian", "cost": 600000, "fee": 25000, "d": "Kamar 15% lebih lambat kotor. Iuran Rp 25rb/hari."},
-		{"n": "Pilah & Daur Ulang", "cost": 1500000, "fee": 35000, "d": "Kamar 25% lebih lambat kotor, penghuni +1 senang tiap hari. Iuran Rp 35rb/hari."}]},
+		{"n": "Angkut 3 Hari Sekali", "cost": 250000, "fee": 5000, "d": "Kamar kotor normal. Iuran Rp 5rb/hari."},
+		{"n": "Angkut Harian", "cost": 600000, "fee": 8000, "d": "Kamar 15% lebih lambat kotor. Iuran Rp 8rb/hari."},
+		{"n": "Pilah & Daur Ulang", "cost": 1500000, "fee": 12000, "d": "Kamar 25% lebih lambat kotor, penghuni +1 senang tiap hari. Iuran Rp 12rb/hari."}]},
 	"tukang": {"nama": "Pak Joko", "n": "Tukang Bangunan", "pic": "tukang/hold", "dia": true, "lv": [
 		{"n": "Tukang Harian", "cost": 0, "d": "Bangun kamar & ruang fasilitas dengan kecepatan normal."},
 		{"n": "Tukang + Kenek", "cost": 25, "d": "Pembangunan 60% lebih cepat."},
@@ -686,13 +694,13 @@ const OUTSRC := {
 		{"n": "Patroli Rutin", "cost": 800000, "d": "Polisi otomatis datang menyeret preman. Lapor gratis."},
 		{"n": "Pos Polisi Dekat Kost", "cost": 2500000, "d": "Preman jarang datang, maling langsung ditangkap & barang kembali."}]},
 	"damkar": {"nama": "Bu Rina", "n": "Pemadam Kebakaran", "pic": "damkar/idle", "lv": [
-		{"n": "Panggil Darurat", "cost": 0, "d": "Kebakaran harus dilaporkan manual (Rp 500rb), damkar tiba agak lama."},
+		{"n": "Panggil Darurat", "cost": 0, "d": "Kebakaran harus dilaporkan manual (Rp 100rb), damkar tiba agak lama."},
 		{"n": "Langganan Damkar", "cost": 1000000, "d": "Damkar otomatis datang cepat & gratis saat kebakaran."},
 		{"n": "Alarm & Sprinkler", "cost": 3000000, "d": "Api padam sendiri lebih lambat menjalar; damkar tiba sangat cepat."}]},
 	"influencer": {"nama": "Kak Nisa", "n": "Influencer", "pic": "influencer/cam", "lv": [
 		{"n": "Belum Kerja Sama", "cost": 0, "d": "Sesekali datang sendiri merekam kost-mu. Bisa diundang sekali (Rp 750rb)."},
 		{"n": "Endorse Bulanan", "cost": 2000000, "d": "Datang tiap ± 12 hari bikin konten. Kost viral 2 hari, calon penyewa membludak."},
-		{"n": "Brand Ambassador", "cost": 6000000, "d": "Datang tiap ± 6 hari, viral 3 hari, rating +0,1 tiap konten."}]},
+		{"n": "Brand Ambassador", "cost": 8000000, "d": "Datang tiap ± 6 hari, viral 3 hari, rating +0,1 tiap konten."}]},
 }
 const OUTSRC_ORDER := ["kurir", "galon", "ojol", "sampah", "tukang", "polisi", "damkar", "influencer"]
 
