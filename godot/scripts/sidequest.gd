@@ -514,12 +514,12 @@ func _sip() -> void:
 
 # Menu minuman Cafe Book: [id gambar, nama, keterangan, harga, warna isi gelas, kalimat saat diseruput]
 const DRINKS := [
-	["kopi_susu", "Es Kopi Susu", "Gula aren, susu segar", 25000, "a8774f", "Hmm, kopi susunya pas."],
-	["americano", "Americano", "Espresso + air, tanpa gula", 22000, "3b2418", "Pahit, tapi bikin melek!"],
+	["kopi_susu", "Kopi Susu", "Panas, gula aren + susu segar", 25000, "a8774f", "Hangat, kopi susunya pas."],
+	["americano", "Americano", "Panas, espresso + air, tanpa gula", 22000, "3b2418", "Pahit, tapi bikin melek!"],
 	["cappuccino", "Cappuccino", "Panas, busa susu tebal", 28000, "c4925f", "Busanya lembut banget~"],
-	["matcha", "Matcha Latte", "Teh hijau Jepang + susu", 30000, "8cbf5a", "Segar, wangi tehnya."],
-	["taro", "Taro Latte", "Ubi taro manis + susu", 28000, "b796d9", "Manisnya pas, ungu cantik."],
-	["strawberry", "Strawberry Latte", "Selai stroberi + susu", 30000, "f2a3b8", "Asam manis, segar!"],
+	["matcha", "Matcha Latte", "Panas, teh hijau Jepang + susu", 30000, "8cbf5a", "Hangat, wangi tehnya."],
+	["taro", "Taro Latte", "Panas, ubi taro manis + susu", 28000, "b796d9", "Manisnya pas, ungu cantik."],
+	["strawberry", "Strawberry Latte", "Panas, selai stroberi + susu", 30000, "f2a3b8", "Asam manis, hangat!"],
 	["hot_tea", "Hot Tea", "Teh melati panas + lemon", 15000, "c77d2c", "Hangat, bikin tenang."],
 ]
 var drink := 0
@@ -1202,7 +1202,8 @@ func _show_modal(title: String, title_col: Color, lines: Array, btns: Array) -> 
 	dim.size = size
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_modal.add_child(dim)
-	var h := 330.0 + lines.size() * 92.0
+	var numbered := lines.size() > 0 and str(lines[0]).substr(0, 2) == "1."
+	var h := 330.0 + lines.size() * (150.0 if numbered else 92.0)
 	var card := _panel(Rect2(130, 1180 - h / 2.0, D.IW - 260, h), Color("fbf3e6"))
 	_layer.remove_child(card)
 	_modal.add_child(card)
@@ -1215,7 +1216,34 @@ func _show_modal(title: String, title_col: Color, lines: Array, btns: Array) -> 
 	tl.add_theme_constant_override("outline_size", 10)
 	v.add_child(tl)
 	for ln in lines:
-		var l := _lbl(str(ln), 38, D.C_INK, true)
+		var txt := str(ln)
+		if numbered and txt.length() > 2 and txt[1] == ".":
+			# Langkah bernomor: lingkaran angka di kiri, teks rata kiri supaya mudah dibaca.
+			var row := HBoxContainer.new()
+			row.add_theme_constant_override("separation", 26)
+			var badge := PanelContainer.new()
+			var bs := StyleBoxFlat.new()
+			bs.bg_color = title_col
+			bs.set_corner_radius_all(40)
+			badge.add_theme_stylebox_override("panel", bs)
+			badge.custom_minimum_size = Vector2(76, 76)
+			badge.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+			var bn := _lbl(txt.substr(0, 1), 40, Color.WHITE)
+			badge.add_child(bn)
+			row.add_child(badge)
+			var l2 := _lbl(txt.substr(2).strip_edges(), 40, D.C_INK, true)
+			l2.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+			l2.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+			l2.custom_minimum_size = Vector2(D.IW - 460, 0)
+			l2.add_theme_constant_override("line_spacing", 6)
+			row.add_child(l2)
+			var mc := MarginContainer.new()
+			mc.add_theme_constant_override("margin_left", 40)
+			mc.add_theme_constant_override("margin_right", 30)
+			mc.add_child(row)
+			v.add_child(mc)
+			continue
+		var l := _lbl(txt, 38, D.C_INK, true)
 		l.custom_minimum_size = Vector2(D.IW - 320, 0)
 		v.add_child(l)
 	var hb := HBoxContainer.new()
@@ -1248,9 +1276,9 @@ func _show_modal(title: String, title_col: Color, lines: Array, btns: Array) -> 
 func _how_to(then: Callable) -> void:
 	_ball.serve(999.0)
 	_show_modal("Cara Main", Color("5fae4f"), [
-		"1. Lingkaran KUNING = tempat bola jatuh. Maryam lari sendiri ke sana.",
-		"2. Saat bola masuk lingkaran PUTIH, KETUK layar untuk memukul.",
-		"3. Terlalu cepat atau telat = bola lolos. Menangkan 4 poin (selisih 2)!"],
+		"1. Lingkaran kuning menandai tempat bola jatuh. Maryam lari ke sana sendiri.",
+		"2. Saat bola masuk lingkaran putih, ketuk layar untuk memukul.",
+		"3. Terlalu cepat atau telat, bola lolos. Kumpulkan 4 poin dan unggul 2 untuk menang!"],
 		[["Siap!", D.C_GREEN, func():
 			_close_modal()
 			then.call()]])

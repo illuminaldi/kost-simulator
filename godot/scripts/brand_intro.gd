@@ -6,6 +6,7 @@ extends CanvasLayer
 ## Ketuk layar untuk lompat ke adegan berikutnya.
 
 signal finished
+signal before_exit   # dipancarkan saat pembuka mulai memudar (game di belakang ditampilkan lagi)
 
 var font: Font
 var root: Control
@@ -72,6 +73,7 @@ func _next() -> void:
 		2: cur = _cozy()
 		_:
 			_busy = true
+			before_exit.emit()
 			var t := create_tween()
 			t.tween_property(root, "modulate:a", 0.0, 0.45)
 			t.tween_callback(func():

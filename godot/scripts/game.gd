@@ -142,9 +142,19 @@ func _maybe_intro(args: PackedStringArray) -> void:
 		if a.begins_with("--") and a != "--brand" and a != "--brandtap": dev = true
 	if args.has("--brand") or args.has("--brandtap") or not dev:
 		cutscene_on = true
+		# Selama pembuka, gedung & UI disembunyikan: hanya layar pembuka yang digambar, jadi
+		# memori GPU HP (terutama iPhone) tidak penuh oleh tekstur gedung sebelum game dimulai.
+		var hidden: Array = []
+		for c in get_children():
+			if (c is CanvasItem or c is CanvasLayer) and c.visible:
+				c.visible = false
+				hidden.append(c)
 		var bi := BrandIntro.new()
 		add_child(bi)
 		bi.setup(font, S.get("sfx", true), args.has("--brand") and not args.has("--brandtap"))
+		bi.before_exit.connect(func():
+			for c in hidden:
+				if is_instance_valid(c): c.visible = true)
 		await bi.finished
 		cutscene_on = false
 	if args.has("--intro") or not S.get("seen", false):
@@ -5826,6 +5836,7 @@ func _handle_cli(args: PackedStringArray) -> void:
 				elif sv == "cafe": ui.side._arrive("cafe")
 				elif sv == "padelplay": ui.side.loc = "padel"; S.side = {"padel_intro": true, "padel_tut": true}; ui.side._show_padel()
 				elif sv == "padelnew": ui.side.loc = "padel"; S.side = {}; ui.side._show_padel()
+				elif sv == "padelhow": ui.side.loc = "padel"; S.side = {"padel_intro": true}; ui.side._show_padel()
 				elif sv == "cafein": ui.side.loc = "cafe"; ui.side._show_cafe_in()
 				else: ui.side.loc = "padel"; ui.side._arrive("padel"))
 		elif a.begins_with("--fire"):
