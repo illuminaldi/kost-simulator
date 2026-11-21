@@ -242,21 +242,21 @@ const BOOKS := [
 		["Yang membuat kita gelisah bukan kejadiannya, tapi penilaian kita tentang kejadian itu. Ubah penilaianmu, maka gelisahnya pun hilang.", "Ada hal yang bisa kita kendalikan, ada yang tidak. Pikiran dan tindakan kita milik kita; sisanya, terima dengan lapang dada."],
 		["Hidup itu singkat. Jangan habiskan waktu menebak-nebak isi kepala orang lain.", "Lakukan setiap pekerjaan seolah itu yang terakhir: dengan tenang, sungguh-sungguh, dan tanpa pura-pura."],
 		["Saat lelah dan ingin menyerah, ingatlah: kita lahir untuk bekerja sama, seperti kaki, tangan, dan mata dalam satu tubuh.", "Pelajaran: kuasai pikiranmu, bukan keadaan. Di situlah ketenangan sejati. TAMAT"]]},
-	{"t": "Think and Grow Rich", "src": "Napoleon Hill, 1937 · intisari bebas", "p": [
-		["Napoleon Hill mewawancarai ratusan orang sukses di zamannya. Ia ingin tahu: pola pikir apa yang mereka miliki bersama?", "Jawabannya dimulai dari keinginan yang membara. Bukan sekadar berharap, tapi benar-benar tahu apa yang dicari."],
-		["Tuliskan tujuanmu dengan jelas: apa yang kamu inginkan, kapan, dan apa yang siap kamu berikan sebagai gantinya.", "Baca tujuan itu setiap pagi dan malam. Keyakinan tumbuh lewat pengulangan, sampai tujuan terasa nyata."],
-		["Pengetahuan baru berguna jika diatur dan dipakai. Cari orang-orang yang mau bekerja sama; Hill menyebutnya kelompok 'mastermind'.", "Kegagalan sementara bukan kekalahan. Banyak orang berhenti justru satu langkah sebelum berhasil."],
-		["Musuh terbesar adalah rasa takut: takut miskin, takut dikritik, takut gagal. Kenali, lalu lawan pelan-pelan.", "Pelajaran: tujuan jelas, rencana nyata, dan ketekunan mengalahkan bakat yang dibiarkan menganggur. TAMAT"]]},
-	{"t": "As a Man Thinketh", "src": "James Allen, 1903 · intisari bebas (domain publik)", "p": [
+	{"t": "Dongeng Aesop", "src": "Aesop · dongeng pilihan, diceritakan ulang (domain publik)", "p": [
+		["Kura-kura menantang Kelinci lomba lari. Kelinci tertawa dan tidur di tengah jalan karena merasa pasti menang.", "Kura-kura terus berjalan pelan tanpa berhenti, dan sampai di garis akhir lebih dulu. Pelan asal tekun mengalahkan cepat tapi lengah."],
+		["Seekor Semut bekerja sepanjang musim panas mengumpulkan makanan, sementara Belalang hanya bernyanyi.", "Ketika musim dingin datang, Belalang kelaparan. Siapkan hari esok selagi hari ini masih cerah."],
+		["Seekor Rubah melihat anggur ranum tergantung tinggi. Ia melompat berkali-kali tapi tak sampai.", "Akhirnya ia pergi sambil berkata, 'Anggur itu pasti masam.' Mudah meremehkan apa yang tak bisa kita raih."],
+		["Seorang anak gembala berteriak 'Serigala!' untuk bercanda, dan warga desa datang berlari, berkali-kali.", "Saat serigala benar-benar datang, tak ada yang percaya lagi. Pembohong tak dipercaya meski sedang jujur. TAMAT"]]},
+	{"t": "As a Man Thinketh", "src": "James Allen, 1903 · terjemahan lengkap (domain publik)", "file": "res://assets/books/as_a_man_thinketh.txt", "p": [
 		["Buku tipis ini punya satu gagasan besar: kita adalah hasil dari apa yang kita pikirkan setiap hari.", "Pikiran ibarat kebun. Kalau tidak ditanami bunga, rumput liar akan tumbuh sendiri."],
 		["Keadaan hidup tidak selalu bisa kita pilih, tapi cara kita menanggapinya mencerminkan isi pikiran kita.", "Orang yang membiasakan pikiran bersih dan jujur, perlahan akan menemukan hidupnya ikut tertata."],
 		["Pikiran juga memengaruhi tubuh. Cemas berlebihan membuat lelah; pikiran tenang membuat tubuh lebih segar.", "Tujuan yang jelas membuat pikiran tidak mudah goyah. Tanpa tujuan, kita mudah terseret rasa khawatir."],
 		["Ketenangan adalah buah dari latihan panjang menguasai diri, dan itulah kekuatan yang sesungguhnya.", "Pelajaran: rawat pikiranmu seperti kebun. Apa yang kamu tanam, itulah yang kamu tuai. TAMAT"]]},
-	{"t": "1984", "src": "George Orwell · ringkasan cerita (bukan kutipan)", "p": [
-		["Winston Smith tinggal di negeri Oseania. Di mana-mana ada layar yang mengawasi warga, dan wajah Bung Besar menatap dari poster.", "Winston bekerja di Kementerian Kebenaran. Tugasnya justru mengubah catatan sejarah agar sesuai kemauan Partai."],
-		["Diam-diam Winston menulis buku harian. Di negeri itu, sekadar berpikir berbeda sudah dianggap kejahatan.", "Ia bertemu Julia, dan keduanya mulai melawan dengan cara kecil: bertemu sembunyi-sembunyi dan bermimpi tentang kebebasan."],
-		["Bahasa pun dipangkas. Partai membuat kata-kata baru yang makin sedikit, supaya orang makin sulit memikirkan perlawanan.", "Sayang, orang yang Winston percaya ternyata bagian dari Partai. Winston dan Julia ditangkap."],
-		["Winston dipaksa menerima apa pun yang dikatakan Partai, bahkan hal yang jelas keliru.", "Pesan buku ini: kebebasan berpikir dan kejujuran tentang fakta adalah hal berharga yang perlu dijaga. TAMAT"]]},
+	{"t": "Alice di Negeri Ajaib", "src": "Lewis Carroll, 1865 · ringkasan cerita (domain publik)", "p": [
+		["Alice yang bosan di tepi sungai melihat Kelinci Putih berjas, melihat jam saku, lalu masuk ke lubang di bawah pagar.", "Alice mengikutinya dan jatuh sangat lama, sampai tiba di aula penuh pintu yang terkunci."],
+		["Sebotol minuman membuatnya mengecil, sepotong kue membuatnya membesar. Ia menangis sampai air matanya jadi kolam.", "Ia bertemu Ulat yang merokok di atas jamur dan bertanya, 'Siapa kamu?' Alice sendiri jadi ragu menjawab."],
+		["Di pesta teh, Topi Gila dan Kelinci Maret berbicara berputar-putar tanpa ujung. Kucing Cheshire menghilang dan hanya meninggalkan senyumnya.", "Di kebun Ratu Hati, semua orang takut karena Ratu suka berteriak, 'Penggal kepalanya!'"],
+		["Di sidang yang kacau, Alice tumbuh besar lagi dan berani berkata, 'Kalian cuma setumpuk kartu!'", "Ia terbangun di pangkuan kakaknya. Negeri Ajaib ternyata mimpi, tapi rasa ingin tahunya tetap hidup. TAMAT"]]},
 	{"t": "The Adventures of Sherlock Holmes", "src": "Arthur Conan Doyle · intisari bebas (domain publik)", "p": [
 		["Di Baker Street, London, tinggal detektif Sherlock Holmes bersama sahabatnya, dokter Watson, yang mencatat semua kasusnya.", "Holmes bisa menebak dari mana seseorang datang hanya dari debu di sepatunya atau bekas tinta di jarinya."],
 		["Seorang raja datang meminta tolong: ia takut sebuah foto lama mempermalukannya. Holmes menyamar untuk mencari foto itu.", "Tapi lawannya, Irene Adler, ternyata sama cerdasnya. Dialah satu-satunya orang yang berhasil mengecoh Holmes."],
@@ -267,11 +267,11 @@ const BOOKS := [
 		["Jangan membaca terlalu banyak buku sekaligus. Lebih baik sedikit, tapi benar-benar dipahami dan dipraktikkan.", "Pilih teman dengan hati-hati. Kebiasaan orang di sekitar kita lambat laun akan menular."],
 		["Sesekali, latihlah hidup sederhana: makan seadanya, berpakaian biasa. Kamu akan sadar bahwa kekurangan tidak semenakutkan bayangan.", "Kita sering lebih menderita dalam khayalan daripada dalam kenyataan."],
 		["Orang kaya sejati bukan yang punya banyak, tapi yang merasa cukup.", "Pelajaran: hargai waktu, pilih teman baik, dan latih hati agar tidak mudah takut. TAMAT"]]},
-	{"t": "The Little Prince", "src": "Antoine de Saint-Exupéry · ringkasan cerita (bukan kutipan)", "p": [
-		["Seorang pilot jatuh di gurun Sahara. Esok paginya, seorang anak kecil berambut keemasan memintanya menggambar seekor domba.", "Anak itu adalah Pangeran Kecil, yang datang dari sebuah asteroid mungil dengan tiga gunung berapi dan setangkai mawar."],
-		["Ia meninggalkan mawarnya yang manja, lalu mengunjungi planet-planet lain berisi orang dewasa yang aneh.", "Ada raja yang ingin memerintah semua hal, pengusaha yang sibuk menghitung bintang, dan pemabuk yang minum agar lupa rasa malunya."],
-		["Di Bumi, ia bertemu seekor rubah. Rubah memintanya menjinakkan dirinya, yaitu membangun ikatan pelan-pelan, hari demi hari.", "Dari rubah ia belajar: mawarnya istimewa bukan karena berbeda, tapi karena waktu dan perhatian yang telah ia berikan."],
-		["Sang pangeran pun rindu pulang. Si pilot tidak pernah melupakannya setiap kali menatap bintang.", "Pesan cerita: hal paling penting sering tidak terlihat oleh mata, hanya bisa dirasakan oleh hati. TAMAT"]]},
+	{"t": "Sang Nabi", "src": "Kahlil Gibran, 1923 · intisari bebas (domain publik)", "p": [
+		["Almustafa sudah dua belas tahun tinggal di kota Orphalese. Kapal yang akan membawanya pulang akhirnya tiba.", "Sebelum pergi, orang-orang kota memintanya berbicara tentang hidup: tentang cinta, kerja, dan rumah."],
+		["Tentang anak, ia berkata: anakmu bukan milikmu; mereka datang melaluimu, bukan darimu. Kau busurnya, mereka anak panahnya.", "Tentang kerja: kerja adalah cinta yang tampak. Bekerjalah dengan sepenuh hati, seolah orang tercinta akan memakainya."],
+		["Tentang memberi: pemberian sejati adalah ketika kau memberi dari dirimu sendiri, bukan sekadar dari hartamu.", "Tentang suka dan duka: keduanya datang bersama. Semakin dalam duka mengukir hatimu, semakin banyak suka yang bisa ditampungnya."],
+		["Tentang persahabatan: sahabat adalah jawaban atas kebutuhanmu, ladang yang kau tanami dengan kasih.", "Almustafa naik ke kapal dan berjanji akan kembali. Kata-katanya tinggal di hati penduduk kota. TAMAT"]]},
 	{"t": "How to Live on 24 Hours a Day", "src": "Arnold Bennett, 1908 · intisari bebas (domain publik)", "p": [
 		["Setiap orang mendapat jatah yang sama setiap hari: 24 jam. Orang kaya tidak dapat lebih, orang miskin tidak dapat kurang.", "Masalahnya, banyak orang merasa waktunya habis untuk bekerja, lalu sisanya terbuang begitu saja."],
 		["Bennett menyarankan: anggap jam di luar kerja sebagai 'hari kedua' milikmu sendiri, bukan sisa yang tak berarti.", "Mulailah kecil. Pakai 90 menit, tiga malam seminggu, untuk belajar sesuatu yang benar-benar kamu minati."],
@@ -1006,11 +1006,14 @@ func _catalog(title: String, cards: Array) -> void:
 	sc.custom_minimum_size = Vector2(D.IW - 180, 1580)
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	v.add_child(sc)
+	var cc := CenterContainer.new()
+	cc.custom_minimum_size = Vector2(D.IW - 180, 0)
+	sc.add_child(cc)
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 24)
 	grid.add_theme_constant_override("v_separation", 24)
-	sc.add_child(grid)
+	cc.add_child(grid)
 	for c in cards:
 		var cell := PanelContainer.new()
 		cell.custom_minimum_size = Vector2((D.IW - 230) / 2.0, 600)
@@ -1048,20 +1051,26 @@ func _catalog(title: String, cards: Array) -> void:
 		var sl := _lbl(c.sub, 27, D.C_MUTED, true)
 		sl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		cv.add_child(sl)
-		var bt := Button.new()
-		bt.flat = true
-		bt.focus_mode = Control.FOCUS_NONE
-		bt.set_anchors_preset(Control.PRESET_FULL_RECT)
+		# Ketuk = pilih; geser = scroll (tombol biasa memakan sentuhan di HP).
+		cell.mouse_filter = Control.MOUSE_FILTER_PASS
 		var cb: Callable = c.cb
 		var locked: bool = c.get("locked", false)
 		var why: String = c.get("why", "")
-		bt.pressed.connect(func():
-			if locked:
-				game.ui.toast(why)
-				return
-			_close_modal()
-			cb.call())
-		cell.add_child(bt)
+		var down := {"p": Vector2.ZERO, "on": false}
+		cell.gui_input.connect(func(e: InputEvent):
+			if not (e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT): return
+			if e.pressed:
+				down.p = e.global_position
+				down.on = true
+			elif down.on:
+				down.on = false
+				var up: Vector2 = e.global_position
+				if up.distance_to(down.p) > 24.0: return
+				if locked:
+					game.ui.toast(why)
+					return
+				_close_modal()
+				cb.call())
 		grid.add_child(cell)
 	var close := Button.new()
 	close.text = "Tutup"
