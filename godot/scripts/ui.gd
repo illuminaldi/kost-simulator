@@ -1534,7 +1534,7 @@ func _sheet_away() -> void:
 
 func _sheet_backup() -> void:
 	_header("Cadangan Data")
-	box.add_child(_text("Progres tersimpan otomatis di perangkat ini, ditambah 3 cadangan otomatis. Untuk pindah HP atau berjaga-jaga kalau browser dibersihkan, simpan kode cadangan di bawah.", 32, D.C_MUTED))
+	box.add_child(_text("Progres tersimpan otomatis di perangkat ini, ditambah 3 cadangan otomatis. Untuk pindah HP atau berjaga-jaga kalau browser dibersihkan, simpan kode cadangan di bawah. Diamond & tiket tidak ikut di kode cadangan.", 32, D.C_MUTED))
 	var v := _card()
 	v.add_child(_label("Simpan cadangan", 40))
 	var code: String = game.export_code()
@@ -1555,7 +1555,7 @@ func _sheet_backup() -> void:
 		toast("File cadangan diunduh.", "gold")))
 	var w := _card()
 	w.add_child(_label("Pulihkan dari kode", 40))
-	w.add_child(_text("Tempel kode COZY1:... lalu ketuk Pulihkan. Progres di perangkat ini akan diganti.", 30, D.C_MUTED))
+	w.add_child(_text("Tempel kode COZY... lalu ketuk Pulihkan. Progres kost di perangkat ini akan diganti (Diamond & tiket tetap).", 30, D.C_MUTED))
 	var ti := TextEdit.new()
 	ti.placeholder_text = "Tempel kode di sini"
 	ti.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY

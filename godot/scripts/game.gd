@@ -1114,24 +1114,47 @@ func save_game() -> void:
 		if b0: b0.store_string(txt)
 
 
-## Kode cadangan: save + dompet, dikompres & base64. Bisa ditempel di HP lain.
+## Kode cadangan: progres kost saja (tanpa dompet Diamond/tiket), dikompres, base64, dan
+## ditandatangani HMAC supaya kode yang diedit ditolak. Format: COZY2:<ukuran>:<data>:<tanda tangan>
+const CODE_KEY := "17cfaf69a969345249650c41b63209d7d80faac4f22f7b85"
+
+
+func _code_sig(body: String) -> String:
+	var h := HMACContext.new()
+	h.start(HashingContext.HASH_SHA256, CODE_KEY.to_utf8_buffer())
+	h.update(body.to_utf8_buffer())
+	return h.finish().hex_encode().substr(0, 32)
+
+
 func export_code() -> String:
 	save_game()
-	var pack := JSON.stringify({"cozy": 1, "S": S, "W": W})
+	var pack := JSON.stringify({"cozy": 2, "S": S})
 	var raw := pack.to_utf8_buffer()
-	var z := raw.compress(FileAccess.COMPRESSION_GZIP)
-	return "COZY1:" + str(raw.size()) + ":" + Marshalls.raw_to_base64(z)
+	var body := str(raw.size()) + ":" + Marshalls.raw_to_base64(raw.compress(FileAccess.COMPRESSION_GZIP))
+	return "COZY2:" + body + ":" + _code_sig(body)
 
 
 ## Muat dari kode. Mengembalikan "" kalau sukses, atau alasan gagal.
+## Dompet (Diamond, tiket) di perangkat ini TIDAK diubah oleh kode cadangan.
 func import_code(code: String) -> String:
-	code = code.strip_edges().replace("\n", "").replace(" ", "")
-	if not code.begins_with("COZY1:"): return "Kode tidak dikenali. Pastikan menyalin seluruh kode yang diawali COZY1:"
+	code = code.strip_edges().replace("\n", "").replace("\r", "").replace(" ", "")
 	var parts := code.split(":")
-	if parts.size() != 3: return "Kode tidak lengkap."
-	var z := Marshalls.base64_to_raw(parts[2])
-	if z.is_empty(): return "Kode rusak atau terpotong."
-	var raw := z.decompress(int(parts[1]), FileAccess.COMPRESSION_GZIP)
+	var size_s := ""
+	var data_s := ""
+	if code.begins_with("COZY2:"):
+		if parts.size() != 4: return "Kode tidak lengkap."
+		size_s = parts[1]; data_s = parts[2]
+		if _code_sig(size_s + ":" + data_s) != parts[3]:
+			return "Kode tidak valid (rusak atau sudah diubah)."
+	elif code.begins_with("COZY1:"):
+		# Kode lama tetap bisa dipakai untuk progres; dompet di dalamnya diabaikan.
+		if parts.size() != 3: return "Kode tidak lengkap."
+		size_s = parts[1]; data_s = parts[2]
+	else:
+		return "Kode tidak dikenali. Pastikan menyalin seluruh kode yang diawali COZY."
+	var z := Marshalls.base64_to_raw(data_s)
+	if z.is_empty() or not size_s.is_valid_int() or int(size_s) <= 0 or int(size_s) > 50000000: return "Kode rusak atau terpotong."
+	var raw := z.decompress(int(size_s), FileAccess.COMPRESSION_GZIP)
 	var d = JSON.parse_string(raw.get_string_from_utf8())
 	if typeof(d) != TYPE_DICTIONARY or not d.has("S") or typeof(d.S) != TYPE_DICTIONARY or not d.S.has("rooms"):
 		return "Kode rusak atau terpotong."
@@ -1144,9 +1167,6 @@ func import_code(code: String) -> String:
 	d.S.saved_at = Time.get_unix_time_from_system()   # tidak dihitung sebagai "pergi"
 	f.store_string(JSON.stringify(d.S))
 	f.close()
-	if typeof(d.get("W")) == TYPE_DICTIONARY:
-		W = d.W
-		save_wallet()
 	_no_save = true
 	get_tree().reload_current_scene()
 	return ""
@@ -5979,7 +5999,10 @@ func _handle_cli(args: PackedStringArray) -> void:
 			var parts := c.split(":")
 			var raw := Marshalls.base64_to_raw(parts[2]).decompress(int(parts[1]), FileAccess.COMPRESSION_GZIP)
 			var d = JSON.parse_string(raw.get_string_from_utf8())
-			print("CODE len=", c.length()," ok=", typeof(d) == TYPE_DICTIONARY and d.S.has("rooms")," lvl=", d.S.lvl)
+			var bad := c.substr(0, c.length() - 1) + ("0" if not c.ends_with("0") else "1")
+			print("CODE len=", c.length(), " ok=", typeof(d) == TYPE_DICTIONARY and d.S.has("rooms"), " lvl=", d.S.lvl,
+				" hasW=", d.has("W"), " sig_ok=", _code_sig(parts[1] + ":" + parts[2]) == parts[3],
+				" tampered_rejected=", import_code(bad) != "", " junk=", import_code("COZY2:1:abc:def"))
 		elif a == "--newfac":
 			S.lvl = 8
 			S.facil = {"1": "hidroponik", "2": "lele", "3": "petshop", "4": "bunga", "5": "koperasi", "6": "warteg"}
