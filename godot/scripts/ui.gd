@@ -2390,15 +2390,29 @@ func _economy_card() -> void:
 	v.add_child(_text("Hari ini sejauh ini: masuk %s · keluar %s (termasuk perbaikan, denda & lainnya)" % [D.rp(float(td.rent)), D.rp(float(td.salary) + float(td.util) + float(td.other))], 28, D.C_MUTED))
 
 
+var manage_tab := "kost"
+
+
 func _sheet_manage() -> void:
 	var S: Dictionary = game.S
 	_header("Kelola " + str(S.get("kost_name", "Kost Harmoni")))
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 14)
+	box.add_child(tabs)
+	for t in [["kost", "Kelola Kost"], ["game", "Game Setting"]]:
+		var key: String = t[0]
+		tabs.add_child(_btn(t[1], D.C_YELLOW if manage_tab == key else Color.WHITE, func(): manage_tab = key; refresh_sheet(false), false, true))
+	if manage_tab == "game":
+		_manage_game()
+	else:
+		_manage_kost()
+
+
+## Sub-halaman Kelola Kost: nama kost, masalah, statistik, harga sewa, laporan.
+func _manage_kost() -> void:
+	var S: Dictionary = game.S
 	var nv := _card()
 	_row(nv, _label(str(S.get("kost_name", "Kost Harmoni")), 40), _btn("Ganti nama", D.C_CREAM, func(): ask_rename()))
-	var nf := _flow(nv)
-	nf.add_child(_btn("Ulangi tutorial", D.C_CREAM, func(): _do("tutorial")))
-	nf.add_child(_btn("Putar cerita awal", D.C_CREAM, func(): _do("intro")))
-	nf.add_child(_btn("Cadangan Data", D.C_CREAM, func(): open_sheet("backup")))
 	if S.events.is_empty():
 		_card().add_child(_text("Tidak ada masalah. Kost aman & tenteram.", 34, Color("2f7a2a")))
 	for e in S.events:
@@ -2431,6 +2445,23 @@ func _sheet_manage() -> void:
 		var pr: Dictionary = D.PRICE[i]
 		ph.add_child(_btn("%s %d%%" % [pr.n, roundi(pr.m * 100)], D.C_YELLOW if int(S.price) == i else Color.WHITE, func(): _do("price", str(i)), false, true))
 	pv.add_child(ph)
+	var lv := _card()
+	var L = S.get("last")
+	if L == null:
+		lv.add_child(_label("Laporan kemarin", 42))
+		lv.add_child(_text("Belum ada laporan. Tunggu sampai tengah malam.", 34, D.C_MUTED))
+	else:
+		lv.add_child(_label("Laporan Hari %d" % int(L.day), 42))
+		_row(lv, _label("Sewa masuk", 34, D.C_MUTED, true), _label(D.rp(L.rent), 34, D.C_MUTED, true))
+		_row(lv, _label("Gaji karyawan", 34, D.C_MUTED, true), _label("-" + D.rp(L.salary), 34, D.C_MUTED, true))
+		_row(lv, _label("Listrik & air", 34, D.C_MUTED, true), _label("-" + D.rp(L.util), 34, D.C_MUTED, true))
+		_row(lv, _label("Lain-lain", 34, D.C_MUTED, true), _label(("-" if float(L.other) > 0 else "+") + D.rp(absf(float(L.other))), 34, D.C_MUTED, true))
+		_row(lv, _label("Bersih", 40), _label(D.rp(L.net), 40, Color("2f7a2a") if float(L.net) >= 0 else Color("c0392b")))
+
+
+## Sub-halaman Game Setting: suara, kecepatan waktu, data & panduan, bantuan.
+func _manage_game() -> void:
+	var S: Dictionary = game.S
 	var mv := _card()
 	var mon: bool = S.get("music", true)
 	_row(mv, _label("Musik lofi", 42), _btn("Nyala" if mon else "Mati", D.C_GREEN if mon else Color.WHITE, func(): game.set_music(not mon); refresh_sheet()))
@@ -2465,18 +2496,12 @@ func _sheet_manage() -> void:
 	var tt: String = game.turbo_text()
 	sv.add_child(_text(("Sisa 2x: %s · " % tt if tt != "" else "") + "Tiket Ngebut: %d (1 tiket = 2x selama 7 hari di game)" % int(game.W.tickets), 30, D.C_MUTED))
 	sv.add_child(_btn("Toko Diamond", D.C_CREAM, func(): open_sheet("toko")))
-	var lv := _card()
-	var L = S.get("last")
-	if L == null:
-		lv.add_child(_label("Laporan kemarin", 42))
-		lv.add_child(_text("Belum ada laporan. Tunggu sampai tengah malam.", 34, D.C_MUTED))
-	else:
-		lv.add_child(_label("Laporan Hari %d" % int(L.day), 42))
-		_row(lv, _label("Sewa masuk", 34, D.C_MUTED, true), _label(D.rp(L.rent), 34, D.C_MUTED, true))
-		_row(lv, _label("Gaji karyawan", 34, D.C_MUTED, true), _label("-" + D.rp(L.salary), 34, D.C_MUTED, true))
-		_row(lv, _label("Listrik & air", 34, D.C_MUTED, true), _label("-" + D.rp(L.util), 34, D.C_MUTED, true))
-		_row(lv, _label("Lain-lain", 34, D.C_MUTED, true), _label(("-" if float(L.other) > 0 else "+") + D.rp(absf(float(L.other))), 34, D.C_MUTED, true))
-		_row(lv, _label("Bersih", 40), _label(D.rp(L.net), 40, Color("2f7a2a") if float(L.net) >= 0 else Color("c0392b")))
+	var gv := _card()
+	gv.add_child(_label("Data & panduan", 42))
+	var nf := _flow(gv)
+	nf.add_child(_btn("Cadangan Data", D.C_CREAM, func(): open_sheet("backup")))
+	nf.add_child(_btn("Ulangi tutorial", D.C_CREAM, func(): _do("tutorial")))
+	nf.add_child(_btn("Putar cerita awal", D.C_CREAM, func(): _do("intro")))
 	var hv := _card()
 	hv.add_child(_label("Bantuan & Lainnya", 42))
 	var hf := _flow(hv)
