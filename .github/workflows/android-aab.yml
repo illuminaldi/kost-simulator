@@ -99,6 +99,10 @@ jobs:
             echo "::error::Secrets keystore belum diisi (ANDROID_KEYSTORE_BASE64 / _PASSWORD / _ALIAS)."; exit 1
           fi
           # Buang spasi/baris baru yang sering ikut tersalin saat paste secret dari HP.
+          # Kalau yang ditempel seluruh isi file INFO, ambil baris "Password keystore & key: ...".
+          if printf '%s' "$KS_PASS" | grep -q "Password keystore & key:"; then
+            KS_PASS=$(printf '%s' "$KS_PASS" | grep -m1 "Password keystore & key:" | sed 's/.*Password keystore & key:[[:space:]]*//')
+          fi
           PASS=$(printf '%s' "$KS_PASS" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
           ALIAS=$(printf '%s' "$KS_ALIAS" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
           printf '%s' "$KS_B64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/release.keystore"
