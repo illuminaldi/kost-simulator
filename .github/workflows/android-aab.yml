@@ -1,0 +1,129 @@
+# Build Android App Bundle (AAB) Cozy Kost di server GitHub — bisa dijalankan dari HP:
+# GitHub > Actions > "Build Android AAB" > Run workflow. Hasil: artifact "CozyKost-aab".
+#
+# Secrets yang wajib diisi (Settings > Secrets and variables > Actions):
+#   ANDROID_KEYSTORE_BASE64   isi base64 dari cozykost-release.keystore
+#   ANDROID_KEYSTORE_PASSWORD password keystore
+#   ANDROID_KEYSTORE_ALIAS    alias kunci (cozykost)
+name: Build Android AAB
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: "version/code (angka, wajib naik tiap upload). Kosong = nomor run workflow."
+        required: false
+        default: ""
+      version_name:
+        description: "version/name, mis. 1.0.1. Kosong = tetap seperti di export_presets.cfg."
+        required: false
+        default: ""
+
+env:
+  GODOT_VERSION: "4.7"
+  GODOT_RELEASE: "stable"
+  BILLING_VERSION: "3.3.0"
+  PROJECT_DIR: godot
+
+jobs:
+  aab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK (platform 36 + build-tools)
+        run: |
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          echo "ANDROID_SDK=$SDK" >> "$GITHUB_ENV"
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-36" "build-tools;36.0.0" "cmdline-tools;latest"
+
+      - name: Godot + export templates
+        run: |
+          V="${GODOT_VERSION}-${GODOT_RELEASE}"
+          BASE="https://github.com/godotengine/godot/releases/download/${V}"
+          mkdir -p ~/godot && cd ~/godot
+          curl -fsSL -o godot.zip "${BASE}/Godot_v${V}_linux.x86_64.zip"
+          unzip -q godot.zip && mv Godot_v${V}_linux.x86_64 godot && chmod +x godot
+          echo "GODOT=$HOME/godot/godot" >> "$GITHUB_ENV"
+          curl -fsSL -o templates.tpz "${BASE}/Godot_v${V}_export_templates.tpz"
+          TDIR="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_RELEASE}"
+          mkdir -p "$TDIR" && unzip -q templates.tpz && mv templates/* "$TDIR/"
+          echo "TEMPLATES=$TDIR" >> "$GITHUB_ENV"
+
+      - name: Editor settings (path SDK & JDK)
+        run: |
+          mkdir -p ~/.config/godot
+          for f in editor_settings-4.tres "editor_settings-${GODOT_VERSION}.tres"; do
+            cat > ~/.config/godot/$f <<EOF
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "${ANDROID_SDK}"
+          export/android/java_sdk_path = "${JAVA_HOME}"
+          EOF
+          done
+
+      - name: Android build template (gradle)
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          rm -rf android && mkdir -p android/build
+          unzip -q "$TEMPLATES/android_source.zip" -d android/build
+          echo -n "${GODOT_VERSION}.${GODOT_RELEASE}" > android/.build_version
+          touch android/build/.gdignore
+
+      - name: Plugin Google Play Billing (.aar)
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          curl -fsSL -o /tmp/billing.zip "https://github.com/godot-sdk-integrations/godot-google-play-billing/releases/download/${BILLING_VERSION}/godot-google-play-billing.zip"
+          mkdir -p /tmp/billing && unzip -q /tmp/billing.zip -d /tmp/billing
+          BIN=addons/GodotGooglePlayBilling/bin
+          mkdir -p $BIN/debug $BIN/release
+          cp "$(find /tmp/billing -name 'GodotGooglePlayBilling-debug.aar' | head -1)" $BIN/debug/
+          cp "$(find /tmp/billing -name 'GodotGooglePlayBilling-release.aar' | head -1)" $BIN/release/
+          ls -R $BIN
+
+      - name: Keystore rilis
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEYSTORE_ALIAS }}
+        run: |
+          if [ -z "$KS_B64" ] || [ -z "$KS_PASS" ] || [ -z "$KS_ALIAS" ]; then
+            echo "::error::Secrets keystore belum diisi (ANDROID_KEYSTORE_BASE64 / _PASSWORD / _ALIAS)."; exit 1
+          fi
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=$KS_ALIAS" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=$KS_PASS" >> "$GITHUB_ENV"
+
+      - name: Versi
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          CODE="${{ github.event.inputs.version_code }}"
+          [ -z "$CODE" ] && CODE="${{ github.run_number }}"
+          sed -i "s/^version\/code=.*/version\/code=${CODE}/" export_presets.cfg
+          NAME="${{ github.event.inputs.version_name }}"
+          [ -n "$NAME" ] && sed -i "s/^version\/name=.*/version\/name=\"${NAME}\"/" export_presets.cfg
+          grep -E "^version/(code|name)=" export_presets.cfg
+
+      - name: Import & export AAB
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          mkdir -p build/android
+          "$GODOT" --headless --path . --import || true
+          "$GODOT" --headless --path . --export-release "Android" build/android/CozyKost.aab
+          ls -la build/android
+          test -s build/android/CozyKost.aab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CozyKost-aab
+          path: ${{ env.PROJECT_DIR }}/build/android/CozyKost.aab
+          retention-days: 30

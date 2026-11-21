@@ -868,8 +868,8 @@ class _CafeLife extends Node2D:
 
 
 # ---------------- Lapangan Padel ----------------
-# Maryam melawan Mustofa atau John.
-const FOES := [["Mustofa", 0.55, "padel_ryan"], ["John", 0.75, "padel_aji"]]
+# Maryam melawan Boy atau John.
+const FOES := [["Boy", 0.55, "padel_ryan"], ["John", 0.75, "padel_aji"]]
 var foe := 0
 var pts := [0, 0]
 var _score_lbl: Label
@@ -946,9 +946,9 @@ func _show_padel() -> void:
 		S.side.padel_intro = true
 		_tut = 0
 		_ball.serve(999.0)
-		_chat("Mustofa", [["Mustofa", "Mbak Maryam, sore ini padel yuk? Aku udah booking lapangan di taman."],
+		_chat("Boy", [["Boy", "Mbak Maryam, sore ini padel yuk? Aku udah booking lapangan di taman."],
 			["Maryam", "Boleh! Lagi pusing ngurus kost, pas banget buat olahraga."],
-			["Mustofa", "Sip! Aku ajarin dulu ya, gampang kok."]], func():
+			["Boy", "Sip! Aku ajarin dulu ya, gampang kok."]], func():
 				_how_to(func():
 					_ray_say("Lawanmu %s. Tunggu bola, lalu ketuk saat lingkaran putih muncul!" % FOES[foe][0])
 					_new_match()))
@@ -1113,9 +1113,9 @@ func _foe_catalog() -> void:
 	for i in FOES.size():
 		var fi: int = i
 		var lock := i > 0 and not unlocked
-		cards.append({"name": FOES[i][0], "sub": "Terkunci · kalahkan Mustofa dulu" if lock else ["Santai · cocok pemanasan", "Keras · pukulannya kencang"][mini(i, 1)],
+		cards.append({"name": FOES[i][0], "sub": "Terkunci · kalahkan Boy dulu" if lock else ["Santai · cocok pemanasan", "Keras · pukulannya kencang"][mini(i, 1)],
 			"tex": "res://assets/chars/%s/ready_L.png" % FOES[i][2], "cur": i == foe, "locked": lock,
-			"why": "Kalahkan Mustofa dulu untuk membuka lawan ini.",
+			"why": "Kalahkan Boy dulu untuk membuka lawan ini.",
 			"cb": func():
 				foe = fi
 				_opose("ready")
@@ -1127,7 +1127,7 @@ func _foe_catalog() -> void:
 func _ganti_lawan() -> void:
 	_close_modal()
 	if not game.S.side.get("aji", false):
-		_ray_say("Belum ada lawan lain. Main dulu sama Mustofa~")
+		_ray_say("Belum ada lawan lain. Main dulu sama Boy~")
 		_new_match()
 		return
 	foe = (foe + 1) % FOES.size()
@@ -1366,14 +1366,14 @@ func _aji_calls() -> void:
 	_ball.serve(999.0)
 	game.sfx("pop", -2.0)
 	_chat("John", [["John", "Maryam, kamu lagi dimana?"],
-		["Maryam", "Lagi main padel sama Mustofa di lapangan taman."],
+		["Maryam", "Lagi main padel sama Boy di lapangan taman."],
 		["John", "Wah, curang nggak ngajak! Aku nyusul ya, 5 menit sampai!"],
 		["Maryam", "Hahaha oke, buruan!"]], func():
 			game.S.side.aji = true
 			foe = 1
 			_opose("ready")
 			_say("John datang!")
-			_ray_say("John menyusul! Pukulannya lebih keras. Tekan Ganti Lawan untuk kembali ke Mustofa.")
+			_ray_say("John menyusul! Pukulannya lebih keras. Tekan Ganti Lawan untuk kembali ke Boy.")
 			_new_match())
 
 

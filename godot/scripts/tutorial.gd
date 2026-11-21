@@ -175,7 +175,7 @@ func _steps() -> Array:
 		{"t": "Kalau aman, tutup panel ini. Lalu Hold (tahan) calon penyewa di lobi, seret, dan Drop (lepas) di kamar kosong.", "at": "room", "from": "guest"},
 		{"t": "Kamar makin nyaman & sewanya makin mahal kalau perabotnya lengkap. Ketuk Beli, lalu pilih Lampu.", "at": "beli"},
 		{"t": "Pickup sedang datang membawa kotaknya. Begitu kotak muncul, Hold (tahan) kotaknya, seret, lalu Drop (lepas) di kamar.", "at": "boxroom", "from": "box"},
-		{"t": "Bang Jali si kurir akan mengantar ke kamar. Sekarang ketuk Karyawan dan rekrut Mustofa, petugas kebersihan.", "at": "karyawan"},
+		{"t": "Bang Jali si kurir akan mengantar ke kamar. Sekarang ketuk Karyawan dan rekrut Boy, petugas kebersihan.", "at": "karyawan"},
 		{"t": "Terakhir: ketuk jam di kanan atas untuk mempercepat waktu.", "at": "jam"},
 		{"t": "Makasih udah bantu! %s siap berkembang. Kalau ada masalah, cek menu Kelola ya. Semangat!" % _kost(), "manual": true, "end": true},
 	]

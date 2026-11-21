@@ -249,7 +249,7 @@ func _cozy() -> Control:
 	var sw := c.create_tween().set_loops(3)
 	sw.tween_property(board, "rotation", 0.025, 0.45).set_trans(Tween.TRANS_SINE)
 	sw.tween_property(board, "rotation", -0.025, 0.45).set_trans(Tween.TRANS_SINE)
-	# Barisan karyawan: tanaman, John, Maryam, Mustofa, Andi, lampu
+	# Barisan karyawan: tanaman, John, Maryam, Boy, Andi, lampu
 	var cast := [
 		["res://assets/furn/item/tanaman_1.png", 400, 0.0],
 		["res://assets/chars/satpam/idle_L.png", 690, -60.0],

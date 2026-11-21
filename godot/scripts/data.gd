@@ -321,9 +321,9 @@ const JOBS := {
 }
 const CHAR_TUA := ["kakek", "nenek"]
 const STAFF := {
-	"cleaner": {"nama": "Mustofa", "n": "Petugas Kebersihan", "sal": 80000, "min": 1, "d": "Membersihkan kamar kotor; menangani sampah, area bersama kotor & hama."},
+	"cleaner": {"nama": "Boy", "n": "Petugas Kebersihan", "sal": 80000, "min": 1, "d": "Membersihkan kamar kotor; menangani sampah, area bersama kotor & hama."},
 	"resep": {"nama": "Maryam", "n": "Pemilik & Penjaga Kost", "sal": 0, "min": 1, "owner": true, "d": "Cucu Nenek dan pewaris kost. Mantan eksekutif yang memilih pulang. Berjaga di meja depan: tamu lebih sabar, menagih sewa, urus kunci hilang & tegur penghuni berisik."},
-	"teknisi": {"nama": "Boy", "n": "Teknisi", "sal": 110000, "min": 3, "d": "Memperbaiki kerusakan gratis; menangani air mati, WiFi lemot, listrik jeglek & atap bocor."},
+	"teknisi": {"nama": "Aji", "n": "Teknisi", "sal": 110000, "min": 3, "d": "Memperbaiki kerusakan gratis; menangani air mati, WiFi lemot, listrik jeglek & atap bocor."},
 	"laundry": {"nama": "Budi", "n": "Petugas Laundry", "sal": 75000, "min": 2, "need": "laundry", "d": "Mengurus mesin cuci. Pemasukan Laundry jadi 2x."},
 	"kantin": {"nama": "Bu Sari", "n": "Ibu Kantin", "sal": 85000, "min": 4, "need": "kantin", "d": "Memasak di Kantin. Membuka pemasukan harian Kantin."},
 	"barista": {"nama": "Nadia", "n": "Barista", "sal": 100000, "min": 5, "need": "cafe", "d": "Meracik kopi di Cafe. Membuka pemasukan harian Cafe."},
@@ -361,10 +361,10 @@ const CHARS := {"kutu": "l", "kakek": "l", "siswi": "p", "flanel": "p", "nenek":
 # Pekerja: pose -> file (Array = bergantian tiap 3.5 detik).
 const WORKER := {
 	"build": {"nama": "Pak Joko", "role": "Tukang", "char": "tukang", "map": {"walk": "walk", "stand": "hold", "job": ["repair", "repair", "carry"], "react": "hold"}, "mins": 240},
-	"fix": {"nama": "Boy", "role": "Teknisi", "char": "teknisi", "map": {"walk": "walk", "stand": "idle", "job": ["idle", "fix", "fix"], "react": "happy"}, "mins": 90},
+	"fix": {"nama": "Aji", "role": "Teknisi", "char": "teknisi", "map": {"walk": "walk", "stand": "idle", "job": ["idle", "fix", "fix"], "react": "happy"}, "mins": 90},
 	"deliver": {"nama": "Bang Jali", "role": "Kurir", "char": "kurir", "map": {"walk": "carry", "stand": "idle", "job": "back", "react": "idle"}, "mins": 20},
 }
-## "Mustofa (Petugas Kebersihan)"
+## "Boy (Petugas Kebersihan)"
 static func staff_label(k: String) -> String:
 	return "%s (%s)" % [STAFF[k].nama, STAFF[k].n]
 
