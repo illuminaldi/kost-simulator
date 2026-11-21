@@ -17,6 +17,7 @@ var route: Array = []
 var idle_pose := "stand"
 var pose := "stand"
 var anim := 0.0
+var _running := false   # sedang memakai pose lari (run/run2)
 var dir := 1
 var k := K_LOBBY
 var fade_state := ""     # "" | "out" | "in"
@@ -183,9 +184,6 @@ func _art_tex(p: String) -> Texture2D:
 	if art_map.has(p):
 		var m = art_map[p]
 		base = m[int(anim / 3.5) % m.size()] if m is Array else m
-		# Karyawan/tamu yang memetakan "walk" juga melangkah 2 frame (walk/walk2) seperti penghuni.
-		if p == "walk" and base == "walk" and int(anim * 4.0) % 2 == 1 and _has("walk2"):
-			base = "walk2"
 	else:
 		match p:
 			"walk":
@@ -212,7 +210,8 @@ func _art_tex(p: String) -> Texture2D:
 				base = fb
 				break
 	# Siklus langkah: bergantian kaki depan & kaki berpapasan.
-	if (p == "walk" or p == "climb") and _has(base + "2") and int(anim * (4.0 if p == "walk" else 3.0)) % 2 == 1:
+	_running = p == "walk" and base == "run"
+	if (p == "walk" or p == "climb") and _has(base + "2") and int(anim * (6.0 if _running else 4.0 if p == "walk" else 3.0)) % 2 == 1:
 		base = base + "2"
 	# Pose kerja beranimasi: base -> base2 -> base3 -> base2 (atau 2 frame bila base3 tak ada).
 	elif base in ["wring", "work"] and _has(base + "2"):
@@ -460,6 +459,14 @@ func _refresh() -> void:
 		_sp.scale = Vector2.ONE
 		_sp.rotation = -0.08 * float(dir)
 		_sp.position.y = -absf(sin(anim * 9.5)) * 4.0 * k
+	elif use_art and pose == "walk" and _running:
+		# Lari: langkah cepat & melompat, badan condong ke depan, sedikit memampat saat mendarat.
+		var pr := anim * 6.0 * PI
+		var up := absf(sin(pr))
+		_sp.position.y = -up * 11.0 * k
+		_sp.scale = Vector2(1.0 + (1.0 - up) * 0.035, 1.0 - (1.0 - up) * 0.05 + up * 0.02)
+		_sp.rotation = (0.10 + sin(pr) * 0.045) * float(dir)
+		_sp.position.x = sin(pr * 0.5) * 2.0 * k
 	elif use_art and pose == "walk" and _has("walk2"):
 		# 2 frame bergantian + ayunan badan: naik-turun tiap langkah, sedikit condong ke depan & bergoyang.
 		var ph2 := anim * 4.0 * PI
