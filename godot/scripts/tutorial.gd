@@ -169,16 +169,32 @@ func _kost() -> String:
 
 func _steps() -> Array:
 	return [
-		{"t": "Hai, aku Maryam! Kost ini warisan Nenek dan aku baru jadi penjaganya. Bantu aku mengelola %s, ya? Pelan-pelan saja." % _kost(), "manual": true},
-		{"t": "Ada calon penyewa datang ke lobi. Ketuk tombol Penyewa untuk melihat profilnya.", "at": "penyewa"},
-		{"t": "Sebelum menerima, cek dulu latar belakangnya: ketuk \"Cek KTP & slip gaji\". Penyewa yang sering telat bayar bikin rugi!", "top": true},
-		{"t": "Kalau aman, tutup panel ini. Lalu Hold (tahan) calon penyewa di lobi, seret, dan Drop (lepas) di kamar kosong.", "at": "room", "from": "guest"},
-		{"t": "Kamar makin nyaman & sewanya makin mahal kalau perabotnya lengkap. Ketuk Beli, lalu pilih Lampu.", "at": "beli"},
-		{"t": "Pickup sedang datang membawa kotaknya. Begitu kotak muncul, Hold (tahan) kotaknya, seret, lalu Drop (lepas) di kamar.", "at": "boxroom", "from": "box"},
-		{"t": "Bang Jali si kurir akan mengantar ke kamar. Sekarang ketuk Karyawan dan rekrut Boy, petugas kebersihan.", "at": "karyawan"},
-		{"t": "Terakhir: ketuk jam di kanan atas untuk mempercepat waktu.", "at": "jam"},
-		{"t": "Makasih udah bantu! %s siap berkembang. Kalau ada masalah, cek menu Kelola ya. Semangat!" % _kost(), "manual": true, "end": true},
+		{"id": "hai", "t": "Hai, aku Maryam! Kost ini warisan Nenek dan aku baru jadi penjaganya. Bantu aku mengelola %s, ya? Pelan-pelan saja." % _kost(), "manual": true},
+		{"id": "penyewa", "t": "Ada calon penyewa datang ke lobi. Ketuk tombol Penyewa untuk melihat profilnya.", "at": "penyewa"},
+		{"id": "cek", "t": "Sebelum menerima, cek dulu latar belakangnya: ketuk \"Cek KTP & slip gaji\". Penyewa yang sering telat bayar bikin rugi!", "top": true},
+		{"id": "masuk", "t": "Kalau aman, tutup panel ini. Lalu Hold (tahan) calon penyewa di lobi, seret, dan Drop (lepas) di kamar kosong.", "at": "room", "from": "guest"},
+		{"id": "tagih", "t": "Penghuni sudah bayar sewa! Kalau ada koin di atas kamar, itu tagihan. Tap koinnya untuk menagih.", "at": "coin"},
+		{"id": "paket", "t": "Ada paket makanan dari ojol, dititipkan di meja lobi. Hold (tahan) kantongnya, seret, lalu Drop di kamar pemesannya.", "at": "bagroom", "from": "bag"},
+		{"id": "kotor", "t": "Waduh, kamar ini kotor! Penghuni jadi kurang betah. Tap kamarnya dulu.", "at": "dirtyroom"},
+		{"id": "bersih", "t": "Ketuk \"Bersihkan\" supaya kamarnya kinclong lagi.", "top": true, "at": "dirtyroom"},
+		{"id": "beli", "t": "Biar kamar makin nyaman & aesthetic (sewanya juga bisa naik), lengkapi perabotnya. Ketuk Beli, lalu pilih Lampu.", "at": "beli"},
+		{"id": "kotak", "t": "Pickup sedang datang membawa kotaknya. Begitu kotak muncul, Hold (tahan) kotaknya, seret, lalu Drop (lepas) di kamar.", "at": "boxroom", "from": "box"},
+		{"id": "rekrut", "t": "Bang Jali si kurir akan mengantar ke kamar. Kalau uang sudah cukup, rekrut karyawan biar kost jalan sendiri. Ketuk Karyawan dan rekrut Boy, petugas kebersihan.", "at": "karyawan"},
+		{"id": "autopilot", "t": "Mantap! Sekarang Boy membersihkan kamar kotor otomatis. Nanti kalau uang makin banyak: rekrut Satpam John (usir maling & preman), Teknisi Aji (perbaiki kerusakan), dan karyawan fasilitas. Kost-mu jadi auto-pilot!", "manual": true},
+		{"id": "aesthetic", "t": "Sisihkan juga uang untuk perabot & cat kamar. Kamar yang aesthetic bikin penghuni betah, rating naik, dan sewa bisa lebih mahal.", "manual": true},
+		{"id": "jam", "t": "Terakhir: ketuk jam di kanan atas untuk mempercepat waktu.", "at": "jam"},
+		{"id": "selesai", "t": "Makasih udah bantu! %s siap berkembang. Tagih sewa, antar paket, jaga kebersihan, lalu kembangkan kost-mu. Semangat!" % _kost(), "manual": true, "end": true},
 	]
+
+
+func _sid() -> String:
+	return str(_steps()[step].get("id", ""))
+
+
+## Kamar penghuni yang dipakai untuk latihan (penghuni pertama).
+func _tenant_room() -> String:
+	var et: Array = game.each_tenant()
+	return "" if et.is_empty() else str(et[0][0])
 
 
 func _enter() -> void:
@@ -190,6 +206,28 @@ func _enter() -> void:
 	_base = {"tenants": game.each_tenant().size(), "speed": int(S.speed), "jobs": S.jobs.size(), "orders": S.get("orders", []).size() + S.cargo.size()}
 	if step == 1 and S.queue.is_empty():
 		S.next_cand = 0.0     # datangkan calon penyewa sekarang
+	var rid := _tenant_room()
+	match _sid():
+		"tagih":
+			# Munculkan tagihan sewa di kamar penghuni supaya bisa langsung dilatih.
+			if rid != "" and float(S.rooms[rid].get("due", 0.0)) <= 0.0:
+				S.rooms[rid].due = game.rent_of(S.rooms[rid])
+			game.dirty = true
+		"paket":
+			if rid != "":
+				var t: Dictionary = S.rooms[rid].tenant
+				if not S.has("bags"): S.bags = []
+				if S.bags.is_empty():
+					game.drop_bag(str(t.id), str(t.name), rid, "nasi padang")
+				game.keeper_say("Titipan makanan buat %s, nih!" % t.name, 3.0)
+			_base["bag"] = str(S.bags[0].id) if S.get("bags", []).size() > 0 else ""
+		"kotor":
+			if rid != "" and float(S.rooms[rid].clean) > 40.0:
+				S.rooms[rid].clean = 30.0
+				game.dirty = true
+			_base["room"] = rid
+		"bersih":
+			_base["room"] = rid
 	game.S.tut = step
 	bubble.reset_size()
 
@@ -213,16 +251,26 @@ func finish(skipped: bool) -> void:
 
 func _done() -> bool:
 	var S: Dictionary = game.S
-	match step:
-		1: return ui.kind == "tenants" and S.queue.size() > 0
-		2:
+	var rid := _tenant_room()
+	match _sid():
+		"penyewa": return ui.kind == "tenants" and S.queue.size() > 0
+		"cek":
 			if S.queue.is_empty(): return true
 			return S.queue[0].get("checked", {}).has("kerja")
-		3: return game.each_tenant().size() > int(_base.tenants)
-		4: return S.get("orders", []).size() + S.cargo.size() > int(_base.orders) or _has_job("deliver")
-		5: return _has_job("deliver")
-		6: return S.staff.get("cleaner", false)
-		7: return int(S.speed) != int(_base.speed)
+		"masuk": return game.each_tenant().size() > int(_base.tenants)
+		"tagih": return rid == "" or float(S.rooms[rid].get("due", 0.0)) <= 0.0
+		"paket":
+			var bid: String = _base.get("bag", "")
+			if bid == "": return true
+			for bg in S.get("bags", []):
+				if str(bg.id) == bid: return false
+			return true
+		"kotor": return rid == "" or (ui.kind == "room" and ui.arg == rid) or float(S.rooms[rid].clean) >= 99.0
+		"bersih": return rid == "" or float(S.rooms[rid].clean) >= 99.0
+		"beli": return S.get("orders", []).size() + S.cargo.size() > int(_base.orders) or _has_job("deliver")
+		"kotak": return _has_job("deliver")
+		"rekrut": return S.staff.get("cleaner", false)
+		"jam": return int(S.speed) != int(_base.speed)
 	return false
 
 
@@ -249,6 +297,9 @@ func _source() -> Variant:
 		"box":
 			if game.S.cargo.size() > 0 and game.box_nodes.size() > 0:
 				return game.box_nodes[0].get_global_transform() * Vector2(0, -30)
+		"bag":
+			if game.bag_nodes.size() > 0 and is_instance_valid(game.bag_nodes[0]):
+				return game.bag_nodes[0].get_global_transform() * Vector2(0, -40)
 	return null
 
 
@@ -272,6 +323,21 @@ func _target() -> Variant:
 			for id in D.ROOMS:
 				if game.S.rooms[id].built: return _room_center(id)
 			return null
+		"coin":
+			var rid := _tenant_room()
+			if rid == "" or not game.room_fx.has(rid): return null
+			var c: Control = game.room_fx[rid]._coin
+			if c == null or not c.visible: return _room_center(rid)
+			return c.get_global_transform() * (c.size / 2.0)
+		"bagroom":
+			var bags: Array = game.S.get("bags", [])
+			if bags.is_empty(): return null
+			var br := str(bags[0].room)
+			return _room_center(br) if br != "" else null
+		"dirtyroom":
+			var rid := _tenant_room()
+			if rid == "" or (_sid() == "bersih" and ui.kind == "room"): return null
+			return _room_center(rid)
 		"truck":
 			if game.S.cargo.size() > 0 and game.box_nodes.size() > 0:
 				return game.box_nodes[0].get_global_transform() * Vector2(0, -40)
@@ -290,7 +356,7 @@ func _process(dt: float) -> void:
 	var sp = _source()
 	var st: Dictionary = _steps()[step]
 	# Saat panel terbuka, panah ke dunia disembunyikan (kecuali tombol navigasi).
-	var hide_world: bool = ui.kind != "" and st.get("at", "") in ["room", "boxroom", "truck"]
+	var hide_world: bool = ui.kind != "" and st.get("at", "") in ["room", "boxroom", "truck", "coin", "bagroom", "dirtyroom"]
 	for c in [arrow, ring, arrow2, ring2, tag1, tag2, dot]:
 		c.visible = false
 	_layout(tp if not hide_world else null, sp if not hide_world else null)
