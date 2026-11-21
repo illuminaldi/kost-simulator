@@ -4,7 +4,7 @@
 // Incrementing CACHE_VERSION will kick off the install event and force
 // previously cached resources to be updated from the network.
 /** @type {string} */
-const CACHE_VERSION = '1795226604|17713147';
+const CACHE_VERSION = '1795227369|4295387';
 /** @type {string} */
 const CACHE_PREFIX = 'Cozy Kost - Land-sw-cache-';
 const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
@@ -17,7 +17,7 @@ const ENSURE_CROSSORIGIN_ISOLATION_HEADERS = false;
 const CACHED_FILES = ["index.html","index.js","index.offline.html","index.icon.png","index.apple-touch-icon.png","index.audio.worklet.js","index.audio.position.worklet.js"];
 // Files that we might not want the user to preload, and will only be cached on first load.
 /** @type {string[]} */
-const CACHEABLE_FILES = ["index.wasm","index.2906d19c5b.pck"];
+const CACHEABLE_FILES = ["index.wasm","index.a99c15cf0f.pck"];
 const FULL_CACHE = CACHED_FILES.concat(CACHEABLE_FILES);
 
 self.addEventListener('install', (event) => {
@@ -106,6 +106,10 @@ self.addEventListener(
 				// Try to use cache first
 				const cache = await caches.open(CACHE_NAME);
 				if (isNavigate) {
+					try {
+						const fresh = await fetchAndCache(event, cache, isCacheable);
+						if (fresh && fresh.ok) return fresh;
+					} catch (e) { /* offline: pakai cache */ }
 					// Check if we have full cache during HTML page request.
 					/** @type {Response[]} */
 					const fullCache = await Promise.all(FULL_CACHE.map((name) => cache.match(name)));

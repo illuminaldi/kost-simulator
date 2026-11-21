@@ -39,6 +39,7 @@ static func tex(L: Dictionary, pose: String, frame: int, k: float) -> Texture2D:
 		push_warning("SVG gagal dirender: %s" % pose)
 		img = Image.create(8, 8, false, Image.FORMAT_RGBA8)
 	var t := ImageTexture.create_from_image(img)
+	if _cache.size() > 300: _cache.clear()   # batasi memori (HP)
 	_cache[key] = t
 	return t
 

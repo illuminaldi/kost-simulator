@@ -112,7 +112,7 @@ body {
 
 		<script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","mainPack":"index.2906d19c5b.pck","experimentalVK":false,"fileSizes":{"index.2906d19c5b.pck":22407168,"index.wasm":39509339},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"serviceWorker":"index.service.worker.js"};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","mainPack":"index.a99c15cf0f.pck","experimentalVK":false,"fileSizes":{"index.a99c15cf0f.pck":22067776,"index.wasm":39509339},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"serviceWorker":"index.service.worker.js"};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
@@ -216,6 +216,6 @@ const engine = new Engine(GODOT_CONFIG);
 	}
 }());
 		</script>
-	</body>
+	<script>(function(){var n=document.getElementById('status-notice');if(!n)return;var mo=new MutationObserver(function(){var t=n.textContent||'';if(t.indexOf('Failed loading')<0&&t.indexOf('Gagal')<0)return;var k='cozy_heal';var c=+(sessionStorage.getItem(k)||0);if(c>=2)return;sessionStorage.setItem(k,c+1);n.textContent='Memperbarui game...';var go=function(){location.replace(location.pathname+'?v='+Date.now())};if(window.caches){caches.keys().then(function(ks){return Promise.all(ks.map(function(x){return caches.delete(x)}))}).then(go,go)}else go()});mo.observe(n,{childList:true,subtree:true,characterData:true});setTimeout(function(){sessionStorage.removeItem('cozy_heal')},60000)})();</script></body>
 </html>
 

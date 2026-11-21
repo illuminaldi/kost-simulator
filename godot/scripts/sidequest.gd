@@ -662,14 +662,14 @@ class _Mug extends Node2D:
 	var _a := 0.0          # 0..1 progres animasi minum
 	var _wig := 0.0
 	var t := 0.0
-	var _tex: Texture2D = preload("res://assets/side/cafe_mug.png")
-	var _tex_sip: Texture2D = preload("res://assets/side/cafe_mug_sip.png")
+	var _tex: Texture2D = load("res://assets/side/cafe_mug.png")
+	var _tex_sip: Texture2D = load("res://assets/side/cafe_mug_sip.png")
 	const ORG := Vector2(852.67, 1600)   # tekstur ditambal 70px (3x) di kiri
 	const PIV := Vector2(1284, 1824)
 	const C := Vector2(1046, 1703)
 	const RX := 180.0
 	const RY := 80.0
-	const HR := 3.0                     # tekstur 3x lebih tajam untuk zoom
+	const HR := 2.0                     # tekstur 2x lebih tajam untuk zoom
 	const ZMAX := 4.2                   # saat diseruput gelas mendekat sampai memenuhi layar
 	const ZPIV := Vector2(1719, 1470)
 	const DUR := 1.5
@@ -1592,10 +1592,9 @@ class _Walk extends Node2D:
 				_frames.append(_flip_tex(tx0) if dir < 0 else tx0)
 			return
 		_city = load("res://assets/side/kota.jpg" if theme == "kota" else "res://assets/side/taman.png")
-		var ci := _city.get_image()
-		_sky = ci.get_pixel(ci.get_width() / 2, 4)
-		ci.flip_x()
-		_city_f = ImageTexture.create_from_image(ci)
+		# Hemat memori (iPhone): jangan salin/cermin gambar latar ukuran penuh.
+		_sky = Color("cfe3ee") if theme != "kota" else Color("d7e6ee")
+		_city_f = _city
 		_make_traffic()
 		if theme != "kota": _init_park()
 		for f in ["walk", "walk2"]:
@@ -2114,7 +2113,7 @@ class _Ball extends Node2D:
 ## Tombol panah & "Hirup Kopi" (dulu bagian dari ilustrasi).
 class _CafeDeco extends Node2D:
 	var font: Font
-	var _mug: Texture2D = preload("res://assets/side/cafe_mug.png")
+	var _mug: Texture2D = null
 
 	func _card(r: Rect2) -> void:
 		var sb := StyleBoxFlat.new()
