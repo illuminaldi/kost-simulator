@@ -5579,6 +5579,11 @@ func _handle_cli(args: PackedStringArray) -> void:
 			S.rooms["1L"].clean = 20.0
 			S.rooms["2R"].broken = "AC rusak"
 		elif a.begins_with("--speed="): S.speed = int(a.substr(8))
+		elif a.begins_with("--broke="):
+			var bid := a.get_slice("=", 1)
+			get_tree().create_timer(0.6).timeout.connect(func():
+				S.rooms[bid].broken = D.ISSUES.keys()[0]
+				ui.open_sheet("room", bid))
 		elif a.begins_with("--open="):
 			S.seen = true
 			ui.close_sheet()
