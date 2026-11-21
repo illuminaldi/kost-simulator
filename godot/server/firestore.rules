@@ -1,0 +1,9 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Catatan pembelian hanya ditulis/dibaca oleh Cloud Function (Admin SDK), tidak dari aplikasi.
+    match /cozykost_purchases/{id} {
+      allow read, write: if false;
+    }
+  }
+}

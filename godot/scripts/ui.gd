@@ -885,7 +885,11 @@ func update_hud() -> void:
 	nav_badge_lbl.text = str(q)
 
 
+var no_toast := false   # debug: screenshot toko tanpa notifikasi
+
+
 func toast(msg: String, style: String = "") -> void:
+	if no_toast: return
 	var col := Color("fffaf0")
 	if style == "gold": col = Color("fff1b8")
 	elif style == "bad": col = Color("ffe0d6")
@@ -1326,11 +1330,21 @@ func _shop_view() -> void:
 	g2.add_theme_constant_override("v_separation", 18)
 	box.add_child(g2)
 	var i := 0
+	var st: Store = game.store
+	var can: bool = Store.available() and st != null and st.ready_to_buy()
 	for pk in game.DIAMOND_PACKS:
-		g2.add_child(_shop_card(PACK_PIC[i], "%s Diamond" % pk[0], "", PACK_BADGE[i],
-			_btn(pk[1], D.C_GREEN, func(): pass, true, true, "Pembelian Diamond tersedia di aplikasi Android (segera hadir)."), 170.0))
+		var pid: String = pk[0]
+		var lbl: String = st.price(pid, pk[2]) if st else pk[2]
+		var why := "Pembelian Diamond tersedia di aplikasi Android." if not Store.available() else "Menghubungkan ke Google Play..."
+		g2.add_child(_shop_card(PACK_PIC[i], "%s Diamond" % pk[1], "", PACK_BADGE[i],
+			_btn(lbl, D.C_GREEN, func(): st.buy(pid), not can, true, why), 170.0))
 		i += 1
-	box.add_child(_text("Pembelian Diamond lewat Google Play tersedia di aplikasi Android (segera hadir). Di versi web, Diamond didapat dari hadiah awal.", 28, D.C_MUTED))
+	if not Store.available():
+		box.add_child(_text("Pembelian Diamond lewat Google Play tersedia di aplikasi Android. Di versi web, Diamond didapat dari hadiah awal.", 28, D.C_MUTED))
+	elif st and st.status != "":
+		box.add_child(_text(st.status, 28, D.C_MUTED))
+	else:
+		box.add_child(_text("Pembayaran lewat Google Play. Diamond masuk setelah pembelian terverifikasi.", 28, D.C_MUTED))
 
 
 func _shop_card(pic: String, title: String, desc: String, badge: String, btn: Button, img := 220.0) -> Control:

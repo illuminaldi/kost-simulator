@@ -98,6 +98,11 @@ func _ready() -> void:
 	if S.is_empty():
 		_new_game()
 	_load_wallet()
+	store = Store.new()
+	add_child(store)
+	store.setup(self)
+	store.changed.connect(func():
+		if ui and ui.sheet and ui.sheet.visible and ui.kind == "toko": ui.refresh_sheet())
 	wa = WaGroup.new(self)
 	apply_volume.call_deferred()
 	if int(S.speed) > 2: S.speed = 2
@@ -969,6 +974,7 @@ func _screen(pid: String, check: String) -> void:
 
 # ================= Dompet: Diamond & Tiket Ngebut =================
 var W := {}
+var store: Store
 
 
 func _load_wallet() -> void:
@@ -1038,7 +1044,8 @@ const SHOP := {
 	"uang1": {"n": "Kantong Uang", "d": "", "cost": 30, "money": 500000},
 	"uang2": {"n": "Peti Uang", "d": "", "cost": 100, "money": 2000000},
 }
-const DIAMOND_PACKS := [["60", "Rp 15.000"], ["330 (+10%)", "Rp 75.000"], ["700 (+17%)", "Rp 150.000"]]
+## [id produk Google Play, label, harga cadangan (kalau harga lokal belum dimuat)]
+const DIAMOND_PACKS := [["diamond_60", "60", "Rp 15.000"], ["diamond_330", "330 (+10%)", "Rp 75.000"], ["diamond_700", "700 (+17%)", "Rp 150.000"]]
 
 
 func shop_money(k: String) -> float:
@@ -5616,6 +5623,8 @@ func _handle_cli(args: PackedStringArray) -> void:
 		elif a == "--renovtest":
 			S.lvl = 9; S.rep = 5.0; S.money = 99000000.0
 			renovate_floor(9)
+		elif a == "--notoast":
+			ui.no_toast = true
 		elif a == "--onartest":
 			get_tree().create_timer(0.5).timeout.connect(func():
 				S.lvl = 8
