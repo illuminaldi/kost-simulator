@@ -1763,6 +1763,7 @@ func _hourly() -> void:
 	if wa: wa.hourly(h)
 	if season: season.hourly(h)
 	_maybe_sampah(h)
+	_maybe_pest(h)
 	for id in D.ROOMS:
 		var r: Dictionary = S.rooms[id]
 		if not r.built:
@@ -2243,7 +2244,7 @@ var season: Season
 
 
 func _salary_total() -> float:
-	var s := float(D.OUTSRC.sampah.lv[out_lv("sampah")].get("fee", 0))
+	var s := float(D.OUTSRC.sampah.lv[out_lv("sampah")].get("fee", 0)) + float(D.OUTSRC.pest.lv[out_lv("pest")].get("fee", 0))
 	for k in S.staff:
 		if S.staff[k]: s += staff_sal(k) * staff_crew(k)
 	for k in S.apps:
@@ -2302,6 +2303,7 @@ func _offline_gain() -> void:
 func _pay_salary() -> void:
 	var s := 0.0
 	s += float(D.OUTSRC.sampah.lv[out_lv("sampah")].get("fee", 0))
+	s += float(D.OUTSRC.pest.lv[out_lv("pest")].get("fee", 0))
 	for k in S.staff:
 		if S.staff[k]:
 			s += staff_sal(k) * staff_crew(k)
@@ -3565,6 +3567,7 @@ func _roll_events() -> void:
 		var pmul := 0.4 if (k == "area_kotor" and has_facil("dapur")) else 1.0
 		if season: pmul *= season.event_mul(k)
 		if k == "telat_bayar" and has_app("kelolapro"): pmul *= 0.3
+		if k in D.PEST_EV: pmul *= [1.0, 0.5, 0.2, 0.05][out_lv("pest")]
 		var room := ""
 		if ev.scope == "room":
 			var pool := []
@@ -6329,6 +6332,45 @@ func spawn_sampah() -> void:
 					sampah = null)}})
 
 
+# ---------------- Mas Dimas, Pest Control (outsource) ----------------
+var pest: Npc
+
+
+func _maybe_pest(h: int) -> void:
+	var lv := out_lv("pest")
+	if lv == 0 or pest != null or h != 9: return
+	if int(S.day) % [1, 7, 3, 1][lv] != 0: return
+	spawn_pest()
+
+
+func spawn_pest() -> void:
+	var n := Npc.new()
+	npc_lobby.add_child(n)
+	n.setup("pest", "visitor", D.STAFF_LOOK.teknisi, Vector2(-260, D.LOBBY_Y), font)
+	n.art = true
+	n.char_id = "pest"
+	n.art_map = {"walk": "walk", "stand": "idle", "spray": "idle", "happy": "happy"}
+	n.set_meta("nama", D.OUTSRC.pest.nama)
+	npcs["pest"] = n
+	pest = n
+	n.plan("lobby", Vector2(620, D.LOBBY_Y), "stand", func(m: Npc):
+		m.say(["Permisi, Mbak Maryam! Jadwal semprot rutin~", "Pest Control datang! Tikus kecoa, minggir dulu ya.", "Fogging nyamuk dulu biar penghuni aman."].pick_random(), 3.0)
+		m.work = {"t": 4.0, "pose": "spray", "fn": func(k: Npc):
+			var done := 0
+			for e in S.events.duplicate():
+				if str(e.type) in D.PEST_EV:
+					_resolve_event(e, "temp", 0, true)
+					done += 1
+			if out_lv("pest") >= 3:
+				for x in each_tenant():
+					x[1].tenant.happy = clampf(float(x[1].tenant.happy) + 1.0, 0, 100)
+			k.say("Beres! %s" % ("Hama sudah dibasmi." if done > 0 else "Kost bersih dari hama."), 2.6)
+			k.work = {"t": 1.8, "pose": "happy", "fn": func(z: Npc):
+				z.plan("lobby", Vector2(-300, D.LOBBY_Y), "stand", func(y: Npc):
+					_remove_npc(y)
+					pest = null)}})
+
+
 # ---------------- Interaksi penghuni dengan fasilitas & karyawannya ----------------
 const FACIL_TALK := {
 	"laundry": [["Mas Budi, cuci kilat bisa?", "Bisa! Sore udah wangi."], ["Titip seprai ya, Mas.", "Siap, sekalian disetrika."]],
@@ -6721,7 +6763,8 @@ func _fire_tick(mins: float) -> void:
 		if float(S.fire[rid]) >= spread and not S.has("fire_spread_" + rid):
 			S["fire_spread_" + rid] = true
 			for nb in _fire_neighbors(rid):
-				if not S.fire.has(nb) and S.rooms[nb].built:
+				# Tetangga bisa di luar gedung (lantai teratas/terbawah): lewati.
+				if S.rooms.has(nb) and not S.fire.has(nb) and S.rooms[nb].built:
 					start_fire(nb)
 					ui.toast("Api menjalar ke Kamar %s!" % D.room_name(nb), "bad")
 					break

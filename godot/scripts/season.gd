@@ -91,6 +91,7 @@ func happy_bonus() -> float:
 ## Peluang masalah tertentu naik di musim hujan.
 func event_mul(k: String) -> float:
 	if key == "hujan" and k == "atap_bocor": return 2.0
+	if key == "hujan" and k == "nyamuk": return 2.0
 	return 1.0
 
 

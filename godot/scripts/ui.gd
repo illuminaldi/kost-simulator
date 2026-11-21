@@ -561,6 +561,11 @@ func _event_card(e: Dictionary) -> void:
 			v.add_child(_text("%s sedang menangani (±%d jam)." % [st.nama, maxi(1, int(e.auto))], 32, Color("3f6f96")))
 		else:
 			v.add_child(_text("Bisa ditangani otomatis oleh %s (%s)." % [st.nama, st.n], 30, D.C_MUTED))
+	if str(e.type) in D.PEST_EV:
+		if game.out_lv("pest") > 0:
+			v.add_child(_text("%s (Pest Control) membasmi saat kunjungan rutin berikutnya." % D.OUTSRC.pest.nama, 30, Color("3f6f96")))
+		else:
+			v.add_child(_text("Langganan Pest Control (Karyawan › Outsource) supaya hama dibasmi rutin.", 30, D.C_MUTED))
 	var f := _flow(v)
 	for i in range(ev.opts.size()):
 		var o: Array = ev.opts[i]
@@ -1892,14 +1897,14 @@ func _staff_outsource() -> void:
 		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		pic.custom_minimum_size = Vector2(170, 250)
-		if k == "sampah" and lv == 0: pic.modulate = Color(0.45, 0.45, 0.45, 0.7)
+		if k in ["sampah", "pest"] and lv == 0: pic.modulate = Color(0.45, 0.45, 0.45, 0.7)
 		hb.add_child(pic)
 		var col := VBoxContainer.new()
 		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		hb.add_child(col)
 		v.add_child(hb)
 		_row(col, _label(o.nama, 42), _label(o.n, 30, Color("8a5a3a"), true))
-		col.add_child(_label("Sekarang: %s" % cur.n, 32, Color("2f7a2a") if not (k == "sampah" and lv == 0) else Color("9b2f1c"), true))
+		col.add_child(_label("Sekarang: %s" % cur.n, 32, Color("2f7a2a") if not (k in ["sampah", "pest"] and lv == 0) else Color("9b2f1c"), true))
 		col.add_child(_text(cur.d, 30, D.C_MUTED))
 		if lv < o.lv.size() - 1:
 			var nx: Dictionary = o.lv[lv + 1]
@@ -1907,7 +1912,7 @@ func _staff_outsource() -> void:
 			if D.OUTSRC[k].get("dia", false):
 				col.add_child(_btn("Upgrade · %d Diamond" % int(nx.cost), Color("8fd3f4"), func(): _do("out_up", k)))
 			else:
-				var label: String = ("Langganan · " if k in ["sampah", "polisi", "damkar"] and lv == 0 else "Upgrade · ") + D.short(float(nx.cost))
+				var label: String = ("Langganan · " if k in ["sampah", "pest", "polisi", "damkar"] and lv == 0 else "Upgrade · ") + D.short(float(nx.cost))
 				col.add_child(_btn(label, D.C_YELLOW, func(): _do("out_up", k), float(S.money) < float(nx.cost), false, money_why(float(nx.cost))))
 		else:
 			col.add_child(_label("Layanan terbaik sudah aktif", 30, Color("2f7a2a"), true))
@@ -2558,7 +2563,61 @@ func _cancel_press() -> void:
 	_cancelling = false
 
 
+# ---------- Indikator uang masuk/keluar di bawah saldo ----------
+# Setiap perubahan saldo (sewa masuk, maling/preman, belanja, gaji...) muncul sebagai +Rp / -Rp.
+var _money_last := NAN
+var _money_acc := 0.0
+var _money_t := 0.0
+
+
+func _money_tick(delta: float) -> void:
+	if game == null or game.S.is_empty(): return
+	var m := float(game.S.get("money", 0.0))
+	if is_nan(_money_last):
+		_money_last = m
+		return
+	var d := m - _money_last
+	_money_last = m
+	if absf(d) >= 1.0:
+		_money_acc += d
+		_money_t = 0.35          # kumpulkan perubahan beruntun jadi satu angka
+	elif _money_t > 0.0:
+		_money_t -= delta
+		if _money_t <= 0.0 and absf(_money_acc) >= 1.0:
+			_money_pop(_money_acc)
+			_money_acc = 0.0
+
+
+func _money_pop(amt: float) -> void:
+	var up := amt > 0.0
+	var pill := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color("3f9a4a") if up else Color("d0463a")
+	sb.border_color = Color.WHITE
+	sb.set_border_width_all(4)
+	sb.set_corner_radius_all(30)
+	sb.content_margin_left = 22
+	sb.content_margin_right = 22
+	sb.content_margin_top = 2
+	sb.content_margin_bottom = 6
+	sb.shadow_color = Color(0, 0, 0, 0.25)
+	sb.shadow_offset = Vector2(0, 4)
+	pill.add_theme_stylebox_override("panel", sb)
+	pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pill.z_index = 90
+	pill.add_child(_label(("+" if up else "−") + D.rp(absf(amt)), 40, Color.WHITE))
+	add_child(pill)
+	pill.reset_size()
+	pill.position = Vector2(176, 178)
+	var tw := pill.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(pill, "position:y", pill.position.y + (-30.0 if up else 40.0), 1.8).set_ease(Tween.EASE_OUT)
+	tw.tween_property(pill, "modulate:a", 0.0, 0.8).set_delay(1.4)
+	tw.chain().tween_callback(pill.queue_free)
+
+
 func _process(delta: float) -> void:
+	_money_tick(delta)
 	if _sdrag.is_empty() and absf(_svel) > 30.0 and overlay.visible:
 		scroll.scroll_vertical = int(scroll.scroll_vertical - _svel * delta)
 		_svel *= pow(0.04, delta)
