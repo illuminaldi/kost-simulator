@@ -190,7 +190,12 @@ func _art_tex(p: String) -> Texture2D:
 				if base == "walk" and int(anim * 4.0) % 2 == 1 and _has("walk2"):
 					base = "walk2"
 			"climb": base = "walk"
-			"sit": base = "floor" if (variant == 0 or not _has("chair")) else "chair"
+			"sit":
+				if scene.begins_with("S") or scene == "lobby":
+					# ruang tunggu/lobi tidak punya alas duduk: pakai pose kursi (kursinya ikut tergambar) atau berdiri
+					base = "chair" if _has("chair") else "idle"
+				else:
+					base = "floor" if (variant == 0 or not _has("chair")) else "chair"
 			"work": base = "chair" if _has("chair") else "floor"
 			"lie": base = "sleep"
 			"sweep", "fix": base = "floor"

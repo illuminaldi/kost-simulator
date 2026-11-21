@@ -3668,7 +3668,7 @@ func _goal_of(w: Dictionary) -> Dictionary:
 	if w.kind == "cand":
 		if has_facil("tunggu") and (w.p.get("auto", false) or (int(w.slot) >= 1 and waiting_room_on())):
 			var ff := facil_floor("tunggu")
-			var off := (float(int(w.slot) - 1) - 1.0) * 52.0
+			var off := (float(int(w.slot) - 1) - 1.0) * 88.0
 			return {"key": "wait%d" % int(w.slot), "scene": "S%d" % ff, "spot": D.facil_spot(ff) + Vector2(off, 0), "pose": "sit"}
 		var slot := mini(int(w.slot), 3)
 		return {"key": "q%d" % slot, "scene": "lobby", "spot": Vector2(D.QUEUE_X[slot], D.LOBBY_Y), "pose": "stand"}
@@ -6963,9 +6963,14 @@ class _HubSign extends Node2D:
 		_spr("car_green", Vector2(680, Y(408)), 132)
 		# mobil datang dari kanan, berhenti di depan palang, lalu mundur keluar
 		var cyc := fmod(t, 13.0)
-		var x := 990.0
-		if cyc < 4.0: x = lerpf(1560.0, 990.0, ease(cyc / 4.0, 0.5))
-		elif cyc > 8.0: x = lerpf(990.0, 1560.0, ease(clampf((cyc - 8.0) / 4.0, 0, 1), 2.0))
+		# berhenti tepat sebelum badan tangga (tidak menabrak tangga)
+		var cw := 231.0
+		var ctx := _tex("car_white")
+		if ctx: cw = ctx.get_size().x * 140.0 / ctx.get_size().y
+		var stop: float = maxf(990.0, float(quad[2].x) + cw / 2.0 + 18.0)
+		var x := stop
+		if cyc < 4.0: x = lerpf(1560.0, stop, ease(cyc / 4.0, 0.5))
+		elif cyc > 8.0: x = lerpf(stop, 1560.0, ease(clampf((cyc - 8.0) / 4.0, 0, 1), 2.0))
 		_spr("car_white", Vector2(x, Y(414)), 140, true)
 
 	func _a_tol() -> void:
