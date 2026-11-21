@@ -4193,7 +4193,7 @@ func _spawn_staff(role: String, on: bool, ci: int) -> void:
 				n.art_map = {"walk": "walk", "stand": ["idle", "inspect", "idle", "help"]}
 			elif role == "trainer":
 				n.char_id = "trainer"
-				n.art_map = {"walk": "walk", "stand": "idle", "counter": ["idle", "lift", "clip", "happy"]}
+				n.art_map = {"walk": "walk", "stand": "idle", "counter": ["curl", "idle", "press", "raise", "clip", "hammer", "lift", "happy"]}
 			elif role in ["laundry", "kantin", "barista", "kasir", "tani", "lele", "petshop", "florist", "koperasi", "warteg"]:
 				n.char_id = role
 				n.art_map = {"walk": "walk", "stand": "happy" if role == "laundry" else "idle", "counter": "happy" if role == "laundry" else ["idle", "happy"]}
