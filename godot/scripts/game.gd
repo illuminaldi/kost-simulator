@@ -4134,7 +4134,8 @@ func add_job(type: String, room: String, item: String = "", lv: int = 0) -> void
 	# bangun kamar 12 jam, renovasi kamar gosong 3 jam.
 	var real := 0.0
 	if type == "build": real = BUILD_SECS
-	elif type == "fix" and str(S.rooms.get(room, {}).get("broken", "")) == Funny.GOSONG: real = RENO_ROOM_SECS
+	elif type == "fix" and str(S.rooms.get(room, {}).get("broken", "")) == Funny.GOSONG:
+		real = 1800.0 if S.rooms[room].get("reno_light", false) else RENO_ROOM_SECS   # gosong ringan: 30 menit
 	if real > 0.0:
 		real /= [1.0, 1.6, 2.5][out_lv("tukang")] if type == "build" else 1.0
 		S.jobs[-1].end = now_unix() + real
@@ -4191,7 +4192,7 @@ func _finish_job(j: Dictionary) -> void:
 		"fix":
 			if str(r.broken) != "":
 				float_at(j.room, "Diperbaiki", Color("3f6f96"))
-			r.broken = ""
+			r.broken = ""; r.erase("reno_light")
 		"deliver":
 			r.furn[j.item] = int(j.lv)
 			update_tier(r)
@@ -4655,7 +4656,7 @@ func _finish_fix(n: Npc, R: String) -> void:
 	var r: Dictionary = S.rooms[R]
 	if str(r.broken) != "":
 		float_at(R, "Diperbaiki", Color("3f6f96"))
-		r.broken = ""
+		r.broken = ""; r.erase("reno_light")
 	n.target = ""
 	dirty = true
 
@@ -4765,7 +4766,7 @@ func act(a: String, arg: String = "") -> void:
 		"fix":
 			var r: Dictionary = S.rooms[arg]
 			if str(r.broken) == "": return
-			var c: float = D.ISSUES.get(r.broken, 0)
+			var c: float = fix_cost(arg)
 			if float(S.money) < c or job_for(arg, "fix") != {}: return
 			spend(c, "other")
 			add_job("fix", arg)
@@ -5859,6 +5860,20 @@ func _handle_cli(args: PackedStringArray) -> void:
 				elif sv == "padelhow": ui.side.loc = "padel"; S.side = {"padel_intro": true}; ui.side._show_padel()
 				elif sv == "cafein": ui.side.loc = "cafe"; ui.side._show_cafe_in()
 				else: ui.side.loc = "padel"; ui.side._arrive("padel"))
+		elif a == "--firebroke":
+			get_tree().create_timer(0.5).timeout.connect(func():
+				S.money = 50000.0
+				var e: Array = each_tenant()
+				start_fire(e[0][0]); start_fire(e[1][0])
+				call_damkar_paid(e[0][0])
+				print("FIREBROKE money=", S.money, " called=", _fire_called.keys()))
+			var ft := Timer.new(); ft.wait_time = 5.0; ft.autostart = true; add_child(ft)
+			ft.timeout.connect(func():
+				var dk := []
+				for n in npcs.keys(): if str(n).begins_with("damkar"): dk.append([n, npcs[n].scene])
+				print("FB t fires=", S.get("fire", {}), " called=", _fire_called.keys(), " dk=", dk, " min=", S.min))
+			get_tree().create_timer(60.0).timeout.connect(func():
+				print("FIREBROKE after fires=", S.get("fire", {}).keys(), " money=", S.money, " cost=", fix_cost(each_tenant()[0][0]) if not each_tenant().is_empty() else -1.0))
 		elif a.begins_with("--fire"):
 			get_tree().create_timer(0.5).timeout.connect(func():
 				if a.begins_with("--fire="):
@@ -6848,7 +6863,7 @@ func start_fire(rid: String) -> void:
 		npcs[r.tenant.id].say("Kebakaran! Tolong!", 3.0)
 	keeper_say("Ya Allah, ada api! Semua keluar dulu!", 3.0)
 	_fire_flee(rid)
-	if out_lv("damkar") >= 1: _call_damkar(rid)
+	if out_lv("damkar") >= 1 or not _fire_called.is_empty(): _call_damkar(rid)
 
 
 ## Semua orang di kamar terbakar (penghuni & karyawan) lari panik ke lobi.
@@ -6877,6 +6892,10 @@ func _fire_tick(mins: float) -> void:
 	if S.get("fire", {}).is_empty(): return
 	var spread := 500.0 * (1.6 if out_lv("damkar") >= 2 else 1.0)
 	for rid in S.fire.keys():
+		# Damkar sudah dipanggil: api dijaga (tidak menjalar & tidak sampai habis terbakar) sambil menunggu giliran.
+		if _fire_called.has(rid):
+			S.fire[rid] = minf(float(S.fire[rid]) + mins * 0.2, minf(spread - 1.0, 1200.0))
+			continue
 		S.fire[rid] = float(S.fire[rid]) + mins
 		var r: Dictionary = S.rooms[rid]
 		if r.tenant != null:
@@ -6911,6 +6930,9 @@ func _fire_out(rid: String, burnt: bool) -> void:
 	_fire_called.erase(rid)
 	var r: Dictionary = S.rooms[rid]
 	r.broken = Funny.GOSONG
+	# Dipadamkan damkar sebelum habis terbakar: renovasinya jauh lebih murah.
+	if burnt: r.erase("reno_light")
+	else: r.reno_light = true
 	if burnt:
 		for t in r.get("furn", {}).keys():
 			r.furn[t] = maxi(1, int(r.furn[t]) - 1)
@@ -6931,17 +6953,34 @@ func fire_tap(rid: String) -> bool:
 func _call_damkar(rid: String) -> void:
 	if _fire_called.has(rid): return
 	_fire_called[rid] = true
+	for n in npcs.keys():
+		if str(n).begins_with("damkar-"): return   # damkar sudah di gedung: ikut dipadamkan berurutan
 	var delay: float = [9.0, 4.0, 2.0][out_lv("damkar")]
 	get_tree().create_timer(delay).timeout.connect(func(): _damkar_go(rid))
 
 
+## Satu panggilan menangani SEMUA api yang sedang menyala (dan yang menjalar sesudahnya).
+## Uang kurang tidak menghalangi: damkar layanan publik, tetap datang.
+## Biaya perbaikan kamar. Gosong ringan (api cepat dipadamkan) cukup Rp 200rb, bukan Rp 900rb.
+func fix_cost(id: String) -> float:
+	var r: Dictionary = S.rooms[id]
+	if str(r.broken) == Funny.GOSONG and r.get("reno_light", false): return 200000.0
+	return float(D.ISSUES.get(str(r.broken), 0))
+
+
 func call_damkar_paid(rid: String) -> void:
 	ui.close_sheet()
-	if float(S.money) < 100000:
-		ui.toast(ui.money_why(100000), "bad"); return
-	spend(100000, "other")
-	ui.toast("Damkar dihubungi (Rp 100rb). Mereka segera datang!")
+	if float(S.money) >= DAMKAR_FEE:
+		spend(DAMKAR_FEE, "other")
+		ui.toast("Damkar dihubungi (Rp 100rb). Semua api akan dipadamkan!")
+	else:
+		ui.toast("Uangmu kurang, tapi damkar tetap datang gratis. Semua api akan dipadamkan!", "gold")
 	_call_damkar(rid)
+	for o in S.get("fire", {}).keys():
+		_fire_called[o] = true
+
+
+const DAMKAR_FEE := 100000.0
 
 
 func _damkar_go(rid: String) -> void:
@@ -6968,20 +7007,26 @@ func _damkar_go(rid: String) -> void:
 			add_xp(10)
 			ui.toast("Api di Kamar %s berhasil dipadamkan. Kamar perlu dibersihkan dari jelaga." % D.room_name(rid), "gold")
 			# Masih ada api lain? langsung ke sana.
-			var nxt := ""
-			for o in S.get("fire", {}).keys():
-				nxt = o
-				break
-			if nxt != "":
-				_fire_called[nxt] = true
-				k.target = nxt
-				k.plan(nxt, _spot_in(nxt), "spray", func(z: Npc):
-					z.work = {"t": 4.0, "pose": "spray", "fn": func(y: Npc):
-						_fire_out(nxt, false)
-						y.say("Semua padam!", 2.4)
-						_leave_worker(y)})
-			else:
-				k.work = {"t": 1.8, "pose": "happy", "fn": func(z: Npc): _leave_worker(z)}})
+			_damkar_next(k)})
+
+
+## Damkar memadamkan api berikutnya sampai semua padam, baru pulang.
+func _damkar_next(k: Npc) -> void:
+	var nxt := ""
+	for o in S.get("fire", {}).keys():
+		nxt = o
+		break
+	if nxt == "":
+		k.say("Semua padam!", 2.4)
+		k.work = {"t": 1.8, "pose": "happy", "fn": func(z: Npc): _leave_worker(z)}
+		return
+	_fire_called[nxt] = true
+	k.target = nxt
+	k.plan(nxt, _spot_in(nxt), "spray", func(z: Npc):
+		z.work = {"t": 4.0, "pose": "spray", "fn": func(y: Npc):
+			_fire_out(nxt, false)
+			ui.toast("Api di Kamar %s padam." % D.room_name(nxt), "gold")
+			_damkar_next(y)})
 
 
 func _refresh_fire() -> void:

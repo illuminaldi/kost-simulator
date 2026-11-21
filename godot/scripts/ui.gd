@@ -23,6 +23,8 @@ var toasts: VBoxContainer
 var overlay: Control
 var sheet: PanelContainer
 var scroll: ScrollContainer
+## Tombol yang bisa ditunjuk tutorial (diisi ulang tiap halaman dibuat): kunci -> Button.
+var tut_marks := {}
 var tutorial: Tutorial
 var box: VBoxContainer
 var kind := ""
@@ -967,6 +969,7 @@ func refresh_sheet(keep: bool = true) -> void:
 	for c in box.get_children():
 		box.remove_child(c)
 		c.queue_free()
+	tut_marks.clear()
 	match kind:
 		"welcome": _sheet_welcome()
 		"away": _sheet_away()
@@ -1130,7 +1133,9 @@ func _sheet_beli() -> void:
 	tabs.add_theme_constant_override("separation", 10)
 	for t in [["perabot", "Perabot"], ["ruang", "Ruang"], ["layanan", "Layanan"], ["diamond", "Diamond"]]:
 		var key: String = t[0]
-		tabs.add_child(_btn(t[1], D.C_YELLOW if tray_tab == key else Color.WHITE, func(): tray_tab = key; buy_confirm = ""; refresh_sheet(), false, true))
+		var tb := _btn(t[1], D.C_YELLOW if tray_tab == key else Color.WHITE, func(): tray_tab = key; buy_confirm = ""; refresh_sheet(), false, true)
+		tut_marks["tab:" + key] = tb
+		tabs.add_child(tb)
 	box.add_child(tabs)
 	match tray_tab:
 		"perabot":
@@ -1235,7 +1240,9 @@ func _buy_row(key: String, tex: Texture2D, title: String, desc: String, sub: Str
 	right.add_child(pl)
 	if ok:
 		var poor0: bool = money_now and float(S.money) < price
-		right.add_child(_btn(verb, D.C_YELLOW, func(): buy_confirm = key; refresh_sheet(), poor0, false, money_why(price)))
+		var vb := _btn(verb, D.C_YELLOW, func(): buy_confirm = key; refresh_sheet(), poor0, false, money_why(price))
+		tut_marks["buy:" + key] = vb
+		right.add_child(vb)
 	elif sub != "":
 		right.add_child(_btn("Terkunci", D.C_CREAM, func(): pass, true, false, sub))
 	h.add_child(right)
@@ -1247,10 +1254,12 @@ func _buy_row(key: String, tex: Texture2D, title: String, desc: String, sub: Str
 		var f := _flow(cf)
 		f.add_child(_btn("Batal", D.C_CREAM, func(): buy_confirm = ""; refresh_sheet()))
 		if not poor:
-			f.add_child(_btn("Ya, " + verb.to_lower(), D.C_GREEN, func():
+			var yb := _btn("Ya, " + verb.to_lower(), D.C_GREEN, func():
 				buy_confirm = ""
 				fn.call()
-				if kind == "beli": refresh_sheet()))
+				if kind == "beli": refresh_sheet())
+			tut_marks["confirm:" + key] = yb
+			f.add_child(yb)
 		v.add_child(cf)
 
 
@@ -1437,7 +1446,10 @@ func _sheet_fire() -> void:
 	box.add_child(tr)
 	box.add_child(_text("Api bisa menjalar ke kamar sebelah, atas, atau bawah kalau terlalu lama. Segera panggil pemadam!", 32, D.C_INK))
 	var v := _card()
-	v.add_child(_btn("Panggil Damkar · Rp 100rb", D.C_RED, func(): game.call_damkar_paid(rid)))
+	var nf: int = game.S.get("fire", {}).size()
+	var broke: bool = float(game.S.money) < game.DAMKAR_FEE
+	v.add_child(_btn("Panggil Damkar · " + ("gratis (uang kurang)" if broke else "Rp 100rb"), D.C_RED, func(): game.call_damkar_paid(rid)))
+	if nf > 1: v.add_child(_text("Satu panggilan memadamkan semua %d kamar yang terbakar." % nf, 28, Color("3f6f96")))
 	v.add_child(_text("Langganan Damkar (menu Karyawan › Outsource) membuat damkar datang otomatis & gratis.", 28, D.C_MUTED))
 
 
@@ -1736,7 +1748,7 @@ func _sheet_room() -> void:
 	_row(v, _label("Kebersihan", 38, D.C_INK, true), _label("%d%%" % roundi(float(r.clean)), 36, D.C_MUTED))
 	_bar(v, float(r.clean))
 	if str(r.broken) != "":
-		var cost: int = D.ISSUES[r.broken]
+		var cost: float = game.fix_cost(id)
 		_row(v, _label("Kerusakan: " + str(r.broken), 38), (_label("%s datang..." % D.WORKER.fix.nama, 34, Color("3f6f96"), true) if game.job_for(id, "fix") != {} else _btn("Panggil Teknisi " + D.short(cost), D.C_YELLOW, func(): _do("fix", id), float(S.money) < cost, false, money_why(cost))))
 	else:
 		v.add_child(_label("Semua fasilitas berfungsi", 34, D.C_MUTED, true))
@@ -1872,7 +1884,9 @@ func _sheet_staff() -> void:
 	tabs.add_theme_constant_override("separation", 8)
 	for t in [["karyawan", "Karyawan"], ["outsource", "Outsource"], ["resource", "Resource"], ["pengacau", "Pengacau"]]:
 		var key: String = t[0]
-		tabs.add_child(_btn(t[1], D.C_YELLOW if staff_tab == key else Color.WHITE, func(): staff_tab = key; refresh_sheet(), false, true))
+		var stb := _btn(t[1], D.C_YELLOW if staff_tab == key else Color.WHITE, func(): staff_tab = key; refresh_sheet(), false, true)
+		tut_marks["stab:" + key] = stb
+		tabs.add_child(stb)
 	match staff_tab:
 		"outsource": _staff_outsource()
 		"pengacau": _staff_pengacau()
@@ -2086,7 +2100,9 @@ func _staff_list() -> void:
 				f.add_child(_btn("Upgrade ke Lv %d · %s" % [lvk + 1, D.short(uc)], D.C_YELLOW, func(): _do("staff_up", k), float(S.money) < uc, false, money_why(uc)))
 			f.add_child(_btn("Berhentikan", D.C_RED, func(): _do("fire", k)))
 		else:
-			f.add_child(_btn("Rekrut", D.C_YELLOW, func(): _do("hire", k)))
+			var hb2 := _btn("Rekrut", D.C_YELLOW, func(): _do("hire", k))
+			tut_marks["hire:" + k] = hb2
+			f.add_child(hb2)
 
 
 ## Ruang tengah (tangga + fasilitas tambahan) seperti halaman kamar: foto, isi, keuntungan, dan upgrade.

@@ -308,10 +308,41 @@ func _source() -> Variant:
 	return null
 
 
+## Tombol di dalam panel yang sedang terbuka (mis. tab Perabot → Pesan Lampu → Ya, pesan).
+func _mark(keys: Array) -> Variant:
+	for k in keys:
+		var b = ui.tut_marks.get(k)
+		if b == null or not is_instance_valid(b) or not b.is_visible_in_tree(): continue
+		if ui.scroll and ui.scroll.is_ancestor_of(b):
+			var sr: Rect2 = ui.scroll.get_global_rect()
+			var br: Rect2 = b.get_global_rect()
+			if br.position.y < sr.position.y or br.end.y > sr.end.y:
+				ui.scroll.ensure_control_visible(b)
+				return null   # tunggu satu frame setelah digulir
+		return b.get_global_rect().get_center()
+	return null
+
+
+func _panel_target(at: String) -> Variant:
+	match at:
+		"beli":
+			if ui.kind != "beli": return null
+			if ui.tray_tab != "perabot": return _mark(["tab:perabot"])
+			return _mark(["confirm:furn:lampu", "buy:furn:lampu"])
+		"karyawan":
+			if ui.kind != "staff": return null
+			if ui.staff_tab != "karyawan": return _mark(["stab:karyawan"])
+			return _mark(["hire:cleaner"])
+	return null
+
+
 func _target() -> Variant:
 	var st: Dictionary = _steps()[step]
 	var at: String = st.get("at", "")
 	if NAV.has(at):
+		# Panel menu sudah terbuka: tunjuk tombol berikutnya di dalamnya, bukan menu bawah lagi.
+		if ui.kind != "":
+			return _panel_target(at)
 		return NAV[at]
 	match at:
 		"room":
