@@ -3125,7 +3125,7 @@ func spawn_galon() -> void:
 	n.setup("galon", "visitor", D.STAFF_LOOK.teknisi, Vector2(D.OUT_X, D.LOBBY_Y), font)
 	n.art = true
 	n.char_id = "galon"
-	n.art_map = {"walk": "carry", "stand": "hold", "lift": "lift", "happy": "happy"}
+	n.art_map = {"walk": "walk", "stand": "stack", "lift": "lift", "happy": "happy"}
 	n.set_meta("nama", D.OUTSRC.galon.nama)
 	npcs["galon"] = n
 	galon = n
@@ -3142,7 +3142,7 @@ func spawn_galon() -> void:
 		for e in each_tenant():
 			e[1].tenant.happy = clampf(float(e[1].tenant.happy) + [1.0, 2.0, 3.0][out_lv("galon")], 0, 100)
 		m.work = {"t": 2.2, "pose": "lift", "fn": func(k: Npc):
-			k.art_map["walk"] = "walk"
+			k.art_map["walk"] = "walk2"   # pulang memikul galon kosong
 			k.work = {"t": 1.5, "pose": "happy", "fn": func(z: Npc):
 				z.plan("lobby", Vector2(D.OUT_X - 200, D.LOBBY_Y), "stand", func(y: Npc):
 					_remove_npc(y)

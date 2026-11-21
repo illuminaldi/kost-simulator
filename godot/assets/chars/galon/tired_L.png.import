@@ -2,22 +2,22 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cwxqc46ab8kf0"
-path="res://.godot/imported/carry2_L.png-2cd84640ec7ec183818d1c1a798c6bc5.ctex"
+uid="uid://c0lmkh3npjssn"
+path="res://.godot/imported/tired_L.png-62c3822621039834bce8b9b2a1cb3b07.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/chars/galon/carry2_L.png"
-dest_files=["res://.godot/imported/carry2_L.png-2cd84640ec7ec183818d1c1a798c6bc5.ctex"]
+source_file="res://assets/chars/galon/tired_L.png"
+dest_files=["res://.godot/imported/tired_L.png-62c3822621039834bce8b9b2a1cb3b07.ctex"]
 
 [params]
 
-compress/mode=1
+compress/mode=0
 compress/high_quality=false
-compress/lossy_quality=0.82
+compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

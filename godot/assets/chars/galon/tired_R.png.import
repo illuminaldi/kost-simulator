@@ -2,22 +2,22 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://o84uiqgkp061"
-path="res://.godot/imported/carry2_R.png-d0a460df0ccb0f6c0775e33cd650cf25.ctex"
+uid="uid://rlttes2o60hp"
+path="res://.godot/imported/tired_R.png-d4da1ea98df9dbcb4b97ded2797100b3.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/chars/galon/carry2_R.png"
-dest_files=["res://.godot/imported/carry2_R.png-d0a460df0ccb0f6c0775e33cd650cf25.ctex"]
+source_file="res://assets/chars/galon/tired_R.png"
+dest_files=["res://.godot/imported/tired_R.png-d4da1ea98df9dbcb4b97ded2797100b3.ctex"]
 
 [params]
 
-compress/mode=1
+compress/mode=0
 compress/high_quality=false
-compress/lossy_quality=0.82
+compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

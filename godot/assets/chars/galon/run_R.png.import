@@ -2,22 +2,22 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://36413icqoguq"
-path="res://.godot/imported/hold_L.png-ac2201cd4c63426b172d388942cdedc5.ctex"
+uid="uid://dgnjtebsr75k1"
+path="res://.godot/imported/run_R.png-fea36537a4bbc4a89667bc97e2e54779.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/chars/galon/hold_L.png"
-dest_files=["res://.godot/imported/hold_L.png-ac2201cd4c63426b172d388942cdedc5.ctex"]
+source_file="res://assets/chars/galon/run_R.png"
+dest_files=["res://.godot/imported/run_R.png-fea36537a4bbc4a89667bc97e2e54779.ctex"]
 
 [params]
 
-compress/mode=1
+compress/mode=0
 compress/high_quality=false
-compress/lossy_quality=0.82
+compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

@@ -2,22 +2,22 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b2h808yo1e38y"
-path="res://.godot/imported/carry_L.png-cd17e24b213ad5f6a8014f3f35e103dc.ctex"
+uid="uid://dup3ma1idrxbk"
+path="res://.godot/imported/floor_L.png-ae8d06cb9a6cd97219e50c07930443f0.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/chars/galon/carry_L.png"
-dest_files=["res://.godot/imported/carry_L.png-cd17e24b213ad5f6a8014f3f35e103dc.ctex"]
+source_file="res://assets/chars/galon/floor_L.png"
+dest_files=["res://.godot/imported/floor_L.png-ae8d06cb9a6cd97219e50c07930443f0.ctex"]
 
 [params]
 
-compress/mode=1
+compress/mode=0
 compress/high_quality=false
-compress/lossy_quality=0.82
+compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
