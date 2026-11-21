@@ -5710,9 +5710,10 @@ func _handle_cli(args: PackedStringArray) -> void:
 			# Galeri debug: kelima Lobi Langit berdampingan.
 			var cl := CanvasLayer.new(); cl.layer = 50; add_child(cl)
 			var bgc := ColorRect.new(); bgc.color = Color("f3e6cf"); bgc.size = Vector2(D.IW, 2600); cl.add_child(bgc)
+			var g0 := 5 if OS.get_cmdline_user_args().has("--hubgal2") else 0
 			for i in range(5):
 				var hn := _HubSign.new()
-				hn.f = (i + 1) * 10
+				hn.f = (i + g0) * 100 + 10
 				hn.font = font
 				hn.info = D.hub_info(hn.f)
 				hn.fixed = Rect2(0, 0, 10, 367)
@@ -6765,10 +6766,10 @@ class _HubSign extends Node2D:
 			y0 = D.ROWS[f].x; fy = D.FEET[f]
 		var c: Color = info.get("c", Color("6a8fb3"))
 		var k := String(info.get("n", "")).split(" ")[0]
-		var space := String(info.get("n", "")).find("Angkasa") >= 0
+		var space: bool = info.get("space", false)
+		var key: String = info.get("k", "parkir")
 		_calc_quad()
-		_outside(space, k)
-		var key: String = {"Lobi": "parkir", "Gerbang": "tol", "Helipad": "heli"}.get(k, "roket" if space else "kereta")
+		_outside(space, key)
 		var bgt := _tex("hub_" + key)
 		if bgt:
 			# Ilustrasi lantai penuh + kendaraan bergerak (sprite)
@@ -6779,6 +6780,11 @@ class _HubSign extends Node2D:
 				"kereta": _a_kereta()
 				"heli": _a_heli()
 				"roket": _a_roket()
+				"galaksi": _a_galaksi()
+				"blackhole": _a_blackhole()
+				"dimensi": _a_dimensi()
+				"imigrasi": _a_imigrasi()
+				"langit7": _a_langit7()
 			_people(key)
 			return
 		_stair_col(space, c)
@@ -6868,6 +6874,22 @@ class _HubSign extends Node2D:
 
 	func _people(key: String) -> void:
 		match key:
+			"galaksi":
+				_hop("alien1", 655, Y(388), 150, false, 1.0, false)
+				var u := fmod(t, 12.0) / 12.0
+				var k2 := u * 2.0 if u < 0.5 else (1.0 - u) * 2.0
+				_hop("alien2", lerpf(700.0, 770.0, k2), Y(388), 155, u >= 0.5)
+				_hop("astro", 990, Y(392), 150, false, 1.0, false)
+				_hop("petugas", 1075, Y(392), 150, true, 1.0, false)
+			"blackhole":
+				var cyc := fmod(t, 16.0)
+				var a := 1.0
+				if cyc > 5.0 and cyc < 9.0: a = clampf(1.0 - (cyc - 5.0) / 1.5, 0.0, 1.0)   # naik ke kereta
+				elif cyc >= 9.0: a = clampf((cyc - 11.0) / 2.0, 0.0, 1.0)   # penumpang baru datang
+				_hop("astro", 230, Y(394), 150, false, a, false)
+				_hop("alien1", 340, Y(394), 150, false, a, false)
+				_hop("alien2", 430, Y(394), 155, false, a, false)
+				_hop("petugas", 600, Y(394), 150, true, 1.0, false)
 			"parkir":
 				_walker("kupluk", 330, 760, 400, 14.0)
 				_stand("satpam", "idle", 1180, 404, true)
@@ -6979,6 +7001,129 @@ class _HubSign extends Node2D:
 				draw_circle(Vector2(380 + i * 70, Y(330)) + Vector2(sin(t * 5 + i) * 10, 0), 26 + (cyc - 7.0) * 4, Color(1, 1, 1, 0.35))
 		_spr("rocket", base, 200, false, false, a)
 
+	## Gambar sprite hanya bagian di atas garis ycut (mis. malaikat di balik meja loket).
+	func _spr_top(n: String, p: Vector2, h: float, ycut: float, flip := false) -> void:
+		var tx := _tex(n)
+		if tx == null: return
+		var sz := tx.get_size()
+		var w := sz.x * h / sz.y
+		var r := Rect2(p.x - w / 2.0, p.y - h, w, h)
+		var v := clampf((ycut - r.position.y) / h, 0.0, 1.0)
+		if v <= 0.0: return
+		var dst := Rect2(r.position, Vector2(w, h * v))
+		var src := Rect2(0, 0, sz.x, sz.y * v)
+		if flip:
+			draw_set_transform(Vector2(dst.position.x * 2.0 + dst.size.x, 0), 0.0, Vector2(-1, 1))
+			draw_texture_rect_region(tx, dst, src)
+			draw_set_transform(Vector2.ZERO)
+		else:
+			draw_texture_rect_region(tx, dst, src)
+
+	## Orang satu-pose yang "jalan" (melompat kecil).
+	func _hop(n: String, x: float, y: float, h: float, flip := false, a := 1.0, moving := true) -> void:
+		var b := absf(sin(t * 9.0 + x * 0.01)) * 6.0 if moving else absf(sin(t * 1.6 + x * 0.05)) * 2.0
+		_spr(n, Vector2(x, y - b), h, flip, true, a)
+
+	func _swirl(c: Vector2, r0: float, r1: float, col: Color, n := 22, spd := 1.0) -> void:
+		for i in range(n):
+			var u := float(i) / n
+			var rr := lerpf(r1, r0, fmod(u + t * 0.08 * spd, 1.0))
+			var ang := u * TAU * 3.0 + t * spd * (2.0 + 120.0 / rr)
+			draw_circle(c + Vector2(cos(ang), sin(ang) * 0.55) * rr, 3.0 + rr * 0.02, Color(col, 0.75 * (rr - r0) / (r1 - r0) + 0.15))
+
+	func _a_galaksi() -> void:
+		# UFO kecil lewat di kejauhan
+		var u := fmod(t, 11.0) / 11.0
+		_spr("ufo", Vector2(lerpf(-120.0, 1560.0, u), Y(150) + sin(t * 3.0) * 10.0), 40, false, true, 0.9)
+		# UFO besar mendarat di petak P, parkir, lalu terbang lagi
+		var cyc := fmod(t, 15.0)
+		var hy := 0.0
+		if cyc < 4.0: hy = lerpf(-330.0, 0.0, ease(cyc / 4.0, 0.4))
+		elif cyc > 10.0: hy = lerpf(0.0, -380.0, ease((cyc - 10.0) / 5.0, 2.0))
+		var p := Vector2(448, Y(376) + hy + (sin(t * 2.5) * 4.0 if hy != 0.0 else 0.0))
+		var a := clampf((p.y - 100.0 - y0) / 60.0, 0.0, 1.0)
+		if hy != 0.0 and a > 0.0:
+			draw_colored_polygon(PackedVector2Array([p + Vector2(-40, -40), p + Vector2(40, -40), Vector2(p.x + 110, Y(395)), Vector2(p.x - 110, Y(395))]), Color(1.0, 0.95, 0.6, 0.22 * a))
+		if a > 0.0: _spr("ufo", p, 150, false, true, a)
+
+	func _a_blackhole() -> void:
+		var hc := Vector2(1180, Y(184))
+		_swirl(hc, 40.0, 170.0, Color("c9b6ff"), 26, 1.0)
+		var cyc := fmod(t, 16.0)
+		var xf := 0.0   # ujung depan kereta
+		if cyc < 4.0: xf = lerpf(-60.0, 790.0, ease(cyc / 4.0, 0.4))
+		elif cyc < 9.0: xf = 790.0
+		else: xf = lerpf(790.0, 2600.0, ease((cyc - 9.0) / 7.0, 2.4))
+		var a := clampf(1.0 - (xf - 1060.0) / 320.0, 0.0, 1.0)
+		var tx := _tex("kereta_bh")
+		if tx and a > 0.0:
+			var h := 112.0
+			var w := tx.get_size().x * h / tx.get_size().y
+			_spr("kereta_bh", Vector2(xf - w / 2.0, Y(341)), h, false, true, a)
+			if xf > 980.0:
+				draw_circle(hc, 60.0 + (1.0 - a) * 40.0, Color(0.85, 0.8, 1.0, 0.35 * (1.0 - a)))
+		var rail := _tex("hub_blackhole_rail")
+		if rail:
+			draw_texture_rect(rail, Rect2(0, Y(266), rail.get_size().x, Y(338) - Y(266)), false)
+
+	func _a_dimensi() -> void:
+		var pc := Vector2(560, Y(170))
+		_swirl(pc, 30.0, 150.0, Color("9fe7ff"), 20, 1.4)
+		# kendaraan lewat jalur tol; kilatan saat menembus portal
+		var lst := [["jet", 112.0, 150.0, 0.0, true], ["car_red", 74.0, 190.0, 900.0, true], ["kapal", 150.0, 120.0, 400.0, false]]
+		for v in lst:
+			var tx := _tex(v[0])
+			if tx == null: continue
+			var w: float = tx.get_size().x * v[1] / tx.get_size().y
+			var x := fmod(t * float(v[2]) + float(v[3]), 1438.0 + w * 2.0 + 300.0) - w
+			if not v[4]: x = 1438.0 - x
+			var y := Y(368) if v[4] else Y(404)
+			_spr(v[0], Vector2(x, y), v[1], false, true)
+			var d := absf(x - pc.x)
+			if d < 120.0:
+				draw_circle(Vector2(pc.x, y - float(v[1]) * 0.5), 90.0, Color(0.7, 0.95, 1.0, 0.35 * (1.0 - d / 120.0)))
+
+	func _a_imigrasi() -> void:
+		# malaikat di balik meja loket
+		var desks := [380.0, 568.0, 738.0]
+		for i in range(3):
+			var bob := sin(t * 1.4 + i) * 3.0
+			_spr_top("malaikat", Vector2(desks[i], Y(342) + bob), 178, Y(290), i == 1)
+		# yang sedang dilayani di depan loket
+		_hop("jubah2", 446, Y(381), 150, false, 1.0, false)
+		_hop("bayang3", 628, Y(381), 150, false, 1.0, false)
+		_hop("bayang1", 790, Y(381), 150, true, 1.0, false)
+		# antrean maju satu langkah tiap 7 detik
+		var q := ["bayang2", "bayang4", "jubah1", "bayang5", "bayang1", "bayang3"]
+		var cyc := int(t / 7.0)
+		var m := ease(clampf(fmod(t, 7.0) / 1.3, 0.0, 1.0), -2.0)
+		var moving := m > 0.0 and m < 1.0
+		for s in range(7):
+			var x := 975.0 + 72.0 * s - 72.0 * m
+			var a := 1.0
+			if s == 0: a = 1.0 - m
+			elif s == 6: a = m
+			if a <= 0.01: continue
+			_hop(q[(s + cyc) % q.size()], x, Y(381), 150, true, a, moving)
+
+	func _a_langit7() -> void:
+		# awan melayang
+		var u := fmod(t, 26.0) / 26.0
+		_spr("awan", Vector2(lerpf(-200.0, 1640.0, u), Y(140)), 70, false, true, 0.9)
+		# penghuni santai duduk di awan
+		_spr("awan3", Vector2(300, Y(404) + sin(t * 1.1) * 4.0), 140, false, true)
+		_spr("awan1", Vector2(1125, Y(380) + sin(t * 1.3 + 1.0) * 4.0), 150, false, true)
+		_spr("awan2", Vector2(1330, Y(386) + sin(t * 1.2 + 2.0) * 4.0), 136, false, true)
+		# jiwa berjalan menuju gerbang cahaya, mengecil lalu lenyap
+		for i in range(2):
+			var v := fmod(t / 9.0 + i * 0.5, 1.0)
+			var x := lerpf(470.0, 720.0, v)
+			var y := lerpf(Y(404), Y(318), v)
+			var h := lerpf(140.0, 60.0, v)
+			var a := clampf((1.0 - v) * 4.0, 0.0, 1.0) * clampf(v * 8.0, 0.0, 1.0)
+			_hop("jubah1" if i == 0 else "jubah2", x, y, h, i == 1, a)
+		draw_circle(Vector2(730, Y(250)), 70.0 + sin(t * 2.0) * 8.0, Color(1, 1, 0.9, 0.25))
+
 	## Sudut badan tangga lantai genap (gambar ruang tangga "3S").
 	func _calc_quad() -> void:
 		var src := D.rect_of("3S")
@@ -7011,14 +7156,20 @@ class _HubSign extends Node2D:
 			var w: float = reg.y - reg.x
 			if w <= 0: continue
 			var r := Rect2(reg.x, y0, w, fy - y0 + 18)
-			draw_rect(r, Color("1f2448") if space else SKY)
+			var sky := SKY
+			if space: sky = Color("1f2448")
+			elif k == "imigrasi": sky = Color("cfe6f5")
+			elif k == "langit7": sky = Color("f6e4b5")
+			draw_rect(r, sky)
+			if k == "imigrasi" or k == "langit7":
+				continue
 			if space:
 				for i in range(4):
 					draw_circle(Vector2(reg.x + fmod(i * 47.0, w), y0 + 40 + i * 70), 2.5, Color.WHITE)
-			elif k == "Helipad":
+			elif k == "heli":
 				draw_circle(Vector2(reg.x + w * 0.5 + sin(t * 0.2) * 20, y0 + 120), 22, Color(1, 1, 1, 0.8))
 			# jembatan layang + tiang penyangga
-			if k != "Helipad":
+			if k != "heli":
 				draw_rect(Rect2(reg.x, fy - 40, w, 58), Color("8c8f94"))
 				draw_line(Vector2(reg.x, fy + 18), Vector2(reg.y, fy + 18), INK, 3)
 				draw_rect(Rect2(reg.x, fy - 52, w, 12), Color("b9bcc0"))

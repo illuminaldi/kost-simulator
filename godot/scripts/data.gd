@@ -559,12 +559,19 @@ static func stair_top(f: int) -> float:
 # ---------- Lobi Langit: tiap 10 lantai ada pintu masuk sendiri ----------
 const HUB_EVERY := 10
 const HUBS := [
-	{"n": "Lobi Parkiran", "d": "Penghuni lantai atas parkir & masuk dari sini.", "c": Color("6a8fb3")},
-	{"n": "Gerbang Tol", "d": "Mobil & bus keluar-masuk lewat jalan layang.", "c": Color("d9a43a")},
-	{"n": "Stasiun Kereta", "d": "Kereta menembus gedung, penghuni turun langsung.", "c": Color("5fae4f")},
-	{"n": "Helipad", "d": "Helikopter antar-jemput penghuni lantai tinggi.", "c": Color("e0533d")},
-	{"n": "Stasiun Luar Angkasa", "d": "Roket ulang-alik untuk penghuni paling atas.", "c": Color("8a6ad9")},
+	{"k": "parkir", "n": "Lobi Parkiran", "d": "Penghuni lantai atas parkir & masuk dari sini.", "c": Color("6a8fb3")},
+	{"k": "tol", "n": "Gerbang Tol", "d": "Mobil & bus keluar-masuk lewat jalan layang.", "c": Color("d9a43a")},
+	{"k": "kereta", "n": "Stasiun Kereta", "d": "Kereta menembus gedung, penghuni turun langsung.", "c": Color("5fae4f")},
+	{"k": "heli", "n": "Helipad", "d": "Helikopter antar-jemput penghuni lantai tinggi.", "c": Color("e0533d")},
+	{"k": "roket", "n": "Stasiun Luar Angkasa", "d": "Roket ulang-alik untuk penghuni paling atas.", "c": Color("8a6ad9")},
+	{"k": "galaksi", "n": "Terminal Antar-Galaksi", "d": "UFO parkir, alien & astronaut transit di sini.", "c": Color("7a52c7")},
+	{"k": "blackhole", "n": "Stasiun Portal Black Hole", "d": "Kereta kapsul menembus black hole ke multiverse.", "c": Color("3e4f8f")},
+	{"k": "dimensi", "n": "Gerbang Tol Dimensi", "d": "Kapal penjelajah waktu bayar tol antar-dimensi.", "c": Color("e07a2e")},
+	{"k": "imigrasi", "n": "Imigrasi Langit", "d": "Malaikat memeriksa berkas jiwa di loket amal.", "c": Color("d9606a")},
+	{"k": "langit7", "n": "Terminal Akhir Langit ke-7", "d": "Gerbang cahaya, ujung perjalanan penghuni.", "c": Color("d8ad3c")},
 ]
+const HUB_SPACE := ["roket", "galaksi", "blackhole", "dimensi"]
+const HUB_HEAVEN := ["imigrasi", "langit7"]
 
 
 static func is_hub(f: int) -> bool:
@@ -572,10 +579,14 @@ static func is_hub(f: int) -> bool:
 
 
 static func hub_info(f: int) -> Dictionary:
+	# Tiap jenis lobi dipakai 10 kali (lt 10-100 parkir, 110-200 tol, dst.), jenis terakhir seterusnya.
 	var i: int = f / HUB_EVERY - 1
-	var h: Dictionary = HUBS[i % HUBS.size()].duplicate()
-	var gen: int = i / HUBS.size()
-	if gen > 0: h.n = "%s %s" % [h.n, ["", "II", "III", "IV", "V", "VI"][mini(gen, 5)]]
+	var ti: int = mini(i / HUB_EVERY, HUBS.size() - 1)
+	var h: Dictionary = HUBS[ti].duplicate()
+	var no: int = i - ti * HUB_EVERY + 1
+	if no > 1: h.n = "%s %d" % [h.n, no]
+	h.space = h.k in HUB_SPACE
+	h.heaven = h.k in HUB_HEAVEN
 	return h
 
 
