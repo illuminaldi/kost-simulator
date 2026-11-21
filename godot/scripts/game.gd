@@ -2162,15 +2162,18 @@ func built_rooms() -> int:
 func _staff_daily() -> void:
 	if not S.has("tired"): S.tired = {}
 	if not S.has("strike"): S.strike = {}
+	var back := {}
 	for k in S.strike.keys():
 		if int(S.day) >= int(S.strike[k]):
 			S.strike.erase(k)
 			S.staff[k] = true
 			S.tired[k] = 30.0
+			back[k] = true
 			ui.toast("%s kembali bekerja setelah istirahat." % D.staff_label(k), "gold")
 	var rooms := built_rooms()
 	for k in S.staff.keys():
-		if not S.staff[k] or D.STAFF[k].get("owner", false): continue
+		# Yang baru kembali dari mogok bekerja penuh dulu hari ini (dulu langsung mogok lagi di pagi yang sama).
+		if not S.staff[k] or D.STAFF[k].get("owner", false) or back.has(k): continue
 		var over := rooms - staff_cap(k)
 		var t := staff_tired(k)
 		t = t + over * 9.0 if over > 0 else t - 20.0
