@@ -9,7 +9,7 @@ extends Node
 ## durian   : pickup salah kirim sekotak durian, lobi bau seharian.
 
 const GOSONG := "Gosong tersambar petir"
-const LIST := ["beruang", "petir", "maling", "hantu", "viral", "durian", "zombie"]
+const LIST := ["beruang", "petir", "maling", "hantu", "durian", "zombie"]   # viral pindah ke Outsource > Influencer
 const NAMES := {"beruang": "Anak Beruang Nyasar", "petir": "Tersambar Petir", "maling": "Maling Manjat Jendela",
 	"hantu": "Hantu Kamar Kosong", "viral": "Kost Viral!", "durian": "Salah Kirim Durian", "zombie": "Serbuan Zombie?!"}
 # Kaca jendela tiap gambar kamar acuan (px kamar).
@@ -53,6 +53,7 @@ func restore() -> void:
 # ---------------- Jadwal ----------------
 func daily() -> void:
 	var f: Dictionary = st()
+	influencer_daily()
 	if f.get("ghost", "") != "" and int(S.day) >= int(f.get("ghost_until", 0)):
 		_ghost_gone(false)
 	if f.get("durian_until", -1) >= 0 and int(S.day) > int(f.durian_until):
@@ -86,6 +87,7 @@ func _empty_rooms() -> Array:
 
 func start(k: String) -> void:
 	var f: Dictionary = st()
+	if k != "viral": game.pengacau_seen(k)
 	var last: Array = f.get("last", [])
 	last.append(k)
 	while last.size() > 2: last.pop_front()
@@ -427,8 +429,25 @@ func _start_viral() -> void:
 			k.plan("lobby", Vector2(D.IW + 250, D.LOBBY_Y), "stand", func(z: Npc): game._remove_npc(z))})
 
 
+## Influencer (Outsource): jadwal kunjungan sesuai level langganan.
+func influencer_daily() -> void:
+	var lv: int = game.out_lv("influencer")
+	if lv <= 0 or game.npcs.has("kreator"): return
+	var f: Dictionary = st()
+	if int(S.day) >= int(f.get("influ_next", 0)):
+		f.influ_next = int(S.day) + (12 if lv == 1 else 6)
+		_start_viral()
+
+
+func invite_influencer() -> bool:
+	if game.npcs.has("kreator"): return false
+	_start_viral()
+	return true
+
+
 func _go_viral() -> void:
-	st().viral_until = int(S.day) + 2
+	var lv: int = game.out_lv("influencer")
+	st().viral_until = int(S.day) + (3 if lv >= 2 else 2)
 	S.rep = clampf(float(S.rep) + 0.1, 1.0, 5.0)
 	S.next_cand = minf(float(S.next_cand), 20.0)
 	game.ui.toast("Videonya VIRAL! 1,2 juta views. Calon penyewa membludak 2 hari ke depan!", "gold")

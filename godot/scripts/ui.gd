@@ -1825,11 +1825,13 @@ func _sheet_staff() -> void:
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 14)
 	box.add_child(tabs)
-	for t in [["karyawan", "Karyawan"], ["outsource", "Outsource"], ["resource", "Resource"]]:
+	tabs.add_theme_constant_override("separation", 8)
+	for t in [["karyawan", "Karyawan"], ["outsource", "Outsource"], ["resource", "Resource"], ["pengacau", "Pengacau"]]:
 		var key: String = t[0]
 		tabs.add_child(_btn(t[1], D.C_YELLOW if staff_tab == key else Color.WHITE, func(): staff_tab = key; refresh_sheet(), false, true))
 	match staff_tab:
 		"outsource": _staff_outsource()
+		"pengacau": _staff_pengacau()
 		"resource":
 			box.add_child(_text("Aplikasi pendukung kost. Langganan bisa dimulai atau dihentikan kapan saja.", 32, D.C_MUTED))
 			_apps_list()
@@ -1870,6 +1872,77 @@ func _staff_outsource() -> void:
 				col.add_child(_btn(label, D.C_YELLOW, func(): _do("out_up", k), float(S.money) < float(nx.cost), false, money_why(float(nx.cost))))
 		else:
 			col.add_child(_label("Layanan terbaik sudah aktif", 30, Color("2f7a2a"), true))
+		if k == "influencer":
+			col.add_child(_btn("Undang sekarang · Rp 750rb", D.C_PINK, func(): _do("influ_invite", ""), float(S.money) < 750000.0 or game.npcs.has("kreator"), false, "Kak Nisa sedang di kost." if game.npcs.has("kreator") else money_why(750000.0)))
+
+
+## Katalog pengacau: siapa saja pembuat onar, cara menghadapinya, dan berapa kali muncul.
+func _staff_pengacau() -> void:
+	var S: Dictionary = game.S
+	box.add_child(_text("Pembuat onar yang bisa datang ke kost. Kenali cara menghadapinya sebelum mereka muncul.", 32, D.C_MUTED))
+	for e in D.PENGACAU:
+		var seen: int = int(S.get("pengacau", {}).get(e.k, 0))
+		var v := _card()
+		var hb := HBoxContainer.new()
+		hb.add_theme_constant_override("separation", 24)
+		var art: Control
+		if str(e.pic) != "":
+			var pic := TextureRect.new()
+			pic.texture = load("res://assets/chars/%s_L.png" % e.pic)
+			pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			art = pic
+		else:
+			var ic := _PengacauIcon.new()
+			ic.kind = str(e.get("icon", ""))
+			art = ic
+		art.custom_minimum_size = Vector2(170, 250)
+		if seen == 0: art.modulate = Color(0.25, 0.25, 0.25, 0.85)
+		hb.add_child(art)
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hb.add_child(col)
+		v.add_child(hb)
+		_row(col, _label(e.n if seen > 0 else "??? " + e.n, 42), _label(("Muncul %dx" % seen) if seen > 0 else "Belum pernah", 30, Color("9b2f1c") if seen > 0 else D.C_MUTED, true))
+		col.add_child(_text(e.d, 30, D.C_MUTED))
+		col.add_child(_text("Cara menghadapi: " + e.lawan, 28, Color("2f6a8a")))
+		if int(S.lvl) < int(e.lv):
+			col.add_child(_label("Mulai muncul di Level %d" % int(e.lv), 28, D.C_MUTED, true))
+
+
+class _PengacauIcon extends Control:
+	var kind := ""
+	func _draw() -> void:
+		var c := size / 2.0
+		var ink := Color("4a3426")
+		match kind:
+			"petir":
+				draw_circle(c + Vector2(-20, -50), 46, Color("8c96a6"))
+				draw_circle(c + Vector2(30, -56), 54, Color("9aa4b4"))
+				draw_colored_polygon(PackedVector2Array([c + Vector2(8, -20), c + Vector2(-30, 40), c + Vector2(0, 40), c + Vector2(-16, 100), c + Vector2(40, 20), c + Vector2(8, 20), c + Vector2(28, -20)]), Color("ffd23f"))
+			"api":
+				draw_colored_polygon(PackedVector2Array([c + Vector2(0, -90), c + Vector2(50, 10), c + Vector2(40, 70), c + Vector2(-40, 70), c + Vector2(-50, 10)]), Color("f2662f"))
+				draw_colored_polygon(PackedVector2Array([c + Vector2(0, -30), c + Vector2(26, 30), c + Vector2(20, 70), c + Vector2(-20, 70), c + Vector2(-26, 30)]), Color("ffd23f"))
+			"hantu":
+				draw_circle(c + Vector2(0, -30), 56, Color("f4f1ea"))
+				draw_rect(Rect2(c + Vector2(-56, -30), Vector2(112, 90)), Color("f4f1ea"))
+				for i in range(4):
+					draw_circle(c + Vector2(-42 + i * 28, 62), 14, Color("f4f1ea"))
+				draw_circle(c + Vector2(-20, -36), 9, ink)
+				draw_circle(c + Vector2(20, -36), 9, ink)
+			"durian":
+				draw_circle(c, 70, Color("b5b84a"))
+				for i in range(16):
+					var a := TAU * i / 16.0
+					draw_colored_polygon(PackedVector2Array([c + Vector2(cos(a - 0.12), sin(a - 0.12)) * 66, c + Vector2(cos(a), sin(a)) * 88, c + Vector2(cos(a + 0.12), sin(a + 0.12)) * 66]), Color("8f9a35"))
+			"beruang":
+				draw_circle(c + Vector2(-44, -56), 22, Color("7a5132"))
+				draw_circle(c + Vector2(44, -56), 22, Color("7a5132"))
+				draw_circle(c + Vector2(0, -10), 64, Color("8b5e3c"))
+				draw_circle(c + Vector2(0, 14), 26, Color("d9b48f"))
+				draw_circle(c + Vector2(-22, -24), 7, ink)
+				draw_circle(c + Vector2(22, -24), 7, ink)
+				draw_circle(c + Vector2(0, 6), 8, ink)
 
 
 func _staff_list() -> void:

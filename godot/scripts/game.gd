@@ -1972,6 +1972,12 @@ func staff_upgrade(k: String) -> void:
 	sfx("upgrade")
 
 
+## Catat kemunculan pengacau (untuk katalog Karyawan > Pengacau).
+func pengacau_seen(k: String) -> void:
+	if not S.has("pengacau"): S.pengacau = {}
+	S.pengacau[k] = int(S.pengacau.get(k, 0)) + 1
+
+
 func out_lv(k: String) -> int:
 	return clampi(int(S.get("out", {}).get(k, 0)), 0, D.OUTSRC[k].lv.size() - 1)
 
@@ -2554,6 +2560,7 @@ func spawn_thief() -> void:
 	n.set_meta("spd", 0.55)
 	npcs["thief"] = n
 	thief = n
+	pengacau_seen("maling")
 	_thief_state = "sneak"
 	cat_startle()
 	_thief_t = 0.0
@@ -2674,6 +2681,7 @@ func spawn_preman() -> void:
 	n.art_map = {"walk": "walk", "stand": "idle", "demand": "demand", "count": "count", "happy": "happy", "caught": "caught"}
 	npcs["preman"] = n
 	preman = n
+	pengacau_seen("preman")
 	_preman_wait = 0.0
 	n.plan("lobby", Vector2(880, D.LOBBY_Y), "stand", func(m: Npc):
 		m.work = {"t": 9999.0, "pose": "demand"}
@@ -4489,6 +4497,13 @@ func act(a: String, arg: String = "") -> void:
 			staff_upgrade(arg)
 		"out_up":
 			out_upgrade(arg)
+		"influ_invite":
+			if float(S.money) < 750000.0:
+				ui.toast(ui.money_why(750000.0), "bad"); return
+			if funny.invite_influencer():
+				spend(750000.0, "other")
+			else:
+				ui.toast("Kak Nisa sedang di kost.")
 		"fire":
 			if D.STAFF[arg].get("owner", false): return
 			S.staff.erase(arg)
@@ -5535,6 +5550,9 @@ func _handle_cli(args: PackedStringArray) -> void:
 				if a == "--watest": ui.update_hud())
 		elif a == "--monkey":
 			_monkey.call_deferred()
+		elif a.begins_with("--stafftab="):
+			ui.staff_tab = a.get_slice("=", 1)
+			ui.open_sheet("staff")
 		elif a == "--hubgal":
 			# Galeri debug: kelima Lobi Langit berdampingan.
 			var cl := CanvasLayer.new(); cl.layer = 50; add_child(cl)
@@ -5727,6 +5745,7 @@ func stair_upgrade() -> void:
 class _Stairs extends Node2D:
 	var variant := 3
 	var lv := 1
+	var long := 0.0   # lantai Lobi Langit: tangga diperpanjang sampai lantai lobi
 	var t := 0.0
 	const N := 9
 	func _process(dt: float) -> void:
@@ -5735,9 +5754,17 @@ class _Stairs extends Node2D:
 			queue_redraw()
 	func _edges() -> Array:
 		# [kiri atas, kanan atas, kanan bawah, kiri bawah] dalam koordinat gambar ruang tangga
+		var e: Array
 		if variant == 3:
-			return [Vector2(233, 0), Vector2(331, 0), Vector2(357, 277), Vector2(233, 277)]
-		return [Vector2(57, 0), Vector2(158, 0), Vector2(146, 284), Vector2(27, 284)]
+			e = [Vector2(233, 0), Vector2(331, 0), Vector2(357, 277), Vector2(233, 277)]
+		else:
+			e = [Vector2(57, 0), Vector2(158, 0), Vector2(146, 284), Vector2(27, 284)]
+		if long > 0.0:
+			var h0: float = e[3].y
+			var k2 := (h0 + long) / h0
+			e[2] = e[1].lerp(e[2], k2)
+			e[3] = e[0].lerp(e[3], k2)
+		return e
 	func _xs(e: Array, y: float) -> Vector2:
 		var k: float = y / float(e[3].y)
 		return Vector2(lerpf(e[0].x, e[3].x, k), lerpf(e[1].x, e[2].x, k))
@@ -5746,13 +5773,15 @@ class _Stairs extends Node2D:
 		var b := _xs(e, y1)
 		draw_colored_polygon(PackedVector2Array([Vector2(a.x, y0), Vector2(a.y, y0), Vector2(b.y, y1), Vector2(b.x, y1)]), col)
 	func _draw() -> void:
-		if lv <= 1: return
+		if lv <= 1 and long <= 0.0: return
 		var e := _edges()
 		var h: float = float(e[3].y)
 		var ink := Color("3d2a1e")
 		if lv < 4:
 			var tread := Color("efe9df") if lv == 2 else Color("e9e2d6")
 			var riser := Color("cfc4b4")
+			if lv <= 1:
+				tread = Color("e6cfaa"); riser = Color("c7a57c")
 			var sh := h / N
 			for i in range(N):
 				var y0 := i * sh
@@ -6275,6 +6304,7 @@ func _maybe_fire(h: int) -> void:
 func start_fire(rid: String) -> void:
 	if not S.has("fire"): S.fire = {}
 	if S.fire.has(rid): return
+	pengacau_seen("fire")
 	S.fire[rid] = 0.0
 	if wa:
 		var fn = S.rooms[rid].tenant
@@ -6460,6 +6490,7 @@ class _FireFx extends Node2D:
 
 
 var hub_nodes := {}
+const HUB_STAIR_LONG := 62.0
 
 
 func _refresh_hubs() -> void:
@@ -6504,6 +6535,8 @@ func _refresh_hubs() -> void:
 			hn.rect = D.rect_of("%dS" % f)
 			bld.add_child(hn)
 			if f - 1 < stair_nodes.size():
+				stair_nodes[f - 1].long = HUB_STAIR_LONG
+				stair_nodes[f - 1].queue_redraw()
 				bld.move_child(hn, stair_nodes[f - 1].get_index())   # tangga hasil upgrade tetap di atas lobi
 			hub_nodes[f] = hn
 		elif not on and hub_nodes.has(f):
@@ -6673,12 +6706,18 @@ class _HubSign extends Node2D:
 				_walker("kutu", 160, 330, 404, 9.0)
 
 	func _a_parkir() -> void:
+		# petak parkir: mobil lebih besar dari orang
+		for lx in [130.0, 350.0, 570.0, 790.0]:
+			draw_line(Vector2(lx, Y(330)), Vector2(lx, Y(410)), Color.WHITE, 5)
+		_spr("car_red", Vector2(240, Y(408)), 132)
+		_spr("car_blue", Vector2(460, Y(408)), 132, true)
+		_spr("car_green", Vector2(680, Y(408)), 132)
 		# mobil datang dari kanan, berhenti di depan palang, lalu mundur keluar
 		var cyc := fmod(t, 13.0)
 		var x := 990.0
 		if cyc < 4.0: x = lerpf(1560.0, 990.0, ease(cyc / 4.0, 0.5))
 		elif cyc > 8.0: x = lerpf(990.0, 1560.0, ease(clampf((cyc - 8.0) / 4.0, 0, 1), 2.0))
-		_spr("car_white", Vector2(x, Y(410)), 66, true)
+		_spr("car_white", Vector2(x, Y(414)), 140, true)
 
 	func _a_tol() -> void:
 		var cars := ["car_red", "car_blue", "car_green", "car_white"]
@@ -6686,7 +6725,7 @@ class _HubSign extends Node2D:
 			var right := i % 2 == 0
 			var x := fmod(t * 170.0 + i * 430.0, 1800.0) - 180.0
 			if not right: x = 1438.0 - x
-			_spr(cars[i], Vector2(x, Y(376) if right else Y(408)), 58, not right)
+			_spr(cars[i], Vector2(x, Y(382) if right else Y(414)), 128, not right)
 
 	func _a_kereta() -> void:
 		var cyc := fmod(t, 16.0)

@@ -333,12 +333,7 @@ func _show_cafe_in() -> void:
 	_cafe_hint_lbl = _lbl("", 32, Color("fff6e6"))
 	_cafe_hint.add_child(_cafe_hint_lbl)
 	_bottom([["Keluar Cafe", D.C_GREEN, _show_cafe_ext], ["Order Minuman", D.C_PINK, _order],
-		["Baca Buku Lain", D.C_YELLOW, func():
-			book = (book + 1) % BOOKS.size()
-			_load_page()
-			game.sfx("pop", -6.0)
-			game.ui.toast("Membuka \"%s\"" % BOOKS[book].t)
-			_render_book()]], 2262)
+		["Baca Buku Lain", D.C_YELLOW, _book_catalog]], 2262)
 	_layer.move_child(_mug, _layer.get_child_count() - 1)
 	_render_book()
 
@@ -669,7 +664,7 @@ class _Mug extends Node2D:
 	var t := 0.0
 	var _tex: Texture2D = preload("res://assets/side/cafe_mug.png")
 	var _tex_sip: Texture2D = preload("res://assets/side/cafe_mug_sip.png")
-	const ORG := Vector2(876, 1600)
+	const ORG := Vector2(852.67, 1600)   # tekstur ditambal 70px (3x) di kiri
 	const PIV := Vector2(1284, 1824)
 	const C := Vector2(1046, 1703)
 	const RX := 180.0
@@ -939,7 +934,7 @@ func _show_padel() -> void:
 	_hint.size = Vector2(D.IW, 70)
 	_layer.add_child(_hint)
 	_bottom([["Balik ke Kost", D.C_GREEN, func(): _walk(-1)],
-		["Ganti Lawan", D.C_PINK, _ganti_lawan],
+		["Ganti Lawan", D.C_PINK, _foe_catalog],
 		["Main Lagi", D.C_YELLOW, func():
 			_ray_say("Ulang dari nol. Atur napas dulu, Mbak!")
 			_new_match()]], 2248)
@@ -966,6 +961,158 @@ func _show_padel() -> void:
 	else:
 		_ray_say("Selamat datang lagi! Lawanmu %s. Ketuk saat bola masuk lingkaran putih." % FOES[foe][0])
 	_new_match()
+
+
+# ---------- Katalog visual (pilih buku / pilih lawan) ----------
+const COVERS := [Color("8a3b2e"), Color("3d5a80"), Color("c9a227"), Color("5b7553"), Color("2f2f3a"),
+	Color("6b4c9a"), Color("7a5c3e"), Color("1f6f78"), Color("c26a3d"), Color("a23b5b")]
+
+
+## Kartu sampul buku yang digambar.
+class _Cover extends Control:
+	var col := Color.BROWN
+	var title := ""
+	var font: Font
+	func _draw() -> void:
+		var r := Rect2(Vector2(10, 6), size - Vector2(20, 12))
+		draw_rect(Rect2(r.position + Vector2(8, 8), r.size), Color(0, 0, 0, 0.2))
+		draw_rect(r, col)
+		draw_rect(Rect2(r.position, Vector2(18, r.size.y)), col.darkened(0.3))
+		draw_rect(r, Color("4a3426"), false, 4)
+		draw_rect(Rect2(r.position + Vector2(34, 24), Vector2(r.size.x - 54, 4)), Color(1, 0.9, 0.6, 0.8))
+		draw_rect(Rect2(r.position + Vector2(34, r.size.y - 30), Vector2(r.size.x - 54, 4)), Color(1, 0.9, 0.6, 0.8))
+		if font:
+			draw_multiline_string(font, r.position + Vector2(34, 74), title, HORIZONTAL_ALIGNMENT_CENTER, r.size.x - 54, 30, 5, Color("fdf3dc"))
+
+
+func _catalog(title: String, cards: Array) -> void:
+	_close_modal()
+	_modal = Control.new()
+	_modal.size = size
+	_modal.mouse_filter = Control.MOUSE_FILTER_STOP
+	_layer.add_child(_modal)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.5)
+	dim.size = size
+	_modal.add_child(dim)
+	var card := _panel(Rect2(50, 250, D.IW - 100, 1980), Color("fbf3e6"))
+	_layer.remove_child(card)
+	_modal.add_child(card)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 18)
+	card.add_child(v)
+	v.add_child(_lbl(title, 60, D.C_INK))
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(D.IW - 180, 1580)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.add_child(sc)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 24)
+	grid.add_theme_constant_override("v_separation", 24)
+	sc.add_child(grid)
+	for c in cards:
+		var cell := PanelContainer.new()
+		cell.custom_minimum_size = Vector2((D.IW - 230) / 2.0, 600)
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color("fffaf0") if not c.get("cur", false) else Color("e6f2d9")
+		sb.border_color = D.C_LINE if not c.get("cur", false) else Color("5fae4f")
+		sb.set_border_width_all(5)
+		sb.set_corner_radius_all(26)
+		sb.set_content_margin_all(14)
+		cell.add_theme_stylebox_override("panel", sb)
+		var cv := VBoxContainer.new()
+		cv.add_theme_constant_override("separation", 6)
+		cv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cell.add_child(cv)
+		var art: Control
+		if c.has("tex"):
+			var tr := TextureRect.new()
+			tr.texture = load(c.tex)
+			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			art = tr
+		else:
+			var co := _Cover.new()
+			co.col = c.col
+			co.title = c.name
+			co.font = font
+			art = co
+		art.custom_minimum_size = Vector2(0, 330)
+		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if c.get("locked", false): art.modulate = Color(0.35, 0.35, 0.35)
+		cv.add_child(art)
+		var nl := _lbl(c.name, 36, D.C_INK, true)
+		nl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cv.add_child(nl)
+		var sl := _lbl(c.sub, 27, D.C_MUTED, true)
+		sl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cv.add_child(sl)
+		var bt := Button.new()
+		bt.flat = true
+		bt.focus_mode = Control.FOCUS_NONE
+		bt.set_anchors_preset(Control.PRESET_FULL_RECT)
+		var cb: Callable = c.cb
+		var locked: bool = c.get("locked", false)
+		var why: String = c.get("why", "")
+		bt.pressed.connect(func():
+			if locked:
+				game.ui.toast(why)
+				return
+			_close_modal()
+			cb.call())
+		cell.add_child(bt)
+		grid.add_child(cell)
+	var close := Button.new()
+	close.text = "Tutup"
+	close.custom_minimum_size = Vector2(0, 110)
+	close.focus_mode = Control.FOCUS_NONE
+	close.add_theme_font_override("font", font)
+	close.add_theme_font_size_override("font_size", 40)
+	close.add_theme_color_override("font_color", D.C_INK)
+	for st in ["normal", "hover", "pressed", "focus"]:
+		var sb2 := StyleBoxFlat.new()
+		sb2.bg_color = D.C_PINK
+		sb2.border_color = D.C_LINE
+		sb2.set_border_width_all(6)
+		sb2.set_corner_radius_all(40)
+		close.add_theme_stylebox_override(st, sb2)
+	close.pressed.connect(_close_modal)
+	v.add_child(close)
+
+
+func _book_catalog() -> void:
+	var cards := []
+	for i in BOOKS.size():
+		var b: Dictionary = BOOKS[i]
+		var pg := int(game.S.get("side", {}).get("bkpg", {}).get(str(i), 0))
+		var kind := "Isi lengkap" if b.has("file") else "Rangkuman"
+		var sub := "%s · %s" % [kind, ("lanjut hal. %d" % (pg * 2 + 1)) if pg > 0 else "belum dibaca"]
+		var bi: int = i
+		cards.append({"name": b.t, "sub": sub, "col": COVERS[i % COVERS.size()], "cur": i == book, "cb": func():
+			book = bi
+			_load_page()
+			game.sfx("pop", -6.0)
+			game.ui.toast("Membuka \"%s\"" % BOOKS[book].t)
+			_render_book()})
+	_catalog("Rak Buku Cafe", cards)
+
+
+func _foe_catalog() -> void:
+	var cards := []
+	var unlocked: bool = game.S.side.get("aji", false)
+	for i in FOES.size():
+		var fi: int = i
+		var lock := i > 0 and not unlocked
+		cards.append({"name": FOES[i][0], "sub": "Terkunci · kalahkan Mustofa dulu" if lock else ["Santai · cocok pemanasan", "Keras · pukulannya kencang"][mini(i, 1)],
+			"tex": "res://assets/chars/%s/ready_L.png" % FOES[i][2], "cur": i == foe, "locked": lock,
+			"why": "Kalahkan Mustofa dulu untuk membuka lawan ini.",
+			"cb": func():
+				foe = fi
+				_opose("ready")
+				_ray_say("Lawan: %s! %s" % [FOES[foe][0], "Dia santai, cocok buat pemanasan." if foe == 0 else "Pak John pukulannya keras, fokus ya!"])
+				_new_match()})
+	_catalog("Pilih Lawan Padel", cards)
 
 
 func _ganti_lawan() -> void:
@@ -1343,7 +1490,7 @@ func _point(who: int) -> void:
 			if view != "padel": return
 			_show_modal("MENANG!" if won else "KALAH", Color("5fae4f") if won else Color("e0533d"),
 				[final, reward],
-				[["Main Lagi", D.C_YELLOW, func(): _new_match()], ["Ganti Lawan", D.C_PINK, _ganti_lawan], ["Selesai", D.C_GREEN, func(): _close_modal(); _show_padel_ext()]]))
+				[["Main Lagi", D.C_YELLOW, func(): _new_match()], ["Ganti Lawan", D.C_PINK, _foe_catalog], ["Selesai", D.C_GREEN, func(): _close_modal(); _show_padel_ext()]]))
 		pts = [0, 0]
 		return
 	if who == 0:

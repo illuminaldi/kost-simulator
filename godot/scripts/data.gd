@@ -678,5 +678,37 @@ const OUTSRC := {
 		{"n": "Panggil Darurat", "cost": 0, "d": "Kebakaran harus dilaporkan manual (Rp 500rb), damkar tiba agak lama."},
 		{"n": "Langganan Damkar", "cost": 1000000, "d": "Damkar otomatis datang cepat & gratis saat kebakaran."},
 		{"n": "Alarm & Sprinkler", "cost": 3000000, "d": "Api padam sendiri lebih lambat menjalar; damkar tiba sangat cepat."}]},
+	"influencer": {"nama": "Kak Nisa", "n": "Influencer", "pic": "influencer/cam", "lv": [
+		{"n": "Belum Kerja Sama", "cost": 0, "d": "Sesekali datang sendiri merekam kost-mu. Bisa diundang sekali (Rp 750rb)."},
+		{"n": "Endorse Bulanan", "cost": 2000000, "d": "Datang tiap ± 12 hari bikin konten. Kost viral 2 hari, calon penyewa membludak."},
+		{"n": "Brand Ambassador", "cost": 6000000, "d": "Datang tiap ± 6 hari, viral 3 hari, rating +0,1 tiap konten."}]},
 }
-const OUTSRC_ORDER := ["kurir", "galon", "ojol", "sampah", "tukang", "polisi", "damkar"]
+const OUTSRC_ORDER := ["kurir", "galon", "ojol", "sampah", "tukang", "polisi", "damkar", "influencer"]
+
+# Pengacau: kejadian yang mengganggu kost. Ditampilkan di Karyawan > Pengacau.
+const PENGACAU := [
+	{"k": "maling", "n": "Maling", "pic": "maling/idle", "lv": 2,
+		"d": "Masuk diam-diam lewat lobi atau memanjat dinding luar, mencuri barang kamar.",
+		"lawan": "Ketuk malingnya secepatnya. Polisi Patroli/Pos Polisi menangkap & mengembalikan barang. Satpam mempersulit maling."},
+	{"k": "preman", "n": "Preman Pungli", "pic": "preman/demand", "lv": 3,
+		"d": "Siang hari datang ke lobi minta \"uang keamanan\". Makin sering dibayar, makin besar mintanya.",
+		"lawan": "Tolak, bayar, atau lapor polisi. Langganan Polisi bikin preman diseret otomatis."},
+	{"k": "beruang", "n": "Anak Beruang Nyasar", "pic": "", "icon": "beruang", "lv": 1,
+		"d": "Anak beruang tertukar dengan Mpus. Induknya datang menjemput, tamu kabur ketakutan.",
+		"lawan": "Rawat anak beruangnya sampai induknya datang. Jangan diusir."},
+	{"k": "zombie", "n": "Serbuan Zombie", "pic": "zombie/idle", "lv": 1,
+		"d": "Rombongan \"zombie\" menyerbu lobi. Penghuni panik.",
+		"lawan": "Ketuk zombienya satu per satu sebelum masuk ke kamar."},
+	{"k": "fire", "n": "Kebakaran", "pic": "", "icon": "api", "lv": 1,
+		"d": "Korsleting atau kompor lupa dimatikan. Api menjalar, penghuni & karyawan kabur panik.",
+		"lawan": "Panggil damkar secepatnya. Langganan Damkar / Alarm & Sprinkler membuatnya otomatis."},
+	{"k": "petir", "n": "Gledek (Petir)", "pic": "", "icon": "petir", "lv": 1,
+		"d": "Petir menyambar satu kamar saat hujan badai. Kamar gosong dan harus direnovasi 3 jam.",
+		"lawan": "Renovasi kamarnya lewat tukang. Bisa dipercepat pakai Diamond."},
+	{"k": "hantu", "n": "Hantu Kamar Kosong", "pic": "", "icon": "hantu", "lv": 1,
+		"d": "\"Hantu\" muncul di jendela kamar kosong (ternyata gorden). Calon penyewa menolak kamar itu.",
+		"lawan": "Ketuk jendelanya untuk membongkar hantunya, atau isi kamarnya."},
+	{"k": "durian", "n": "Salah Kirim Durian", "pic": "", "icon": "durian", "lv": 1,
+		"d": "Pickup salah kirim sekotak durian. Lobi bau seharian, sebagian penghuni kesal.",
+		"lawan": "Ketuk kotaknya: buang, atau adakan pesta durian."},
+]
