@@ -131,7 +131,7 @@ func _verify(pid: String, p: Dictionary) -> void:
 		else:
 			# Jaringan/server bermasalah: pembelian TIDAK di-consume, dicoba lagi saat aplikasi dibuka.
 			game.ui.toast("Pembayaran berhasil, tapi verifikasi tertunda. Diamond masuk otomatis saat online.", "bad"))
-	var payload := {"packageName": "com.kelolapro.cozykost", "productId": pid, "purchaseToken": token,
+	var payload := {"packageName": "kelolapro.cozykost", "productId": pid, "purchaseToken": token,
 		"orderId": str(p.get("order_id", "")), "accountId": account_id()}
 	var err := http.request(VERIFY_URL, ["Content-Type: application/json", "X-Client-Key: " + CLIENT_KEY], HTTPClient.METHOD_POST, JSON.stringify(payload))
 	if err != OK:

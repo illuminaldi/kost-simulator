@@ -18,7 +18,7 @@ const crypto = require("crypto");
 admin.initializeApp();
 const db = admin.firestore();
 
-const PACKAGE = "com.kelolapro.cozykost";
+const PACKAGE = "kelolapro.cozykost";
 const CLIENT_KEY = "cozykost-android-v1";
 const PRODUCTS = { diamond_60: 60, diamond_330: 330, diamond_700: 700 };
 

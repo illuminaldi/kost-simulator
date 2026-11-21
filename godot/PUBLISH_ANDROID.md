@@ -1,6 +1,6 @@
 # Cozy Kost — Panduan Rilis Android (Google Play)
 
-Package: `com.kelolapro.cozykost` · Target API 36 · min API 24 · format AAB (gradle build).
+Package: `kelolapro.cozykost` · Target API 36 · min API 24 · format AAB (gradle build).
 
 ## 1. Sekali saja di komputer build
 

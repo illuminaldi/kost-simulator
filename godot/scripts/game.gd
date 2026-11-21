@@ -6507,7 +6507,7 @@ func _tenant_by_id(id: String) -> Dictionary:
 
 
 # ---------------- Rating Google Play (In-App Review) ----------------
-const PLAY_URL := "https://play.google.com/store/apps/details?id=com.kelolapro.cozykost"
+const PLAY_URL := "https://play.google.com/store/apps/details?id=kelolapro.cozykost"
 
 
 ## Dipanggil di momen menyenangkan (naik level, menang padel, selesai baca buku).
