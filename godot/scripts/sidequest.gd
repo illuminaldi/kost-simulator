@@ -86,7 +86,8 @@ func _arrive(to: String) -> void:
 	match to:
 		"kost":
 			_close()
-			game.keeper_say("Sudah pulang! Kost aman kan?", 2.5)
+			if not game.padel_greet():
+				game.keeper_say("Sudah pulang! Kost aman kan?", 2.5)
 		"cafe": _show_cafe_ext()
 		"padel": _show_padel_ext()
 
@@ -202,6 +203,9 @@ func _show_cafe_ext() -> void:
 	_clear()
 	view = "cafe_ext"
 	_bg("res://assets/side/cafe_ext.jpg")
+	var plang := _CafeSign.new()
+	plang.font = font
+	_layer.add_child(plang)
 	var m := TextureRect.new()
 	m.texture = load("res://assets/chars/penjaga/happy_L.png")
 	m.size = m.texture.get_size() * 1.32
@@ -230,19 +234,20 @@ func _show_padel_ext() -> void:
 
 
 # ---------------- Cafe Book: membaca ----------------
-# Buku = karya klasik; isi halaman berupa intisari/ringkasan bahasa Indonesia (bukan kutipan teks asli).
+# Buku = karya klasik domain publik; isi dari file assets/books (terjemahan atau cerita ulang bahasa Indonesia).
+# Array "p" hanya cadangan bila file tidak terbaca.
 const BOOKS := [
 	{"t": "The Art of War", "src": "Sun Tzu · terjemahan lengkap 13 bab (domain publik)", "file": "res://assets/books/art_of_war.txt", "p": [
 		["Perang adalah urusan hidup dan mati sebuah negeri. Karena itu, Sun Tzu mengajarkan: pikirkan matang-matang sebelum bertindak.", "Lima hal menentukan kemenangan: tujuan yang menyatukan semua orang, waktu dan cuaca, medan, kepemimpinan, serta aturan yang jelas."],
 		["Kemenangan terbaik adalah menang tanpa bertempur. Mematahkan rencana lawan lebih bijak daripada menghancurkan pasukannya.", "Kenali dirimu dan kenali lawanmu, maka kamu tidak perlu takut pada seratus pertempuran. Kenal salah satunya saja, peluangmu separuh."],
 		["Jadilah seperti air: mengikuti bentuk wadahnya. Air menghindari tempat tinggi dan mengalir ke tempat rendah.", "Begitu juga strategi: hindari kekuatan lawan, serang kelemahannya, dan selalu siap berubah mengikuti keadaan."],
 		["Pemimpin yang baik memperlakukan pasukannya seperti anak sendiri, sehingga mereka setia sampai akhir.", "Pelajaran untuk sehari-hari: rencanakan dengan tenang, pahami situasi, dan pilih pertarungan yang memang layak. TAMAT"]]},
-	{"t": "Meditations", "src": "Marcus Aurelius · intisari bebas (domain publik)", "p": [
+	{"t": "Meditations", "src": "Marcus Aurelius · diceritakan ulang (domain publik)", "file": "res://assets/books/meditations.txt", "p": [
 		["Buku ini adalah catatan pribadi seorang kaisar Romawi. Ia menulisnya untuk dirinya sendiri, bukan untuk dibaca orang lain.", "Setiap pagi ia mengingatkan diri: hari ini aku akan bertemu orang yang menyebalkan. Tapi mereka juga saudaraku, dan aku tidak akan terpancing."],
 		["Yang membuat kita gelisah bukan kejadiannya, tapi penilaian kita tentang kejadian itu. Ubah penilaianmu, maka gelisahnya pun hilang.", "Ada hal yang bisa kita kendalikan, ada yang tidak. Pikiran dan tindakan kita milik kita; sisanya, terima dengan lapang dada."],
 		["Hidup itu singkat. Jangan habiskan waktu menebak-nebak isi kepala orang lain.", "Lakukan setiap pekerjaan seolah itu yang terakhir: dengan tenang, sungguh-sungguh, dan tanpa pura-pura."],
 		["Saat lelah dan ingin menyerah, ingatlah: kita lahir untuk bekerja sama, seperti kaki, tangan, dan mata dalam satu tubuh.", "Pelajaran: kuasai pikiranmu, bukan keadaan. Di situlah ketenangan sejati. TAMAT"]]},
-	{"t": "Dongeng Aesop", "src": "Aesop · dongeng pilihan, diceritakan ulang (domain publik)", "p": [
+	{"t": "Dongeng Aesop", "src": "Aesop · 12 dongeng pilihan, diceritakan ulang (domain publik)", "file": "res://assets/books/aesop.txt", "p": [
 		["Kura-kura menantang Kelinci lomba lari. Kelinci tertawa dan tidur di tengah jalan karena merasa pasti menang.", "Kura-kura terus berjalan pelan tanpa berhenti, dan sampai di garis akhir lebih dulu. Pelan asal tekun mengalahkan cepat tapi lengah."],
 		["Seekor Semut bekerja sepanjang musim panas mengumpulkan makanan, sementara Belalang hanya bernyanyi.", "Ketika musim dingin datang, Belalang kelaparan. Siapkan hari esok selagi hari ini masih cerah."],
 		["Seekor Rubah melihat anggur ranum tergantung tinggi. Ia melompat berkali-kali tapi tak sampai.", "Akhirnya ia pergi sambil berkata, 'Anggur itu pasti masam.' Mudah meremehkan apa yang tak bisa kita raih."],
@@ -252,32 +257,32 @@ const BOOKS := [
 		["Keadaan hidup tidak selalu bisa kita pilih, tapi cara kita menanggapinya mencerminkan isi pikiran kita.", "Orang yang membiasakan pikiran bersih dan jujur, perlahan akan menemukan hidupnya ikut tertata."],
 		["Pikiran juga memengaruhi tubuh. Cemas berlebihan membuat lelah; pikiran tenang membuat tubuh lebih segar.", "Tujuan yang jelas membuat pikiran tidak mudah goyah. Tanpa tujuan, kita mudah terseret rasa khawatir."],
 		["Ketenangan adalah buah dari latihan panjang menguasai diri, dan itulah kekuatan yang sesungguhnya.", "Pelajaran: rawat pikiranmu seperti kebun. Apa yang kamu tanam, itulah yang kamu tuai. TAMAT"]]},
-	{"t": "Alice di Negeri Ajaib", "src": "Lewis Carroll, 1865 · ringkasan cerita (domain publik)", "p": [
+	{"t": "Alice di Negeri Ajaib", "src": "Lewis Carroll, 1865 · 12 bab, diceritakan ulang (domain publik)", "file": "res://assets/books/alice.txt", "p": [
 		["Alice yang bosan di tepi sungai melihat Kelinci Putih berjas, melihat jam saku, lalu masuk ke lubang di bawah pagar.", "Alice mengikutinya dan jatuh sangat lama, sampai tiba di aula penuh pintu yang terkunci."],
 		["Sebotol minuman membuatnya mengecil, sepotong kue membuatnya membesar. Ia menangis sampai air matanya jadi kolam.", "Ia bertemu Ulat yang merokok di atas jamur dan bertanya, 'Siapa kamu?' Alice sendiri jadi ragu menjawab."],
 		["Di pesta teh, Topi Gila dan Kelinci Maret berbicara berputar-putar tanpa ujung. Kucing Cheshire menghilang dan hanya meninggalkan senyumnya.", "Di kebun Ratu Hati, semua orang takut karena Ratu suka berteriak, 'Penggal kepalanya!'"],
 		["Di sidang yang kacau, Alice tumbuh besar lagi dan berani berkata, 'Kalian cuma setumpuk kartu!'", "Ia terbangun di pangkuan kakaknya. Negeri Ajaib ternyata mimpi, tapi rasa ingin tahunya tetap hidup. TAMAT"]]},
-	{"t": "The Adventures of Sherlock Holmes", "src": "Arthur Conan Doyle · intisari bebas (domain publik)", "p": [
+	{"t": "The Adventures of Sherlock Holmes", "src": "Arthur Conan Doyle · 8 kasus, diceritakan ulang (domain publik)", "file": "res://assets/books/sherlock_holmes.txt", "p": [
 		["Di Baker Street, London, tinggal detektif Sherlock Holmes bersama sahabatnya, dokter Watson, yang mencatat semua kasusnya.", "Holmes bisa menebak dari mana seseorang datang hanya dari debu di sepatunya atau bekas tinta di jarinya."],
 		["Seorang raja datang meminta tolong: ia takut sebuah foto lama mempermalukannya. Holmes menyamar untuk mencari foto itu.", "Tapi lawannya, Irene Adler, ternyata sama cerdasnya. Dialah satu-satunya orang yang berhasil mengecoh Holmes."],
 		["Di kasus lain, seorang pria berambut merah dibayar hanya untuk menyalin ensiklopedia. Aneh, bukan?", "Holmes curiga ada yang menggali terowongan ke bank di sebelahnya. Benar saja, pencurinya tertangkap basah."],
 		["Rahasia Holmes sederhana: amati detail kecil, singkirkan yang mustahil, dan yang tersisa pasti kebenarannya.", "Pelajaran: jangan buru-buru menyimpulkan. Lihat, catat, pikirkan, baru putuskan. TAMAT"]]},
-	{"t": "Letters from a Stoic", "src": "Seneca · intisari bebas (domain publik)", "p": [
+	{"t": "Letters from a Stoic", "src": "Seneca · surat pilihan, diceritakan ulang (domain publik)", "file": "res://assets/books/letters_stoic.txt", "p": [
 		["Seneca menulis surat-surat untuk sahabatnya, Lucilius, berisi nasihat cara hidup yang tenang dan bijak.", "Nasihat pertama: jagalah waktumu. Harta yang hilang bisa dicari lagi, tapi waktu yang terbuang tidak akan kembali."],
 		["Jangan membaca terlalu banyak buku sekaligus. Lebih baik sedikit, tapi benar-benar dipahami dan dipraktikkan.", "Pilih teman dengan hati-hati. Kebiasaan orang di sekitar kita lambat laun akan menular."],
 		["Sesekali, latihlah hidup sederhana: makan seadanya, berpakaian biasa. Kamu akan sadar bahwa kekurangan tidak semenakutkan bayangan.", "Kita sering lebih menderita dalam khayalan daripada dalam kenyataan."],
 		["Orang kaya sejati bukan yang punya banyak, tapi yang merasa cukup.", "Pelajaran: hargai waktu, pilih teman baik, dan latih hati agar tidak mudah takut. TAMAT"]]},
-	{"t": "Sang Nabi", "src": "Kahlil Gibran, 1923 · intisari bebas (domain publik)", "p": [
+	{"t": "Sang Nabi", "src": "Kahlil Gibran, 1923 · diceritakan ulang (domain publik)", "file": "res://assets/books/sang_nabi.txt", "p": [
 		["Almustafa sudah dua belas tahun tinggal di kota Orphalese. Kapal yang akan membawanya pulang akhirnya tiba.", "Sebelum pergi, orang-orang kota memintanya berbicara tentang hidup: tentang cinta, kerja, dan rumah."],
 		["Tentang anak, ia berkata: anakmu bukan milikmu; mereka datang melaluimu, bukan darimu. Kau busurnya, mereka anak panahnya.", "Tentang kerja: kerja adalah cinta yang tampak. Bekerjalah dengan sepenuh hati, seolah orang tercinta akan memakainya."],
 		["Tentang memberi: pemberian sejati adalah ketika kau memberi dari dirimu sendiri, bukan sekadar dari hartamu.", "Tentang suka dan duka: keduanya datang bersama. Semakin dalam duka mengukir hatimu, semakin banyak suka yang bisa ditampungnya."],
 		["Tentang persahabatan: sahabat adalah jawaban atas kebutuhanmu, ladang yang kau tanami dengan kasih.", "Almustafa naik ke kapal dan berjanji akan kembali. Kata-katanya tinggal di hati penduduk kota. TAMAT"]]},
-	{"t": "How to Live on 24 Hours a Day", "src": "Arnold Bennett, 1908 · intisari bebas (domain publik)", "p": [
+	{"t": "How to Live on 24 Hours a Day", "src": "Arnold Bennett, 1908 · diceritakan ulang (domain publik)", "file": "res://assets/books/24_hours.txt", "p": [
 		["Setiap orang mendapat jatah yang sama setiap hari: 24 jam. Orang kaya tidak dapat lebih, orang miskin tidak dapat kurang.", "Masalahnya, banyak orang merasa waktunya habis untuk bekerja, lalu sisanya terbuang begitu saja."],
 		["Bennett menyarankan: anggap jam di luar kerja sebagai 'hari kedua' milikmu sendiri, bukan sisa yang tak berarti.", "Mulailah kecil. Pakai 90 menit, tiga malam seminggu, untuk belajar sesuatu yang benar-benar kamu minati."],
 		["Waktu di perjalanan pun bisa dipakai: melatih fokus, merenung, atau membaca.", "Jangan terlalu ambisius di awal. Rencana yang terlalu berat cepat membuat kita menyerah."],
 		["Yang terpenting adalah konsisten, bukan sempurna. Sedikit demi sedikit, lama-lama hidup terasa lebih penuh.", "Pelajaran: kamu tidak butuh waktu lebih banyak, kamu butuh cara memakai waktu yang lebih baik. TAMAT"]]},
-	{"t": "Journey to the West", "src": "Wu Cheng'en · intisari bebas (domain publik)", "p": [
+	{"t": "Journey to the West", "src": "Wu Cheng'en · 14 bab, diceritakan ulang (domain publik)", "file": "res://assets/books/journey_west.txt", "p": [
 		["Dari sebuah batu ajaib lahirlah Sun Wukong, si Raja Kera. Ia sakti, bisa berubah wujud dan terbang di atas awan.", "Karena sombong, ia mengacau di kahyangan. Akhirnya ia dihukum, ditindih gunung selama lima ratus tahun."],
 		["Seorang biksu, Tang Sanzang, diutus ke barat untuk mengambil kitab suci. Sun Wukong dibebaskan untuk menjadi pengawalnya.", "Ikut pula Zhu Bajie si babi yang rakus dan Sha Wujing yang pendiam namun setia."],
 		["Di sepanjang jalan, siluman-siluman ingin menangkap sang biksu. Sun Wukong berkali-kali menyelamatkannya dengan akal dan kesaktian.", "Mereka sering bertengkar, tapi tetap saling menolong. Ada delapan puluh satu rintangan yang harus dilewati."],
@@ -311,6 +316,8 @@ func _show_cafe_in() -> void:
 	_layer.add_child(life)
 	_layer.move_child(life, 1)
 	_mug = _Mug.new()
+	drink = clampi(int(game.S.get("side", {}).get("drink", 0)), 0, DRINKS.size() - 1)
+	_mug.liq = Color(str(DRINKS[drink][4]))
 	_layer.add_child(_mug)
 	# Meter fokus & isi gelas
 	var cp := _panel(Rect2(30, 1960, 560, 170), Color(1, 0.98, 0.94, 0.95))
@@ -318,7 +325,7 @@ func _show_cafe_in() -> void:
 	vb.add_theme_constant_override("separation", 8)
 	cp.add_child(vb)
 	_coffee_bar = _meter(vb, "Fokus", Color("7aa86b"))
-	_cup_bar = _meter(vb, "Kopi", Color("8a5a3a"))
+	_cup_bar = _meter(vb, "Minum", Color("8a5a3a"))
 	# Tombol panah & gelas (gambar di ilustrasi; area ketuk asli)
 	_hit(Rect2(70, 1125, 152, 150), func(): _flip(-1))
 	_hit(Rect2(1218, 1125, 152, 150), func(): _flip(1))
@@ -382,6 +389,9 @@ func _pages(i: int) -> Array:
 		return b.p
 	var f := FileAccess.open(str(b.file), FileAccess.READ)
 	var txt := f.get_as_text() if f else ""
+	if txt.strip_edges() == "" and b.has("p"):
+		_page_cache[i] = b.p   # cadangan bila file tidak ikut terekspor
+		return b.p
 	var sides: Array = []
 	var cur := ""
 	var first := true
@@ -446,7 +456,7 @@ func _render_book() -> void:
 	_lt_dim.visible = page == 0
 	_rt_dim.visible = page >= n - 1
 	if focus <= 0.15:
-		_cafe_hint_lbl.text = "Maryam ngantuk... ketuk kopinya" if coffee > 0.01 else "Kopi habis! Order minuman dulu"
+		_cafe_hint_lbl.text = "Maryam ngantuk... ketuk minumannya" if coffee > 0.01 else "Minuman habis! Order minuman dulu"
 	elif page >= n - 1:
 		_cafe_hint_lbl.text = "Tamat! Ketuk Baca Buku Lain"
 	else:
@@ -498,22 +508,54 @@ func _sip() -> void:
 	focus = minf(1.0, focus + 0.45)
 	_mug.sip()
 	game.sfx("pop", -10.0)
-	game.ui.toast(["Sruput~ Hangat dan wangi.", "Hmm, kopi susunya pas.", "Ahh, segar lagi!"].pick_random())
+	game.ui.toast(["Sruput~", str(DRINKS[drink][5]), "Ahh, segar lagi!"].pick_random())
 	_render_book()
 
 
+# Menu minuman Cafe Book: [id gambar, nama, keterangan, harga, warna isi gelas, kalimat saat diseruput]
+const DRINKS := [
+	["kopi_susu", "Es Kopi Susu", "Gula aren, susu segar", 25000, "a8774f", "Hmm, kopi susunya pas."],
+	["americano", "Americano", "Espresso + air, tanpa gula", 22000, "3b2418", "Pahit, tapi bikin melek!"],
+	["cappuccino", "Cappuccino", "Panas, busa susu tebal", 28000, "c4925f", "Busanya lembut banget~"],
+	["matcha", "Matcha Latte", "Teh hijau Jepang + susu", 30000, "8cbf5a", "Segar, wangi tehnya."],
+	["taro", "Taro Latte", "Ubi taro manis + susu", 28000, "b796d9", "Manisnya pas, ungu cantik."],
+	["strawberry", "Strawberry Latte", "Selai stroberi + susu", 30000, "f2a3b8", "Asam manis, segar!"],
+	["hot_tea", "Hot Tea", "Teh melati panas + lemon", 15000, "c77d2c", "Hangat, bikin tenang."],
+]
+var drink := 0
+
+
+## Pesan minuman: munculkan menu bergambar, lalu isi gelas dengan pilihan.
 func _order() -> void:
-	var c := 25000.0
 	if coffee >= 0.99:
-		game.ui.toast("Kopinya masih penuh, diminum dulu!")
+		game.ui.toast("Minumannya masih penuh, diminum dulu!")
 		return
+	var cards := []
+	for i in DRINKS.size():
+		var dk: Array = DRINKS[i]
+		var di: int = i
+		var price := float(dk[3])
+		cards.append({"name": dk[1], "sub": "%s · %s" % [D.rp(price), dk[2]],
+			"tex": "res://assets/side/drinks/%s.png" % dk[0], "cur": i == drink,
+			"locked": float(game.S.money) < price, "why": game.ui.money_why(price),
+			"cb": func(): _buy_drink(di)})
+	_catalog("Menu Cafe Book", cards)
+
+
+func _buy_drink(i: int) -> void:
+	var dk: Array = DRINKS[i]
+	var c := float(dk[3])
 	if float(game.S.money) < c:
 		game.ui.toast(game.ui.money_why(c), "bad"); return
 	game.spend(c, "other")
+	drink = i
+	if not game.S.has("side"): game.S.side = {}
+	game.S.side.drink = i
 	coffee = 1.0
+	_mug.liq = Color(str(dk[4]))
 	_mug.refill()
 	game.sfx("buy", -6.0)
-	game.ui.toast("Kopi susu gula aren datang! (%s)" % D.rp(c), "gold")
+	game.ui.toast("%s datang! (%s)" % [dk[1], D.rp(c)], "gold")
 	_render_book()
 
 
@@ -658,6 +700,7 @@ class _Book extends Node2D:
 ## kamera (membesar & naik), isi kopinya turun, lalu kembali ke meja.
 class _Mug extends Node2D:
 	var level := 1.0
+	var liq := Color("5e3626")   # warna isi gelas sesuai minuman yang dipesan
 	var _shown := 1.0
 	var _a := 0.0          # 0..1 progres animasi minum
 	var _wig := 0.0
@@ -666,9 +709,9 @@ class _Mug extends Node2D:
 	var _tex_sip: Texture2D = load("res://assets/side/cafe_mug_sip.png")
 	const ORG := Vector2(852.67, 1600)   # tekstur ditambal 70px (3x) di kiri
 	const PIV := Vector2(1284, 1824)
-	const C := Vector2(1046, 1703)
-	const RX := 180.0
-	const RY := 80.0
+	const C := Vector2(1042.67, 1697.5)   # tengah mulut cangkir (tekstur 380,195 / HR)
+	const RX := 171.0                     # dinding dalam = RX-6 = 165 (tekstur 330/HR)
+	const RY := 71.5
 	const HR := 2.0                     # tekstur 2x lebih tajam untuk zoom
 	const ZMAX := 4.2                   # saat diseruput gelas mendekat sampai memenuhi layar
 	const ZPIV := Vector2(1719, 1470)
@@ -725,12 +768,12 @@ class _Mug extends Node2D:
 			return
 		draw_texture_rect(_tex, Rect2(ORG + o, sz), false)
 		var c := C + o
-		_ell(c, RX - 6, RY - 4, Color("c99a6d"))
+		_ell(c, RX - 6, RY - 4, Color("b98c62"))
 		var lv := _shown
 		if lv > 0.01:
-			var drop := (1.0 - lv) * 48.0
-			var s := 1.0 - (1.0 - lv) * 0.2
-			_ell(c + Vector2(0, drop), (RX - 14) * s, (RY - 12) * s, Color("5e3626"))
+			var drop := (1.0 - lv) * 26.0
+			var s := 1.0 - (1.0 - lv) * 0.3
+			_ell(c + Vector2(0, drop), (RX - 14) * s, (RY - 12) * s, liq)
 			_ell(c + Vector2(-20, drop - 6), (RX - 60) * s, (RY - 34) * s, Color(1, 1, 1, 0.06))
 			if e > 0.5:
 				draw_arc(c + Vector2(0, drop), (RX - 40) * (0.6 + 0.4 * sin(t * 9.0)), 0, TAU, 32, Color(1, 1, 1, 0.3), 4)
@@ -743,8 +786,8 @@ class _Mug extends Node2D:
 				draw_polyline(pts, Color(1, 1, 1, a), 12)
 		else:
 			# gelas kosong: dasar gelas kecokelatan sisa kopi, tanpa uap
-			_ell(c + Vector2(0, 26), RX - 40, RY - 26, Color("cdb08d"))
-			_ell(c + Vector2(-6, 30), RX - 90, RY - 44, Color("9c7451", 0.55))
+			_ell(c + Vector2(0, 24), RX - 50, RY - 30, Color(liq.darkened(0.2), 0.35))
+			_ell(c + Vector2(-6, 28), RX - 100, RY - 48, Color(liq.darkened(0.35), 0.3))
 		draw_set_transform(Vector2.ZERO)
 
 
@@ -1095,8 +1138,8 @@ func _book_catalog() -> void:
 	for i in BOOKS.size():
 		var b: Dictionary = BOOKS[i]
 		var pg := int(game.S.get("side", {}).get("bkpg", {}).get(str(i), 0))
-		var kind := "Isi lengkap" if b.has("file") else "Rangkuman"
-		var sub := "%s · %s" % [kind, ("lanjut hal. %d" % (pg * 2 + 1)) if pg > 0 else "belum dibaca"]
+		var kind := "Terjemahan lengkap" if str(b.src).contains("lengkap") else "Cerita ulang"
+		var sub := "%s · %d hal. · %s" % [kind, _pages(i).size() * 2, ("lanjut hal. %d" % (pg * 2 + 1)) if pg > 0 else "belum dibaca"]
 		var bi: int = i
 		cards.append({"name": b.t, "sub": sub, "col": COVERS[i % COVERS.size()], "cur": i == book, "cb": func():
 			book = bi
@@ -1483,6 +1526,9 @@ func _point(who: int) -> void:
 		if who == 0:
 			_say("GAME! Maryam menang!")
 			_mpose("cheer", 2.2)
+			# Diingat John: besok/sepulangnya ia menyapa Maryam "jagoan padel".
+			game.S.side["padel_win_day"] = int(game.S.day)
+			game.S.side["padel_win_foe"] = str(FOES[foe][0])
 			if _toast_once("padel"):
 				game.add_xp(25)
 				for e in game.each_tenant():
@@ -2303,3 +2349,54 @@ class _TapCoach extends Node2D:
 		if font:
 			draw_string_outline(font, p + Vector2(-360, -160), "KETUK SEKARANG!", HORIZONTAL_ALIGNMENT_CENTER, 720, 54, 14, Color("4a3426"))
 			draw_string(font, p + Vector2(-360, -160), "KETUK SEKARANG!", HORIZONTAL_ALIGNMENT_CENTER, 720, 54, Color("ffe28a"))
+
+
+## Plang "Cafe Book" di papan gantung kosong pada ilustrasi tampak luar cafe.
+## Digambar mengikuti sudut & kemiringan papan (koordinat 1:1 dengan ilustrasi).
+class _CafeSign extends Node2D:
+	var font: Font
+	var t := 0.0
+	# Sudut papan pada ilustrasi: kiri-atas, kanan-atas, kanan-bawah, kiri-bawah
+	const TL := Vector2(918, 1000)
+	const TR := Vector2(1068, 1021)
+	const BR := Vector2(1068, 1144)
+	const BL := Vector2(917, 1131)
+	const W := 150.0
+	const H := 131.0
+
+	func _process(dt: float) -> void:
+		t += dt
+		queue_redraw()
+
+	## Titik (u, v) dalam satuan papan 0..W x 0..H -> titik di layar (interpolasi bilinear 4 sudut).
+	func _p(u: float, v: float) -> Vector2:
+		var a := u / W
+		var b := v / H
+		return TL.lerp(TR, a).lerp(BL.lerp(BR, a), b)
+
+	func _quad(x0: float, y0: float, x1: float, y1: float, col: Color) -> void:
+		draw_colored_polygon(PackedVector2Array([_p(x0, y0), _p(x1, y0), _p(x1, y1), _p(x0, y1)]), col)
+
+	func _draw() -> void:
+		_quad(3, 3, W - 3, H - 3, Color("5a3b2c"))
+		var gold := Color("f2c46d")
+		var cream := Color("fff1d6")
+		# bingkai tipis di dalam papan
+		var fr := PackedVector2Array([_p(10, 10), _p(W - 10, 10), _p(W - 10, H - 10), _p(10, H - 10), _p(10, 10)])
+		draw_polyline(fr, Color("f3d9a4"), 3.0, true)
+		# Teks & ikon ditarik dengan transformasi miring yang sama dengan papan (bagian tengah papan).
+		var ox := _p(0, 0)
+		var xa := (_p(W, H * 0.5) - _p(0, H * 0.5)) / W
+		var ya := (_p(W * 0.5, H) - _p(W * 0.5, 0)) / H
+		draw_set_transform_matrix(Transform2D(xa, ya, ox))
+		# cangkir kecil + uap
+		var c := Vector2(W / 2.0, 30)
+		draw_rect(Rect2(c + Vector2(-13, -5), Vector2(26, 17)), gold)
+		draw_arc(c + Vector2(15, 3), 6, -PI / 2, PI / 2, 10, gold, 3.5)
+		draw_line(c + Vector2(-17, 13), c + Vector2(17, 13), gold, 3.5)
+		for i in range(2):
+			var x := -5.0 + i * 10.0
+			draw_line(c + Vector2(x, -10), c + Vector2(x + sin(t * 3.0 + i) * 2.5, -20), Color(1, 0.95, 0.85, 0.8), 2.5)
+		draw_string(font, Vector2(0, 80), "Cafe", HORIZONTAL_ALIGNMENT_CENTER, W, 36, cream)
+		draw_string(font, Vector2(0, 114), "Book", HORIZONTAL_ALIGNMENT_CENTER, W, 36, gold)
+		draw_set_transform_matrix(Transform2D.IDENTITY)
