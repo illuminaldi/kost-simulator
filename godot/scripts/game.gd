@@ -5582,6 +5582,9 @@ func _handle_cli(args: PackedStringArray) -> void:
 		elif a.begins_with("--funny="):
 			var fk := a.substr(8)
 			get_tree().create_timer(0.5).timeout.connect(func(): funny.start(fk))
+		elif a.begins_with("--beli="):
+			ui.tray_tab = a.get_slice("=", 1)
+			ui.open_sheet("beli")
 		elif a == "--manage":
 			ui.open_sheet("manage")
 		elif a.begins_with("--sheetscroll="):

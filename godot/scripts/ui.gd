@@ -1152,6 +1152,7 @@ func _sheet_beli() -> void:
 			for id in D.ROOMS:
 				if not S.rooms[id].built and game.floor_open(D.fl(id)): empty += 1
 			_buy_row("build", at, "Kamar Baru", "Dibangun tukang di lahan kosong. Setelah jadi, beli kasur supaya bisa disewa.", "Lahan siap dibangun: %d" % empty, game.build_cost(), empty > 0, "Pilih lahan", func(): game.start_place("build", ""), false)
+			_floor_row()
 			for k in D.FACIL_ORDER:
 				var fc: Dictionary = D.FACIL[k]
 				var bn: int = game.facil_count(k)
@@ -1172,6 +1173,29 @@ func _sheet_beli() -> void:
 				_buy_row("app:" + k, load("res://assets/fac/%s.svg" % k), ap.n, ap.tag + " · " + D.short(ap.month) + "/bulan", "Aktif" if on else ("" if int(S.lvl) >= int(ap.lv) else "Terbuka di Level %d" % int(ap.lv)), float(ap.fee), int(S.lvl) >= int(ap.lv) and not on, "Pasang", func(): game.act("app_on", k), true, "/hari")
 		"diamond":
 			_shop_view()
+
+
+## Baris "Bangun Lantai Baru" di Beli > Ruang.
+func _floor_row() -> void:
+	var S: Dictionary = game.S
+	var fln: int = int(S.get("open_floor", 8)) + 1
+	var ft := AtlasTexture.new()
+	ft.atlas = game.art
+	ft.region = Rect2(560, 651, 420, 367)
+	var cost: float = D.floor_cost(fln)
+	var rp: float = D.floor_rep(fln)
+	var renov: Dictionary = S.get("renov", {})
+	if not renov.is_empty():
+		_buy_row("floor", ft, "Bangun Lantai Baru", "Lantai %d sedang dibangun. Selesai dalam 3 hari waktu nyata, tetap berjalan walau game ditutup." % int(renov.f),
+			"Sisa %s · percepat di halaman lantai" % game.fmt_real(game.renov_left()), 0.0, false, "Sedang dibangun", func(): pass)
+		return
+	var why := ""
+	if int(S.lvl) < fln: why = "Terbuka di Level %d" % fln
+	elif float(S.rep) < rp: why = "Butuh rating minimal %.1f (sekarang %.1f)" % [rp, float(S.rep)]
+	_buy_row("floor", ft, "Bangun Lantai Baru", "Menambah lantai %d (2 lahan kamar). Dibangun 3 hari waktu nyata, tetap berjalan walau game ditutup." % fln,
+		why if why != "" else "Syarat: Level %d · rating %.1f" % [fln, rp], cost, why == "", "Bangun", func():
+			game.renovate_floor(fln)
+			refresh_sheet())
 
 
 func _buy_row(key: String, tex: Texture2D, title: String, desc: String, sub: String, price: float, ok: bool, verb: String, fn: Callable, money_now := true, unit := "") -> void:
