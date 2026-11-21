@@ -5718,6 +5718,12 @@ func _handle_cli(args: PackedStringArray) -> void:
 				hn.fixed = Rect2(0, 0, 10, 367)
 				hn.position = Vector2(0, 40 + i * 470)
 				cl.add_child(hn)
+		elif a == "--memlog":
+			var mt := Timer.new(); mt.wait_time = 10.0; mt.autostart = true; add_child(mt)
+			mt.timeout.connect(func():
+				print("MEM t=%d nodes=%d obj=%d res=%d mem_mb=%.1f vmem=%.1f npcs=%d" % [Time.get_ticks_msec() / 1000, Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
+					Performance.get_monitor(Performance.OBJECT_COUNT), Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT),
+					Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0, Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED) / 1048576.0, npcs.size()]))
 		elif a.begins_with("--stress="):
 			var nf := int(a.get_slice("=", 1))
 			S.seen = true; S.tut = -1; ui.close_sheet()
