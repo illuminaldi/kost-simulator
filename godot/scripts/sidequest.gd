@@ -709,9 +709,9 @@ class _Mug extends Node2D:
 	var _tex_sip: Texture2D = load("res://assets/side/cafe_mug_sip.png")
 	const ORG := Vector2(852.67, 1600)   # tekstur ditambal 70px (3x) di kiri
 	const PIV := Vector2(1284, 1824)
-	const C := Vector2(1046, 1703)
-	const RX := 180.0
-	const RY := 80.0
+	const C := Vector2(1042.67, 1697.5)   # tengah mulut cangkir (tekstur 380,195 / HR)
+	const RX := 171.0                     # dinding dalam = RX-6 = 165 (tekstur 330/HR)
+	const RY := 71.5
 	const HR := 2.0                     # tekstur 2x lebih tajam untuk zoom
 	const ZMAX := 4.2                   # saat diseruput gelas mendekat sampai memenuhi layar
 	const ZPIV := Vector2(1719, 1470)
@@ -768,11 +768,11 @@ class _Mug extends Node2D:
 			return
 		draw_texture_rect(_tex, Rect2(ORG + o, sz), false)
 		var c := C + o
-		_ell(c, RX - 6, RY - 4, Color("c99a6d"))
+		_ell(c, RX - 6, RY - 4, Color("b98c62"))
 		var lv := _shown
 		if lv > 0.01:
-			var drop := (1.0 - lv) * 48.0
-			var s := 1.0 - (1.0 - lv) * 0.2
+			var drop := (1.0 - lv) * 26.0
+			var s := 1.0 - (1.0 - lv) * 0.3
 			_ell(c + Vector2(0, drop), (RX - 14) * s, (RY - 12) * s, liq)
 			_ell(c + Vector2(-20, drop - 6), (RX - 60) * s, (RY - 34) * s, Color(1, 1, 1, 0.06))
 			if e > 0.5:
@@ -786,8 +786,8 @@ class _Mug extends Node2D:
 				draw_polyline(pts, Color(1, 1, 1, a), 12)
 		else:
 			# gelas kosong: dasar gelas kecokelatan sisa kopi, tanpa uap
-			_ell(c + Vector2(0, 26), RX - 40, RY - 26, Color("cdb08d"))
-			_ell(c + Vector2(-6, 30), RX - 90, RY - 44, Color("9c7451", 0.55))
+			_ell(c + Vector2(0, 24), RX - 50, RY - 30, Color(liq.darkened(0.2), 0.35))
+			_ell(c + Vector2(-6, 28), RX - 100, RY - 48, Color(liq.darkened(0.35), 0.3))
 		draw_set_transform(Vector2.ZERO)
 
 
