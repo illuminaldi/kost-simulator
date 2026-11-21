@@ -1385,7 +1385,7 @@ func add_xp(n: float) -> void:
 		maybe_review("level")
 		var lf := int(S.lvl)
 		if lf <= 8: ui.toast("Lantai %d terbuka untuk dibangun" % lf, "gold")
-		elif lf <= D.TOP_FLOOR and not floor_open(lf): ui.toast("Lantai %d bisa direnovasi sekarang!" % lf, "gold")
+		elif lf <= D.TOP_FLOOR and not floor_open(lf): ui.toast("Lantai %d bisa dibangun sekarang!" % lf, "gold")
 		dirty = true
 
 
@@ -2885,16 +2885,16 @@ func floor_open(f: int) -> bool:
 
 func floor_lock_text(f: int) -> String:
 	if int(S.lvl) < f: return "Lantai %d terbuka di Level %d" % [f, f]
-	return "Lantai %d perlu direnovasi dulu (%s, rating %.1f)" % [f, D.rp(D.floor_cost(f)), D.floor_rep(f)]
+	return "Lantai %d perlu dibangun dulu (%s, rating %.1f)" % [f, D.rp(D.floor_cost(f)), D.floor_rep(f)]
 
 
 ## Teks papan untuk lahan kosong di lantai terkunci ("" = boleh dibangun).
 func floor_lock_sign(f: int) -> String:
 	if f <= 8 or floor_open(f): return ""
 	if not S.get("renov", {}).is_empty() and int(S.renov.f) == f:
-		return "Direnovasi\n" + fmt_real(renov_left())
+		return "Dibangun\n" + fmt_real(renov_left())
 	if int(S.lvl) < f: return ""      # papan "Terkunci Level X" bawaan
-	return "Renovasi\n%s" % D.short(D.floor_cost(f))
+	return "Bangun Lantai\n%s" % D.short(D.floor_cost(f))
 
 
 func renovate_floor(f: int) -> void:
@@ -2902,15 +2902,15 @@ func renovate_floor(f: int) -> void:
 	if int(S.lvl) < f:
 		ui.toast("Lantai %d terbuka di Level %d" % [f, f], "bad"); return
 	if float(S.rep) < D.floor_rep(f):
-		ui.toast("Rating kost harus minimal %.1f untuk renovasi lantai %d" % [D.floor_rep(f), f], "bad"); return
+		ui.toast("Rating kost harus minimal %.1f untuk membangun lantai %d" % [D.floor_rep(f), f], "bad"); return
 	if float(S.money) < D.floor_cost(f):
 		ui.toast("Uang belum cukup (%s)" % D.rp(D.floor_cost(f)), "bad"); return
 	if not S.get("renov", {}).is_empty():
-		ui.toast("Renovasi lantai %d masih berjalan." % int(S.renov.f), "bad"); return
+		ui.toast("Pembangunan lantai %d masih berjalan." % int(S.renov.f), "bad"); return
 	spend(D.floor_cost(f), "other")
 	# Renovasi berjalan 3 hari waktu nyata (tetap berjalan walau game ditutup).
 	S.renov = {"f": f, "end": Time.get_unix_time_from_system() + RENOV_SECS}
-	ui.toast("Renovasi lantai %d dimulai: selesai dalam 3 hari waktu nyata (bisa dipercepat pakai Diamond)." % f, "gold")
+	ui.toast("Bangun lantai %d dimulai: selesai dalam 3 hari waktu nyata (bisa dipercepat pakai Diamond)." % f, "gold")
 	sfx("buy")
 	dirty = true
 
@@ -2954,7 +2954,7 @@ func _check_renov() -> void:
 	S.renov = {}
 	S.open_floor = f
 	add_xp(50)
-	ui.toast("Lantai %d selesai direnovasi! Kamarnya siap dibangun." % f, "gold")
+	ui.toast("Lantai %d selesai dibangun! Kamarnya siap diisi." % f, "gold")
 	sfx("upgrade")
 	# Tambah satu lantai terkunci di atasnya lalu muat ulang gedung.
 	save_game()

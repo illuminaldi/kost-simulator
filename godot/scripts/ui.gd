@@ -1223,7 +1223,7 @@ func _buy_row(key: String, tex: Texture2D, title: String, desc: String, sub: Str
 func _sheet_floors() -> void:
 	var S: Dictionary = game.S
 	_header("Pindah ke lantai")
-	box.add_child(_text("Gedung bisa terus ditinggikan. Lantai 9 ke atas dibuka dengan renovasi.", 30, D.C_MUTED))
+	box.add_child(_text("Gedung bisa terus ditinggikan. Lantai 9 ke atas dibuka dengan Bangun Lantai Baru.", 30, D.C_MUTED))
 	var g := GridContainer.new()
 	g.columns = 4
 	g.add_theme_constant_override("h_separation", 12)
@@ -1653,20 +1653,20 @@ func _sheet_room() -> void:
 		if int(S.lvl) < fln:
 			v.add_child(_text("Lantai %d terbuka di Level %d." % [fln, fln], 38))
 		elif not game.floor_open(fln):
-			v.add_child(_label("Renovasi lantai %d" % fln, 40))
-			v.add_child(_text("Lantai di atas 8 perlu direnovasi sebelum kamarnya dibangun. Syarat: Level %d, rating minimal %.1f." % [fln, D.floor_rep(fln)], 32, D.C_MUTED))
+			v.add_child(_label("Bangun Lantai Baru %d" % fln, 40))
+			v.add_child(_text("Lantai di atas 8 perlu dibangun dulu sebelum kamarnya diisi. Syarat: Level %d, rating minimal %.1f." % [fln, D.floor_rep(fln)], 32, D.C_MUTED))
 			v.add_child(_text("Kamar makin tinggi = sewa makin mahal (+3%/lantai). Tanpa Lift atau Eskalator, penghuni lantai atas cepat capek.", 30, D.C_MUTED))
 			var nxt: int = int(S.get("open_floor", 8)) + 1
 			if not S.get("renov", {}).is_empty() and int(S.renov.f) == fln:
 				var left: float = game.renov_left()
-				v.add_child(_label("Sedang direnovasi · sisa %s waktu nyata" % game.fmt_real(left), 34, Color("3f6f96"), true))
+				v.add_child(_label("Sedang dibangun · sisa %s waktu nyata" % game.fmt_real(left), 34, Color("3f6f96"), true))
 				v.add_child(_text("Tukang bekerja 24 jam waktu nyata dan tetap jalan walau game ditutup. Mau cepat? Pakai Diamond.", 28, D.C_MUTED))
 				var dc: int = game.renov_speed_cost()
 				v.add_child(_dia_btn("Percepat", dc, func(): game.renov_speedup(); refresh_sheet()))
 			elif fln == nxt:
-				v.add_child(_btn("Mulai Renovasi (3 hari) · " + D.short(D.floor_cost(fln)), D.C_YELLOW, func(): game.renovate_floor(fln), float(S.rep) < D.floor_rep(fln) or float(S.money) < D.floor_cost(fln), false, ("Rating kost harus minimal %.1f" % D.floor_rep(fln)) if float(S.rep) < D.floor_rep(fln) else money_why(D.floor_cost(fln))))
+				v.add_child(_btn("Bangun Lantai Baru (3 hari) · " + D.short(D.floor_cost(fln)), D.C_YELLOW, func(): game.renovate_floor(fln), float(S.rep) < D.floor_rep(fln) or float(S.money) < D.floor_cost(fln), false, ("Rating kost harus minimal %.1f" % D.floor_rep(fln)) if float(S.rep) < D.floor_rep(fln) else money_why(D.floor_cost(fln))))
 			else:
-				v.add_child(_text("Renovasi lantai %d dulu." % nxt, 32, D.C_MUTED))
+				v.add_child(_text("Bangun lantai %d dulu." % nxt, 32, D.C_MUTED))
 		else:
 			var c: float = game.build_cost()
 			var bj: Dictionary = game.job_for(id, "build")
