@@ -321,7 +321,8 @@ func _start_climber() -> void:
 		if S.rooms[id].built: top = maxi(top, D.fl(id))
 	_climb_f = clampi(randi_range(2, top), 1, top)
 	climber = _Climber.new()
-	climber.tex = load("res://assets/chars/maling/caught_R.png")
+	climber.tex = load("res://assets/chars/maling/climb_L.png")
+	climber.tex_fall = load("res://assets/chars/maling/caught_R.png")
 	climber.side = [-1, 1].pick_random()
 	climber.position = Vector2(66 if climber.side < 0 else D.IW - 66, D.LOBBY_TOP + 20)
 	climber.goal_y = D.ROWS[_climb_f].x + 190
@@ -611,6 +612,7 @@ class _Soot extends Node2D:
 ## Maling memanjat tali di dinding luar.
 class _Climber extends Node2D:
 	var tex: Texture2D
+	var tex_fall: Texture2D
 	var side := -1
 	var goal_y := 0.0
 	var rope_top := 0.0
@@ -624,14 +626,25 @@ class _Climber extends Node2D:
 		if not falling:
 			draw_line(Vector2(0, rope_top - position.y), Vector2(0, 40), Color("8a6a3a"), 5.0)
 			draw_circle(Vector2(0, goal_y - position.y - 20), 14 + sin(t * 6.0) * 4, Color(1, 0.3, 0.2, 0.5))
-		var h := 200.0
-		var w := h * tex.get_width() / tex.get_height()
-		var wob := sin(t * 9.0) * 6.0 if not falling else 0.0
-		draw_texture_rect(tex, Rect2(-w / 2 + wob, -h + 30, w, h), false)
+		if falling or tex_fall == null:
+			var tf: Texture2D = tex_fall if tex_fall else tex
+			var hf := 200.0
+			var wf := hf * tf.get_width() / tf.get_height()
+			draw_texture_rect(tf, Rect2(-wf / 2, -hf + 30, wf, hf), false)
+		else:
+			# pose panjat: tali di gambar (±74% lebar) disejajarkan dengan tali yang digambar
+			var h := 236.0
+			var w := h * tex.get_width() / tex.get_height()
+			var sway := sin(t * 4.0) * 0.04
+			var by := sin(t * 9.0) * 4.0
+			var flip := side < 0   # badan selalu ke arah tengah layar (tidak terpotong tepi)
+			draw_set_transform(Vector2(0, by), sway, Vector2(-1 if flip else 1, 1))
+			draw_texture_rect(tex, Rect2(-w * 0.74, -h + 40, w, h), false)
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		if say != "":
 			var f := ThemeDB.fallback_font
 			var tw := f.get_string_size(say, HORIZONTAL_ALIGNMENT_LEFT, -1, 30).x
-			var r := Rect2(-tw / 2 - 18 + (140.0 * -side), -h - 40, tw + 36, 54)
+			var r := Rect2(-tw / 2 - 18 + (140.0 * -side), -240.0, tw + 36, 54)
 			draw_rect(r, Color("fffaf0"))
 			draw_rect(r, Color("3e2b1d"), false, 3.0)
 			draw_string(f, r.position + Vector2(18, 38), say, HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color("3e2b1d"))
