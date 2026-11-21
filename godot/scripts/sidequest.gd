@@ -86,7 +86,8 @@ func _arrive(to: String) -> void:
 	match to:
 		"kost":
 			_close()
-			game.keeper_say("Sudah pulang! Kost aman kan?", 2.5)
+			if not game.padel_greet():
+				game.keeper_say("Sudah pulang! Kost aman kan?", 2.5)
 		"cafe": _show_cafe_ext()
 		"padel": _show_padel_ext()
 
@@ -1525,6 +1526,9 @@ func _point(who: int) -> void:
 		if who == 0:
 			_say("GAME! Maryam menang!")
 			_mpose("cheer", 2.2)
+			# Diingat John: besok/sepulangnya ia menyapa Maryam "jagoan padel".
+			game.S.side["padel_win_day"] = int(game.S.day)
+			game.S.side["padel_win_foe"] = str(FOES[foe][0])
 			if _toast_once("padel"):
 				game.add_xp(25)
 				for e in game.each_tenant():
@@ -2348,32 +2352,51 @@ class _TapCoach extends Node2D:
 
 
 ## Plang "Cafe Book" di papan gantung kosong pada ilustrasi tampak luar cafe.
+## Digambar mengikuti sudut & kemiringan papan (koordinat 1:1 dengan ilustrasi).
 class _CafeSign extends Node2D:
 	var font: Font
 	var t := 0.0
-	const R := Rect2(919, 1002, 148, 140)   # papan pada ilustrasi (1:1 dengan layar)
+	# Sudut papan pada ilustrasi: kiri-atas, kanan-atas, kanan-bawah, kiri-bawah
+	const TL := Vector2(918, 1000)
+	const TR := Vector2(1068, 1021)
+	const BR := Vector2(1068, 1144)
+	const BL := Vector2(917, 1131)
+	const W := 150.0
+	const H := 131.0
 
 	func _process(dt: float) -> void:
 		t += dt
 		queue_redraw()
 
+	## Titik (u, v) dalam satuan papan 0..W x 0..H -> titik di layar (interpolasi bilinear 4 sudut).
+	func _p(u: float, v: float) -> Vector2:
+		var a := u / W
+		var b := v / H
+		return TL.lerp(TR, a).lerp(BL.lerp(BR, a), b)
+
+	func _quad(x0: float, y0: float, x1: float, y1: float, col: Color) -> void:
+		draw_colored_polygon(PackedVector2Array([_p(x0, y0), _p(x1, y0), _p(x1, y1), _p(x0, y1)]), col)
+
 	func _draw() -> void:
-		# papan sedikit berayun ditiup angin, berporos di gantungan atas
-		var piv := Vector2(R.get_center().x, R.position.y - 18)
-		draw_set_transform(piv, sin(t * 1.3) * 0.015, Vector2.ONE)
-		var r := Rect2(R.position - piv, R.size)
-		draw_rect(r, Color("5a3b2c"))
-		draw_rect(r.grow(-7), Color("f3d9a4"), false, 4.0)
-		var cream := Color("fff1d6")
+		_quad(3, 3, W - 3, H - 3, Color("5a3b2c"))
 		var gold := Color("f2c46d")
+		var cream := Color("fff1d6")
+		# bingkai tipis di dalam papan
+		var fr := PackedVector2Array([_p(10, 10), _p(W - 10, 10), _p(W - 10, H - 10), _p(10, H - 10), _p(10, 10)])
+		draw_polyline(fr, Color("f3d9a4"), 3.0, true)
+		# Teks & ikon ditarik dengan transformasi miring yang sama dengan papan (bagian tengah papan).
+		var ox := _p(0, 0)
+		var xa := (_p(W, H * 0.5) - _p(0, H * 0.5)) / W
+		var ya := (_p(W * 0.5, H) - _p(W * 0.5, 0)) / H
+		draw_set_transform_matrix(Transform2D(xa, ya, ox))
 		# cangkir kecil + uap
-		var c := r.position + Vector2(r.size.x / 2.0, 34)
-		draw_rect(Rect2(c + Vector2(-15, -6), Vector2(30, 20)), gold)
-		draw_arc(c + Vector2(17, 4), 7, -PI / 2, PI / 2, 10, gold, 4)
-		draw_line(c + Vector2(-20, 15), c + Vector2(20, 15), gold, 4)
+		var c := Vector2(W / 2.0, 30)
+		draw_rect(Rect2(c + Vector2(-13, -5), Vector2(26, 17)), gold)
+		draw_arc(c + Vector2(15, 3), 6, -PI / 2, PI / 2, 10, gold, 3.5)
+		draw_line(c + Vector2(-17, 13), c + Vector2(17, 13), gold, 3.5)
 		for i in range(2):
-			var x := -6.0 + i * 12.0
-			draw_line(c + Vector2(x, -12), c + Vector2(x + sin(t * 3.0 + i) * 3.0, -24), Color(1, 0.95, 0.85, 0.8), 3)
-		draw_string(font, r.position + Vector2(0, 88), "Cafe", HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 40, cream)
-		draw_string(font, r.position + Vector2(0, 126), "Book", HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 40, gold)
-		draw_set_transform(Vector2.ZERO)
+			var x := -5.0 + i * 10.0
+			draw_line(c + Vector2(x, -10), c + Vector2(x + sin(t * 3.0 + i) * 2.5, -20), Color(1, 0.95, 0.85, 0.8), 2.5)
+		draw_string(font, Vector2(0, 80), "Cafe", HORIZONTAL_ALIGNMENT_CENTER, W, 36, cream)
+		draw_string(font, Vector2(0, 114), "Book", HORIZONTAL_ALIGNMENT_CENTER, W, 36, gold)
+		draw_set_transform_matrix(Transform2D.IDENTITY)

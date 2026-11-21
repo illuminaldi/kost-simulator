@@ -1889,6 +1889,36 @@ func queue_cap() -> int:
 var _desk_say_t := 0.0
 
 
+## Sapaan khusus John setelah Maryam menang padel (sekali per kemenangan, berlaku sampai besoknya).
+func _padel_greet_due() -> bool:
+	if not S.has("side") or not S.staff.get("satpam", false): return false
+	var wd := int(S.side.get("padel_win_day", -99))
+	return int(S.day) - wd <= 1 and int(S.side.get("padel_greet_day", -99)) < wd
+
+
+func _padel_lines() -> Array:
+	var hr := int(S.min) / 60
+	var salam := "Selamat pagi" if hr >= 4 and hr < 11 else ("Selamat siang" if hr < 15 else ("Selamat sore" if hr < 18 else "Selamat malam"))
+	if str(S.side.get("padel_win_foe", "")) == "John":
+		return ["%s, jagoan padel :)" % salam, "Hehe, makasih Pak John! Kapan tanding lagi?", "Kapan-kapan. Tanganku masih pegal kalah kemarin!"]
+	return ["%s, jagoan padel :)" % salam, "Hehe, makasih Pak John!", "Lain kali lawan saya ya, jangan Boy terus."]
+
+
+## Dipanggil saat Maryam pulang ke kost: John menyapa bila Maryam baru menang padel.
+func padel_greet() -> bool:
+	if not _padel_greet_due(): return false
+	var j = npcs.get("staff-satpam")
+	if j == null or not is_instance_valid(j) or j.leaving or j.fade_state != "": return false
+	S.side.padel_greet_day = int(S.side.padel_win_day)
+	var ln := _padel_lines()
+	j.say(ln[0], 3.5)
+	get_tree().create_timer(2.6).timeout.connect(func():
+		keeper_say(ln[1], 3.0)
+		get_tree().create_timer(3.0).timeout.connect(func():
+			if is_instance_valid(j): j.say(ln[2], 3.2)))
+	return true
+
+
 func keeper_say(text: String, dur: float = 3.5) -> void:
 	if npcs.has("keeper"):
 		npcs.keeper.say(text, dur)
@@ -2622,6 +2652,10 @@ func _context_lines(a: Dictionary, b: Dictionary) -> Array:
 		opts.append(CHAT_LONG.cand.pick_random())
 	elif a.kind in ["staff", "worker", "keeper"] and b.kind in ["staff", "worker", "keeper"]:
 		var an := _panggil(a)
+		# John menyapa Maryam "jagoan padel" hanya setelah Maryam menang padel.
+		if str(a.role) == "satpam" and b.kind == "keeper" and _padel_greet_due():
+			S.side.padel_greet_day = int(S.side.padel_win_day)
+			return _padel_lines()
 		if makan: opts.append(["Udah makan, %s?" % bn, "Belum, nanti bareng aja.", "Oke, habis kerjaan ini ya."])
 		if pagi: opts.append(["Pagi, %s! Udah ngopi?" % bn, "Udah dong, biar semangat.", "Mantap!"])
 		if malam: opts.append(["Shift malam lagi, %s?" % bn, "Iya. Kopi dulu biar melek.", "Semangat!"])
