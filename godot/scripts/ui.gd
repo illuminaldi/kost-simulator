@@ -1960,6 +1960,50 @@ class _PengacauIcon extends Control:
 				for i in range(16):
 					var a := TAU * i / 16.0
 					draw_colored_polygon(PackedVector2Array([c + Vector2(cos(a - 0.12), sin(a - 0.12)) * 66, c + Vector2(cos(a), sin(a)) * 88, c + Vector2(cos(a + 0.12), sin(a + 0.12)) * 66]), Color("8f9a35"))
+			"lobster":
+				var red := Color("d8432f")
+				draw_circle(c, 40, red)
+				draw_circle(c + Vector2(0, 50), 30, red)
+				draw_circle(c + Vector2(0, 88), 22, red)
+				draw_circle(c + Vector2(-58, -50), 26, red)
+				draw_circle(c + Vector2(58, -50), 26, red)
+				draw_line(c + Vector2(-20, -30), c + Vector2(-50, -46), red, 10)
+				draw_line(c + Vector2(20, -30), c + Vector2(50, -46), red, 10)
+				draw_circle(c + Vector2(-14, -14), 6, ink)
+				draw_circle(c + Vector2(14, -14), 6, ink)
+			"kardus":
+				for i in range(3):
+					for j in range(3 - i):
+						var r := Rect2(c + Vector2(-80 + j * 54 + i * 27, 40 - i * 46), Vector2(52, 44))
+						draw_rect(r, Color("c99a62"))
+						draw_rect(r, ink, false, 3)
+			"biawak":
+				var pts := PackedVector2Array()
+				for i in range(16):
+					var u := float(i) / 15.0
+					pts.append(c + Vector2(-80 + u * 160, sin(u * 6.0) * 14))
+				draw_polyline(pts, Color("5b6b3a"), 26)
+				draw_circle(c + Vector2(86, 0), 20, Color("5b6b3a"))
+				draw_circle(c + Vector2(92, -6), 4, ink)
+				draw_line(c + Vector2(104, 4), c + Vector2(130, 8), Color("d8432f"), 4)
+			"dupa":
+				for i in range(3):
+					var x := -30.0 + i * 30.0
+					draw_line(c + Vector2(x, 60), c + Vector2(x, 10), Color("7a4b2a"), 4)
+					for s2 in range(4):
+						draw_circle(c + Vector2(x + sin(s2 + i) * 8, -10 - s2 * 26), 10 + s2 * 4, Color(0.8, 0.8, 0.8, 0.45))
+				draw_rect(Rect2(c + Vector2(-70, 60), Vector2(140, 30)), Color("a23a2c"))
+			"hairdryer":
+				draw_circle(c + Vector2(-10, -20), 44, Color("e07ab0"))
+				draw_rect(Rect2(c + Vector2(20, -40), Vector2(60, 40)), Color("e07ab0"))
+				draw_rect(Rect2(c + Vector2(-30, 10), Vector2(30, 80)), Color("c45a90"))
+				draw_colored_polygon(PackedVector2Array([c + Vector2(90, -60), c + Vector2(120, -20), c + Vector2(90, 20)]), Color("f2662f"))
+			"mules":
+				draw_rect(Rect2(c + Vector2(-60, -90), Vector2(120, 180)), Color("b9c7d4"))
+				draw_rect(Rect2(c + Vector2(-60, -90), Vector2(120, 180)), ink, false, 3)
+				draw_circle(c + Vector2(40, 0), 6, ink)
+				for i in range(3):
+					draw_string(ThemeDB.fallback_font, c + Vector2(-50 + i * 30, -100), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 44, Color("d6322f"))
 			"beruang":
 				draw_circle(c + Vector2(-44, -56), 22, Color("7a5132"))
 				draw_circle(c + Vector2(44, -56), 22, Color("7a5132"))

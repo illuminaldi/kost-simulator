@@ -9,7 +9,8 @@ extends Node
 ## durian   : pickup salah kirim sekotak durian, lobi bau seharian.
 
 const GOSONG := "Gosong tersambar petir"
-const LIST := ["beruang", "petir", "maling", "hantu", "durian", "zombie"]   # viral pindah ke Outsource > Influencer
+const LIST := ["beruang", "petir", "maling", "hantu", "durian", "zombie",
+	"lobster", "kardus", "sadap", "biawak", "dupa", "palsu", "qris", "harian", "hairdryer", "mules"]   # viral pindah ke Outsource > Influencer
 const NAMES := {"beruang": "Anak Beruang Nyasar", "petir": "Tersambar Petir", "maling": "Maling Manjat Jendela",
 	"hantu": "Hantu Kamar Kosong", "viral": "Kost Viral!", "durian": "Salah Kirim Durian", "zombie": "Serbuan Zombie?!"}
 # Kaca jendela tiap gambar kamar acuan (px kamar).
@@ -26,6 +27,7 @@ var climber: Node2D
 var _climb_t := 0.0
 var _climb_f := 0
 var _soot := {}          # kamar -> node jelaga
+var onar: Onar           # pengacau di dalam kamar (lobster, kardus, biawak, ...)
 
 
 func setup(g: Node) -> void:
@@ -33,6 +35,7 @@ func setup(g: Node) -> void:
 	S = g.S
 	if not S.has("funny"):
 		S.funny = {"next": 9 + randi() % 6, "last": []}
+	onar = Onar.new(g)
 	restore()
 
 
@@ -48,12 +51,14 @@ func restore() -> void:
 	if f.get("durian_until", -1) >= int(S.day): _show_durian()
 	for id in D.ROOMS:
 		if str(S.rooms[id].get("broken", "")) == GOSONG: _show_soot(id)
+	if onar: onar.restore()
 
 
 # ---------------- Jadwal ----------------
 func daily() -> void:
 	var f: Dictionary = st()
 	influencer_daily()
+	onar.daily()
 	if f.get("ghost", "") != "" and int(S.day) >= int(f.get("ghost_until", 0)):
 		_ghost_gone(false)
 	if f.get("durian_until", -1) >= 0 and int(S.day) > int(f.durian_until):
@@ -69,6 +74,7 @@ func daily() -> void:
 
 
 func _possible(k: String) -> bool:
+	if k in Onar.KEYS: return onar.possible(k)
 	match k:
 		"petir": return game.each_tenant().size() > 0
 		"hantu": return _empty_rooms().size() > 0
@@ -101,6 +107,7 @@ func start(k: String) -> void:
 		"viral": _start_viral()
 		"durian": _start_durian()
 		"zombie": _start_zombie()
+		_: if k in Onar.KEYS: onar.start(k)
 	game.dirty = true
 
 
@@ -128,6 +135,7 @@ func haunted(id: String) -> bool:
 
 
 func tick(dt: float) -> void:
+	onar.tick(dt)
 	if climber != null:
 		_climb_tick(dt)
 	for id in _soot.keys():
@@ -139,6 +147,7 @@ func tick(dt: float) -> void:
 
 ## Ketukan pemain. Koordinat layar (global).
 func tap(p: Vector2) -> bool:
+	if onar.tap(p): return true
 	if climber != null:
 		var lp: Vector2 = p - game.bld.position
 		if Rect2(climber.position + Vector2(-90, -230), Vector2(180, 260)).has_point(lp):
@@ -160,6 +169,7 @@ func tap(p: Vector2) -> bool:
 
 ## Isi halaman pilihan untuk kejadian (dipakai ui._sheet_funny).
 func sheet(k: String) -> Dictionary:
+	if k == "onar": return onar.sheet()
 	match k:
 		"beruang":
 			return {"t": "Anak Beruang di Lobi", "d": "Mpus menghilang... dan di bantalnya malah tidur seekor anak beruang! Calon penyewa takut masuk. Induknya pasti sedang mencari.",

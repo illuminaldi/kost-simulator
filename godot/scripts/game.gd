@@ -3142,7 +3142,7 @@ func spawn_galon() -> void:
 		for e in each_tenant():
 			e[1].tenant.happy = clampf(float(e[1].tenant.happy) + [1.0, 2.0, 3.0][out_lv("galon")], 0, 100)
 		m.work = {"t": 2.2, "pose": "lift", "fn": func(k: Npc):
-			k.art_map["walk"] = "walk2"   # pulang memikul galon kosong
+			k.art_map["walk"] = "pikul"   # pulang memikul galon kosong
 			k.work = {"t": 1.5, "pose": "happy", "fn": func(z: Npc):
 				z.plan("lobby", Vector2(D.OUT_X - 200, D.LOBBY_Y), "stand", func(y: Npc):
 					_remove_npc(y)
@@ -5616,6 +5616,20 @@ func _handle_cli(args: PackedStringArray) -> void:
 		elif a == "--renovtest":
 			S.lvl = 9; S.rep = 5.0; S.money = 99000000.0
 			renovate_floor(9)
+		elif a == "--onartest":
+			get_tree().create_timer(0.5).timeout.connect(func():
+				S.lvl = 8
+				for k in Onar.KEYS:
+					for opt in [0, 1]:
+						funny.onar._end()
+						S.funny.erase("qris_on")
+						funny.start(k)
+						var sh: Dictionary = funny.onar.sheet()
+						if sh.o.size() > opt: sh.o[opt][3].call()
+						funny.onar.daily()
+						funny.onar.daily(); funny.onar.daily(); funny.onar.daily(); funny.onar.daily(); funny.onar.daily()
+						print("ONAR ", k, " opt", opt, " ok money=", int(S.money), " rep=", snappedf(float(S.rep), 0.01))
+				get_tree().quit())
 		elif a.begins_with("--funny="):
 			var fk := a.substr(8)
 			get_tree().create_timer(0.5).timeout.connect(func(): funny.start(fk))
