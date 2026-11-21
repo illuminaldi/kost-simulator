@@ -25,6 +25,9 @@ env:
   BILLING_VERSION: "3.3.0"
   PROJECT_DIR: godot
 
+permissions:
+  contents: write
+
 jobs:
   aab:
     runs-on: ubuntu-latest
@@ -140,3 +143,19 @@ jobs:
           name: CozyKost-aab
           path: ${{ env.PROJECT_DIR }}/build/android/CozyKost.aab
           retention-days: 30
+
+      # Juga dipasang di GitHub Release supaya bisa diunduh langsung sebagai .aab (bukan .zip).
+      - name: Release (unduhan .aab langsung)
+        working-directory: ${{ env.PROJECT_DIR }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CODE=$(grep -m1 "^version/code=" export_presets.cfg | cut -d= -f2)
+          NAME=$(grep -m1 "^version/name=" export_presets.cfg | cut -d= -f2 | tr -d '"')
+          TAG="aab-v${NAME}-${CODE}"
+          cp build/android/CozyKost.aab "build/android/CozyKost-${NAME}-${CODE}.aab"
+          gh release create "$TAG" "build/android/CozyKost-${NAME}-${CODE}.aab" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "Cozy Kost ${NAME} (${CODE})" \
+            --notes "AAB untuk diupload ke Google Play Console. Package: $(grep -m1 '^package/unique_name=' export_presets.cfg | cut -d= -f2)"
+          echo "Unduh: https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/CozyKost-${NAME}-${CODE}.aab"
