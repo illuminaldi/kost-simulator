@@ -2259,6 +2259,48 @@ func _sheet_upgrade() -> void:
 			_row(col, _label("%s (%s) · %s/hari" % [st.nama, st.n, D.short(st.sal)], 30, D.C_INK), sr)
 
 
+## Ringkasan ekonomi kost: perkiraan pemasukan & pengeluaran per hari.
+func _economy_card() -> void:
+	var S: Dictionary = game.S
+	var v := _card()
+	v.add_child(_label("Ekonomi Kost (per hari)", 42))
+	var rent := 0.0
+	for e in game.each_tenant(): rent += game.rent_of(e[1])
+	var fac: float = game._facil_income_est()
+	var sal := 0.0
+	var sal_lines := []
+	for k in S.staff:
+		if S.staff[k] and not D.STAFF[k].get("owner", false):
+			var c: float = game.staff_sal(k) * game.staff_crew(k)
+			sal += c
+			sal_lines.append([D.STAFF[k].nama + (" x%d" % game.staff_crew(k) if game.staff_crew(k) > 1 else ""), c])
+	var sampah := float(D.OUTSRC.sampah.lv[game.out_lv("sampah")].get("fee", 0))
+	var apps := 0.0
+	for k in S.get("apps", {}): apps += roundf(float(D.APPS[k].fee))
+	var util: float = game.each_tenant().size() * 15000.0
+	var inc: float = rent + fac
+	var out: float = sal + sampah + apps + util
+	var green := Color("2f7a2a")
+	var red := Color("9b2f1c")
+	v.add_child(_label("Pemasukan", 34, green, true))
+	_row(v, _label("  Sewa %d kamar terisi" % game.each_tenant().size(), 32, D.C_INK, true), _label("+" + D.rp(rent), 32, green, true))
+	_row(v, _label("  Fasilitas (%d ruang)" % S.facil.size(), 32, D.C_INK, true), _label("+" + D.rp(fac), 32, green, true))
+	v.add_child(_label("Pengeluaran", 34, red, true))
+	_row(v, _label("  Gaji %d karyawan" % sal_lines.size(), 32, D.C_INK, true), _label("-" + D.rp(sal), 32, red, true))
+	for sl in sal_lines:
+		_row(v, _label("      · " + str(sl[0]), 28, D.C_MUTED, true), _label(D.rp(float(sl[1])), 28, D.C_MUTED, true))
+	_row(v, _label("  Listrik & air (Rp 15rb/penghuni)", 32, D.C_INK, true), _label("-" + D.rp(util), 32, red, true))
+	if sampah > 0: _row(v, _label("  Iuran sampah", 32, D.C_INK, true), _label("-" + D.rp(sampah), 32, red, true))
+	if apps > 0: _row(v, _label("  Langganan aplikasi", 32, D.C_INK, true), _label("-" + D.rp(apps), 32, red, true))
+	var net: float = inc - out
+	_row(v, _label("Perkiraan bersih", 36), _label(("+" if net >= 0 else "") + D.rp(net), 38, green if net >= 0 else red))
+	var last = S.get("last")
+	if last is Dictionary:
+		v.add_child(_text("Kemarin (hari %d): masuk %s · keluar %s · bersih %s" % [int(last.day), D.rp(float(last.rent)), D.rp(float(last.salary) + float(last.util) + float(last.other)), D.rp(float(last.net))], 28, D.C_MUTED))
+	var td: Dictionary = S.today
+	v.add_child(_text("Hari ini sejauh ini: masuk %s · keluar %s (termasuk perbaikan, denda & lainnya)" % [D.rp(float(td.rent)), D.rp(float(td.salary) + float(td.util) + float(td.other))], 28, D.C_MUTED))
+
+
 func _sheet_manage() -> void:
 	var S: Dictionary = game.S
 	_header("Kelola " + str(S.get("kost_name", "Kost Harmoni")))
@@ -2290,6 +2332,7 @@ func _sheet_manage() -> void:
 	if fl.size() > 0:
 		v.add_child(_text("Fasilitas: " + ", ".join(fl), 34, D.C_MUTED))
 	_kelolapro_stats(occ, tot)
+	_economy_card()
 	var pv := _card()
 	pv.add_child(_label("Harga sewa", 42))
 	pv.add_child(_text("Murah: penghuni lebih senang & tamu lebih sering. Mahal: untung besar, tapi kurang disukai.", 32, D.C_MUTED))

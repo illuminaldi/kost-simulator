@@ -5518,6 +5518,11 @@ func _handle_cli(args: PackedStringArray) -> void:
 		elif a.begins_with("--funny="):
 			var fk := a.substr(8)
 			get_tree().create_timer(0.5).timeout.connect(func(): funny.start(fk))
+		elif a == "--manage":
+			ui.open_sheet("manage")
+		elif a.begins_with("--sheetscroll="):
+			var sv := int(a.get_slice("=", 1))
+			get_tree().create_timer(1.0).timeout.connect(func(): ui.scroll.scroll_vertical = sv)
 		elif a.begins_with("--stafftab="):
 			ui.staff_tab = a.substr(11)
 		elif a == "--sampah":
