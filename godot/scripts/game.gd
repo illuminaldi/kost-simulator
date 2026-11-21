@@ -102,6 +102,7 @@ func _ready() -> void:
 	apply_volume.call_deferred()
 	if int(S.speed) > 2: S.speed = 2
 	if int(S.speed) == 2 and int(W.turbo_min) <= 0: S.speed = 1
+	_materialize_window(vis_floors())
 	_refresh_world()
 	if not args.has("--fresh"): _offline_gain()
 	for a0 in args:
@@ -380,67 +381,22 @@ func _build_world() -> void:
 	bld = Node2D.new()
 	add_child(bld)
 	_sprite(bld, Rect2(0, 0, D.IW, D.LOBBY_TOP + 40), Vector2.ZERO)
-	# Lantai tambahan (5-8): salinan lantai 3 yang ditumpuk ke atas, lalu atap.
-	for f in range(5, D.TOP_FLOOR + 1):
-		var fy := 242 - (f - 4) * D.EXTRA_PITCH
-		var fs := _sprite(bld, Rect2(0, 627, D.IW, D.EXTRA_PITCH), Vector2(0, fy))
-		fs.modulate = D.floor_tint(f)
-		# Sisi kiri selang-seling: tanaman gantung / langit polos (bukan pohon berulang).
-		if f % 2 == 1:
-			_sprite(bld, Rect2(0, 235, 86, D.EXTRA_PITCH), Vector2(0, fy))
-		else:
-			var sky := _sprite(bld, Rect2(0, 240, 40, 40), Vector2(0, fy))
-			sky.scale = Vector2(86.0 / 40.0, D.EXTRA_PITCH / 40.0)
 	_sprite(bld, Rect2(0, 0, D.IW, 242), Vector2(0, D.BUILDING_TOP))
-	for f in range(1, D.TOP_FLOOR + 1):
-		var src := D.rect_of("1S") if f % 2 == 1 else D.rect_of("3S")
-		var dst := D.rect_of("%dS" % f)
-		var sp := _sprite(bld, src, dst.position)
-		sp.scale = dst.size / src.size
-		# Lapisan cat dinding & lantai ruang tengah
-		var hp := Sprite2D.new()
-		hp.texture = art
-		hp.centered = false
-		hp.region_enabled = true
-		hp.region_rect = src
-		hp.position = dst.position
-		hp.scale = dst.size / src.size
-		hp.visible = false
-		bld.add_child(hp)
-		hall_paint_sp[f] = hp
-	_refresh_hall_paint()
+	# Lantai dibuat "malas": hanya lantai di sekitar layar yang punya node (lihat _materialize).
+	L_bg = Node2D.new(); bld.add_child(L_bg)
+	L_hall = Node2D.new(); bld.add_child(L_hall)
+	L_stairs = Node2D.new(); bld.add_child(L_stairs)
 	stair_nodes = []
-	for f in range(1, D.TOP_FLOOR + 1):
-		var src2 := D.rect_of("1S") if f % 2 == 1 else D.rect_of("3S")
-		var dst2 := D.rect_of("%dS" % f)
-		var st := _Stairs.new()
-		st.variant = 1 if f % 2 == 1 else 3
-		st.position = dst2.position
-		st.scale = dst2.size / src2.size
-		bld.add_child(st)
-		stair_nodes.append(st)
-	_refresh_stairs()
+	stair_nodes.resize(D.TOP_FLOOR)
 	# Balok pemisah lantai 4-5 setebal lantai lain (ilustrasi asli lantai 4 tanpa balok atas).
 	_sprite(bld, Rect2(0, 626, D.IW, 25), Vector2(0, 241))
 	# Ornamen samping gedung: pipa talang + unit AC luar di lantai yang kamarnya pakai AC.
 	var side := _SideDecor.new()
 	side.game = self
 	bld.add_child(side)
-	var rooms_root := Node2D.new()
+	rooms_root = Node2D.new()
 	bld.add_child(rooms_root)
-	for id in D.ROOMS:
-		var fx := RoomFx.new()
-		rooms_root.add_child(fx)
-		fx.setup(self, id, shell_tex, null, font)
-		room_fx[id] = fx
-	for f in range(1, D.TOP_FLOOR + 1):
-		var sp := Sprite2D.new()
-		sp.centered = false
-		var fr := D.facil_rect(f)
-		sp.position = fr.position
-		sp.visible = false
-		bld.add_child(sp)
-		facil_sp[f] = sp
+	L_facil = Node2D.new(); bld.add_child(L_facil)
 	npc_layer = Node2D.new()
 	npc_layer.y_sort_enabled = true
 	bld.add_child(npc_layer)
@@ -521,18 +477,6 @@ func _build_world() -> void:
 	gt.fill_from = Vector2(0.5, 0.5)
 	gt.fill_to = Vector2(1.0, 0.5)
 	_light_tex = gt
-	for id in D.ROOMS:
-		var r := D.rect_of(id)
-		var arr := []
-		# Cahaya di kap lampu meja (perabot lampu).
-		var lt: Texture2D = load(D.furn_tex(id, "lampu", 1))
-		var lr := D.furn_rect(id, "lampu", lt.get_size())
-		arr.append(_mk_light(Vector2(lr.position.x + lr.size.x * (0.58 if D.furn_flip(id) else 0.42), lr.position.y + lr.size.y * 0.16), 120, bld))
-		room_lights[id] = arr
-	for f in range(1, D.TOP_FLOOR + 1):
-		var fr := D.facil_rect(f)
-		var pl := _mk_light(fr.position + Vector2(fr.size.x / 2.0, 70), 95, bld)
-		facil_lights[f] = pl
 	for l in D.STAIR_LAMPS:
 		fixed_lights.append(_mk_light(Vector2(l[0], l[1]), l[2], bld))
 	for l in D.GROUND_LAMPS:
@@ -722,7 +666,7 @@ func lift_send(d: Dictionary) -> void:
 		update_tier(r)
 		sfx("place" if lv == 1 else "upgrade")
 		_refresh_world()
-		room_fx[rid2].pop_item(t)
+		if room_fx.has(rid2): room_fx[rid2].pop_item(t)
 		if r.tenant != null: r.tenant.happy = clampf(float(r.tenant.happy) + 4.0 * lv, 0, 100)
 		float_at(rid2, ("+" + D.FURN[t].n) if lv == 1 else "%s jadi %s!" % [D.FURN[t].n, D.FURN_LV_NAME[lv]], Color("2f7a2a"))
 		add_xp(8 if lv == 1 else 12)
@@ -833,15 +777,14 @@ class _Lift extends Node2D:
 func _refresh_world() -> void:
 	_refresh_hubs()
 	_refresh_lift()
-	for id in D.ROOMS:
+	for id in room_fx:
 		room_fx[id].dekor = dekor
 		room_fx[id].building = job_for(id, "build") != {}
 	_refresh_facil()
 	if app_tablet:
 		app_tablet.visible = has_app("kelolapro")
 		app_banner.visible = has_app("kostterdekat")
-	for id in D.ROOMS:
-		pass
+	for id in room_fx:
 		var ev_id := event_at(id)
 		S.rooms[id]["_ev"] = "" if ev_id.is_empty() else str(ev_id.type)
 		room_fx[id].refresh(S.rooms[id], int(S.lvl), build_cost(), font)
@@ -872,7 +815,7 @@ func _update_light() -> void:
 	canvas_mod.color = _lerp_keys(TINT, h)
 	var gl := glow_level()
 	var vr := _vis_last if _vis_last.y >= 0 else vis_floors()
-	for id in D.ROOMS:
+	for id in room_lights:
 		var r: Dictionary = S.rooms[id]
 		var fid := D.fl(id)
 		var on: bool = fid >= vr.x and fid <= vr.y and gl > 0.02 and r.built and r.tenant != null and r.furn.has("lampu") and str(r.broken) != "Lampu mati" and presence(r.tenant) != "away"
@@ -1363,7 +1306,7 @@ func buy_paint(rid: String, sel: Dictionary) -> void:
 	if r.tenant != null:
 		r.tenant.happy = minf(100.0, float(r.tenant.happy) + 10.0)
 		if npcs.has(r.tenant.id): npcs[r.tenant.id].say("Wah, kamarku jadi cantik!", 2.5)
-	room_fx[rid].paint_preview = {}
+	if room_fx.has(rid): room_fx[rid].paint_preview = {}
 	sfx("upgrade")
 	add_xp(8)
 	ui.toast("Kamar %s didekorasi ulang!" % D.room_name(rid), "gold")
@@ -1486,11 +1429,122 @@ func vis_floors() -> Vector2i:
 
 
 var _vis_last := Vector2i(-1, -1)
+var L_bg: Node2D
+var L_hall: Node2D
+var L_stairs: Node2D
+var L_facil: Node2D
+var rooms_root: Node2D
+var _floor_nodes := {}    # lantai -> [node, ...] yang dibuat untuk lantai itu
+const MAT_PAD := 2        # lantai cadangan di atas/bawah layar yang tetap dibuat
+const MAT_DROP := 4       # lantai di luar jarak ini dibuang dari memori
+
+
+## Buat semua node satu lantai (latar, ruang tangga, tangga, kamar, fasilitas, lampu).
+func _materialize(f: int) -> void:
+	if _floor_nodes.has(f) or f < 1 or f > D.TOP_FLOOR: return
+	var nodes := []
+	if f >= 5:
+		var fy := 242 - (f - 4) * D.EXTRA_PITCH
+		var fs := _sprite(L_bg, Rect2(0, 627, D.IW, D.EXTRA_PITCH), Vector2(0, fy))
+		fs.modulate = D.floor_tint(f)
+		nodes.append(fs)
+		if f % 2 == 1:
+			nodes.append(_sprite(L_bg, Rect2(0, 235, 86, D.EXTRA_PITCH), Vector2(0, fy)))
+		else:
+			var sky := _sprite(L_bg, Rect2(0, 240, 40, 40), Vector2(0, fy))
+			sky.scale = Vector2(86.0 / 40.0, D.EXTRA_PITCH / 40.0)
+			nodes.append(sky)
+	var src := D.rect_of("1S") if f % 2 == 1 else D.rect_of("3S")
+	var dst := D.rect_of("%dS" % f)
+	var hs := _sprite(L_hall, src, dst.position)
+	hs.scale = dst.size / src.size
+	nodes.append(hs)
+	var hp := Sprite2D.new()
+	hp.texture = art
+	hp.centered = false
+	hp.region_enabled = true
+	hp.region_rect = src
+	hp.position = dst.position
+	hp.scale = dst.size / src.size
+	hp.visible = false
+	L_hall.add_child(hp)
+	hall_paint_sp[f] = hp
+	nodes.append(hp)
+	var st := _Stairs.new()
+	st.variant = 1 if f % 2 == 1 else 3
+	st.position = dst.position
+	st.scale = dst.size / src.size
+	st.lv = stair_lv()
+	if hub_nodes.has(f): st.long = HUB_STAIR_LONG
+	L_stairs.add_child(st)
+	stair_nodes[f - 1] = st
+	nodes.append(st)
+	for side in ["L", "R"]:
+		var id := "%d%s" % [f, side]
+		if not S.rooms.has(id) or not D.ROOMS.has(id): continue
+		var fx := RoomFx.new()
+		rooms_root.add_child(fx)
+		fx.setup(self, id, shell_tex, null, font)
+		room_fx[id] = fx
+		nodes.append(fx)
+		fx.dekor = dekor
+		fx.building = job_for(id, "build") != {}
+		var ev_id := event_at(id)
+		S.rooms[id]["_ev"] = "" if ev_id.is_empty() else str(ev_id.type)
+		fx.refresh(S.rooms[id], int(S.lvl), build_cost(), font)
+		fx.set_floor_lock(floor_lock_sign(f))
+		var lt: Texture2D = load(D.furn_tex(id, "lampu", 1))
+		var lr := D.furn_rect(id, "lampu", lt.get_size())
+		var pl := _mk_light(Vector2(lr.position.x + lr.size.x * (0.58 if D.furn_flip(id) else 0.42), lr.position.y + lr.size.y * 0.16), 120, bld)
+		room_lights[id] = [pl]
+		nodes.append(pl)
+		if funny and funny.game and str(S.rooms[id].get("broken", "")) == Funny.GOSONG: funny._show_soot(id)
+	var sp := Sprite2D.new()
+	sp.centered = false
+	sp.position = D.facil_rect(f).position
+	sp.visible = false
+	L_facil.add_child(sp)
+	facil_sp[f] = sp
+	nodes.append(sp)
+	var fr := D.facil_rect(f)
+	var fl := _mk_light(fr.position + Vector2(fr.size.x / 2.0, 70), 95, bld)
+	facil_lights[f] = fl
+	nodes.append(fl)
+	_floor_nodes[f] = nodes
+	_refresh_facil_floor(f)
+	_refresh_hall_paint()
+	_refresh_fire()
+
+
+func _dematerialize(f: int) -> void:
+	if not _floor_nodes.has(f): return
+	for side in ["L", "R"]:
+		var id := "%d%s" % [f, side]
+		room_fx.erase(id)
+		room_lights.erase(id)
+		fire_fx.erase(id)
+		if funny: funny._soot.erase(id)
+	hall_paint_sp.erase(f)
+	facil_sp.erase(f)
+	facil_lights.erase(f)
+	if f - 1 < stair_nodes.size(): stair_nodes[f - 1] = null
+	for n in _floor_nodes[f]:
+		if is_instance_valid(n): n.queue_free()
+	_floor_nodes.erase(f)
+
+
+func _materialize_window(vr: Vector2i) -> void:
+	if vr.y < vr.x: vr = Vector2i(1, 1)
+	for f in range(maxi(1, vr.x - MAT_PAD), mini(D.TOP_FLOOR, vr.y + MAT_PAD) + 1):
+		_materialize(f)
+	for f in _floor_nodes.keys():
+		if f < vr.x - MAT_DROP or f > vr.y + MAT_DROP: _dematerialize(f)
 
 
 ## Hanya lantai yang terlihat (plus 1 di atas & bawah) yang digambar dan dianimasikan.
 func _cull() -> void:
-	if bld == null or OS.get_cmdline_user_args().has("--nocull"): return
+	_cull_acc = 0.0
+	if bld == null: return
 	var top := -scroll - 420.0
 	var bot := D.LOBBY_TOP - scroll + 420.0
 	for n in npcs.values():
@@ -1507,8 +1561,10 @@ func _cull() -> void:
 		if fx.is_processing() != on: fx.set_process(on)
 		if fx.visible != on: fx.visible = on
 	var vr := vis_floors()
+	if vr != _vis_last: _materialize_window(vr)
 	for i in stair_nodes.size():
 		var st: Node2D = stair_nodes[i]
+		if st == null: continue
 		var on2 := i + 1 >= vr.x and i + 1 <= vr.y
 		if st.visible != on2:
 			st.visible = on2
@@ -3178,13 +3234,20 @@ func facil_floor(k: String) -> int:
 
 
 func _refresh_facil() -> void:
-	for f in facil_sp:
+	for f in facil_sp.keys():
+		_refresh_facil_floor(f)
+
+
+func _refresh_facil_floor(f: int) -> void:
+	if true:
+		if not facil_sp.has(f): return
 		var sp: Sprite2D = facil_sp[f]
 		var k: String = S.facil.get(str(f), "")
 		var j := job_for("S%d" % f, "fbuild")
 		if j.is_empty() and k == "":
 			sp.visible = false
-			continue
+			_facil_sign(int(f), "")
+			return
 		var key: String = k if k != "" else str(j.item)
 		var tex: Texture2D = load("res://assets/facil/%s.png" % key)
 		sp.texture = tex
@@ -3954,7 +4017,7 @@ func _finish_job(j: Dictionary) -> void:
 			sfx("place" if int(j.lv) == 1 else "upgrade")
 			var jr: String = j.room
 			var ji: String = j.item
-			(func(): _refresh_world(); room_fx[jr].pop_item(ji)).call_deferred()
+			(func(): _refresh_world(); if room_fx.has(jr): room_fx[jr].pop_item(ji)).call_deferred()
 			if r.tenant != null:
 				r.tenant.happy = clampf(float(r.tenant.happy) + 4.0 * int(j.lv), 0, 100)
 			if int(j.lv) == 1:
@@ -4632,6 +4695,7 @@ func set_scroll(v: float) -> void:
 	scroll = clampf(v, 0.0, max_scroll())
 	bld.position.y = scroll
 	ui.set_scroll(scroll)
+	if _floor_nodes.size() > 0 and vis_floors() != _vis_last: _cull()
 
 
 func room_at(p: Vector2) -> String:
@@ -4808,7 +4872,7 @@ func _end_drag(p: Vector2) -> void:
 	ui.hide_ghost()
 	ui.ghost.material = null
 	ui.show_hints({})
-	for id in D.ROOMS:
+	for id in room_fx:
 		room_fx[id].set_preview("")
 	_hover_room = ""
 	if d.kind == "guest" and npcs.has(d.item):
@@ -4932,7 +4996,7 @@ func _input(e: InputEvent) -> void:
 			if not pan.moved:
 				scroll_v = 0.0
 				var id := room_at(pan.start)
-				if id != "" and room_fx[id].coin_hit(room_fx[id].get_global_transform().affine_inverse() * pan.start):
+				if id != "" and room_fx.has(id) and room_fx[id].coin_hit(room_fx[id].get_global_transform().affine_inverse() * pan.start):
 					collect_due(id)
 				elif id != "":
 					ui.open_sheet("room", id)
@@ -4961,10 +5025,10 @@ func _input(e: InputEvent) -> void:
 				var sf := stair_at(p)
 				id = "S%d" % sf if sf > 0 else ""
 			if id != _hover_room:
-				for rid in D.ROOMS:
+				for rid in room_fx:
 					room_fx[rid].set_preview("")
 				_hover_room = id
-				if id != "" and not id.begins_with("S") and (drag.kind == "furn" or drag.kind == "cargo") and _drop_ok(id) == "":
+				if id != "" and room_fx.has(id) and not id.begins_with("S") and (drag.kind == "furn" or drag.kind == "cargo") and _drop_ok(id) == "":
 					room_fx[id].set_preview(drag.item if drag.kind == "furn" else S.cargo[int(drag.item)])
 			ui.hover_hint(id)
 		get_viewport().set_input_as_handled()
@@ -5652,7 +5716,7 @@ func _handle_cli(args: PackedStringArray) -> void:
 		elif a.begins_with("--stress="):
 			var nf := int(a.get_slice("=", 1))
 			S.seen = true; S.tut = -1; ui.close_sheet()
-			S.lvl = 40; S.money = 2000000000.0; S.speed = 2; W.turbo_min = 99999
+			S.lvl = maxi(40, nf); S.money = 2000000000.0; S.speed = 2; W.turbo_min = 99999
 			S.open_floor = nf - 1
 			for k in D.STAFF: S.staff[k] = true
 			for k in D.FAC: S.fac[k] = true
@@ -5663,6 +5727,9 @@ func _handle_cli(args: PackedStringArray) -> void:
 			S.stair_lv = 4
 			save_game()
 			_refresh_stairs(); _refresh_lift(); _refresh_world(); _sync_npcs()
+			if args.has("--sweep"):
+				var sw := Timer.new(); sw.wait_time = 0.15; sw.autostart = true; add_child(sw)
+				sw.timeout.connect(func(): set_scroll(randf() * max_scroll() if randf() < 0.2 else scroll + randf_range(-900, 900)))
 			var perf_t := Timer.new(); perf_t.wait_time = 4.0; perf_t.autostart = true; add_child(perf_t)
 			perf_t.timeout.connect(func():
 				var vis := 0
@@ -5825,6 +5892,7 @@ func _refresh_stairs() -> void:
 	Npc.stair_mul = float(D.STAIRS[lv].spd)
 	Npc.escalator = lv >= 4
 	for st in stair_nodes:
+		if st == null: continue
 		st.lv = lv
 		st.queue_redraw()
 
@@ -6645,10 +6713,10 @@ func _refresh_hubs() -> void:
 			hn.info = D.hub_info(f)
 			hn.rect = D.rect_of("%dS" % f)
 			bld.add_child(hn)
-			if f - 1 < stair_nodes.size():
+			bld.move_child(hn, L_stairs.get_index())   # tangga tetap di atas lobi
+			if f - 1 < stair_nodes.size() and stair_nodes[f - 1] != null:
 				stair_nodes[f - 1].long = HUB_STAIR_LONG
 				stair_nodes[f - 1].queue_redraw()
-				bld.move_child(hn, stair_nodes[f - 1].get_index())   # tangga hasil upgrade tetap di atas lobi
 			hub_nodes[f] = hn
 		elif not on and hub_nodes.has(f):
 			hub_nodes[f].queue_free()

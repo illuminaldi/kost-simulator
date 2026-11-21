@@ -2101,7 +2101,13 @@ func _hall_live(parent: Control, f: int, sc: float) -> void:
 	if not pp.is_empty():
 		bg.material = D.paint_mat(game.hall_tpl(f), pp, game.art.get_size())
 	c.add_child(bg)
-	var st: Node2D = game.stair_nodes[0].duplicate() if not game.stair_nodes.is_empty() else null
+	var st: Node2D = null
+	for sn in game.stair_nodes:
+		if sn != null:
+			st = sn.duplicate()
+			st.set("long", 0.0)
+			st.visible = true
+			break
 	if st:
 		st.set("variant", 1 if f % 2 == 1 else 3)
 		st.set("lv", game.stair_lv())
