@@ -450,8 +450,11 @@ func _refresh() -> void:
 		_sp.rotation = -0.08 * float(dir)
 		_sp.position.y = -absf(sin(anim * 9.5)) * 4.0 * k
 	elif use_art and pose == "walk" and _has("walk2"):
-		_sp.scale = Vector2.ONE
-		_sp.position.y = -absf(sin(anim * 12.5)) * 3.0 * k
+		# 2 frame bergantian + ayunan badan: naik-turun tiap langkah, sedikit condong ke depan & bergoyang.
+		var ph2 := anim * 4.0 * PI
+		_sp.scale = Vector2(1.0 + absf(sin(ph2)) * 0.015, 1.0 - absf(sin(ph2)) * 0.02)
+		_sp.position.y = -absf(sin(ph2)) * 5.0 * k
+		_sp.rotation = (0.03 + sin(ph2) * 0.025) * float(dir)
 	elif use_art and pose == "walk":
 		# Sprite ilustrasi hanya satu frame: beri ayunan langkah agar terasa berjalan.
 		var ph := anim * 9.0
