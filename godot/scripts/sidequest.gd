@@ -2165,7 +2165,7 @@ class _Ball extends Node2D:
 		draw_arc(p, r, 0, TAU, 20, Color("6b6a20"), 3)
 
 
-## Tombol panah & "Hirup Kopi" (dulu bagian dari ilustrasi).
+## Tombol panah & "Hirup" (dulu bagian dari ilustrasi).
 class _CafeDeco extends Node2D:
 	var font: Font
 	var _mug: Texture2D = null
@@ -2203,7 +2203,7 @@ class _CafeDeco extends Node2D:
 		draw_arc(sr.position + Vector2(130, 62), 12, -PI / 2, PI / 2, 10, Color("6b4430"), 4)
 		draw_rect(Rect2(sr.position + Vector2(82, 46), Vector2(40, 10)), Color("5a3a26"))
 		if font:
-			draw_string(font, sr.position + Vector2(0, 150), "Hirup Kopi", HORIZONTAL_ALIGNMENT_CENTER, sr.size.x, 34, Color.WHITE)
+			draw_string(font, sr.position + Vector2(0, 150), "Hirup", HORIZONTAL_ALIGNMENT_CENTER, sr.size.x, 34, Color.WHITE)
 
 
 ## Properti cafe yang digambar di atas latar: payung, meja, tanaman, bar kopi.
