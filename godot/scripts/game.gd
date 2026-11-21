@@ -83,6 +83,7 @@ func _ready() -> void:
 	sh.code = PLAN_SHADER
 	plan_mat.shader = sh
 	var peek := _load_game_raw()
+	if OS.get_cmdline_user_args().has("--hubdemo"): D.HUB_DEMO = true
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--floors="): peek = {"open_floor": int(a.substr(9)) - 1}
 	D.setup_floors(wanted_top(peek))
@@ -5883,6 +5884,19 @@ func _handle_cli(args: PackedStringArray) -> void:
 		elif a.begins_with("--stafftab="):
 			ui.staff_tab = a.get_slice("=", 1)
 			ui.open_sheet("staff")
+		elif a.begins_with("--jumpf="):
+			var jv := a.get_slice("=", 1)
+			var jf := int(jv.get_slice(":", 0))
+			var jy := float(jv.get_slice(":", 1)) if jv.contains(":") else 1200.0
+			get_tree().create_timer(1.0).timeout.connect(func():
+				jump_to_floor(jf)
+				set_scroll(jy - D.rect_of("%dS" % jf).position.y)
+				await get_tree().process_frame
+				await get_tree().process_frame
+				var r := D.rect_of("%dS" % jf)
+				var ct := get_viewport().get_canvas_transform()
+				var vs := get_viewport().get_visible_rect().size
+				print("JUMPF top=", (ct * bld.to_global(Vector2(0, r.position.y))).y, " bot=", (ct * bld.to_global(Vector2(0, r.end.y))).y, " vp=", vs))
 		elif a == "--hubgal":
 			# Galeri debug: kelima Lobi Langit berdampingan.
 			var cl := CanvasLayer.new(); cl.layer = 50; add_child(cl)

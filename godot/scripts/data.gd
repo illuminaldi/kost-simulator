@@ -586,10 +586,15 @@ static func is_hub(f: int) -> bool:
 	return f >= HUB_EVERY and f % HUB_EVERY == 0
 
 
+## Debug (screenshot toko): lantai 10,20,.. memakai jenis lobi ke-6 dst. berurutan.
+static var HUB_DEMO := false
+
+
 static func hub_info(f: int) -> Dictionary:
 	# Tiap jenis lobi dipakai 10 kali (lt 10-100 parkir, 110-200 tol, dst.), jenis terakhir seterusnya.
 	var i: int = f / HUB_EVERY - 1
 	var ti: int = mini(i / HUB_EVERY, HUBS.size() - 1)
+	if HUB_DEMO: ti = clampi(5 + i, 0, HUBS.size() - 1)
 	var h: Dictionary = HUBS[ti].duplicate()
 	var no: int = i - ti * HUB_EVERY + 1
 	if no > 1: h.n = "%s %d" % [h.n, no]
